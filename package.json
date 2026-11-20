@@ -1,0 +1,43 @@
+{
+  "name": "jarvis-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local agent workspace for Jarvis",
+  "main": "dist-main/main/main.js",
+  "scripts": {
+    "dev": "npm run build:main && concurrently -k \"vite --host 127.0.0.1 --port 5181\" \"wait-on http://127.0.0.1:5181 && node scripts/launch-electron.mjs --dev\"",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build": "npm run build:main && vite build",
+    "package:win": "npm run build && electron-forge package --platform=win32",
+    "make:win": "npm run build && electron-forge make --platform=win32",
+    "smoke:source": "node scripts/smoke-electron.mjs",
+    "smoke:package": "node scripts/smoke-electron.mjs --package",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test": "vitest run",
+    "doctor": "node scripts/doctor.mjs",
+    "setup:hooks": "node scripts/install-hooks.mjs",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "better-sqlite3": "13.2.0",
+    "lucide-react": "0.577.0",
+    "node-pty": "1.2.0-beta.18",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^8.0.1",
+    "@electron-forge/maker-zip": "^8.0.1",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "24.10.0",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.3.0",
+    "concurrently": "9.2.5",
+    "electron": "45.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0",
+    "wait-on": "9.0.3"
+  }
+}
