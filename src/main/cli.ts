@@ -104,6 +104,9 @@ export class SessionRunner {
     const agent = this.store.agent(agentId);
     if (!agent.enabled) throw new Error(`${agent.name} is disabled`);
     if (this.store.latestSession(card.id)?.state === 'running') throw new Error('An agent is already running for this card');
+    if (this.store.projectQueue(project.id).state === 'running' && this.store.activeSessionForProject(project.id)) {
+      throw new Error('In der aktiven Projektwarteschlange läuft bereits ein Agent.');
+    }
     const launcher = resolveAgentLauncher(agent.command);
     if (!launcher) throw new Error(`Agent executable or supported Node shim not found: ${agent.command}`);
     const prompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();

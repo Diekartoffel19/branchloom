@@ -1,0 +1,13 @@
+# Automatische To-Do-Warteschlange
+
+Die Warteschlange ist pro Projekt standardmäßig **aus**. Auf der Workflow-Seite wählt der Nutzer eine vorhandene Workflow-Route als Vorlage und aktiviert die Queue ausdrücklich. Danach nimmt sie freie, nicht archivierte Karten aus der Spalte **To Do** in Board-Reihenfolge. Karten, die bereits zu einem Workflow gehören, werden nicht erneut eingeplant. Für jede gewählte Karte erstellt Jarvis Studio atomar einen eigenen Workflow mit den Schritten der Vorlage. Die Vorlage selbst bleibt unverändert. Neue To-Do-Karten können aufgenommen werden, solange die Queue aktiv ist.
+
+Solange die Queue aktiv ist, läuft höchstens eine Agentensitzung pro Projekt. Auch ein manueller Start wird dann abgewiesen, solange dort ein anderer Agent läuft. Bei ausgeschalteter Queue können Nutzer weiterhin unterschiedliche Karten parallel bearbeiten. Ein Schritt mit erforderlicher Freigabe, ein manueller Schritt, ein Agentenfehler oder ein fehlender finaler Abschlussmarker pausiert den Workflow und die Queue. Die nächste Karte startet dann nicht. Die Workflow-Ansicht zeigt den Grund und den aktiven Ablauf.
+
+**Pausieren stoppt einen laufenden Agenten**, erhält aber Karten, Protokolle und Dateien. Vor Fortsetzung eines unterbrochenen Schritts muss der Nutzer den aktiven Workflow prüfen und ihn dort ausdrücklich erneut starten. Danach kann er die Queue erneut aktivieren. Das gilt auch nach einem App-Neustart: vorher laufende Sitzungen werden als fehlgeschlagen markiert, Workflows und Queue bleiben pausiert. Es gibt keinen automatischen Replay und kein automatisches Wiederholen einer möglicherweise bereits ausgeführten externen Aktion.
+
+Ein WLAN-Ausfall wird nicht selbst als Ereignis erkannt. Wenn dadurch der CLI-Prozess fehlschlägt oder endet, pausiert die Queue über den Workflow-Fehlerpfad. Ein CLI-Prozess, der trotz Ausfall weiterläuft oder selbst wieder verbindet, bleibt in der bestehenden Sitzung. Die Queue selbst pusht keine Git-Änderungen und versendet nichts; ein konfigurierter CLI-Agent hat aber weiterhin die Rechte seines Benutzerkontos. Agentenaktionen müssen deshalb über die vorhandenen Agenten- und Projektregeln begrenzt werden.
+
+Die Queue-Einstellung und die Zuordnung Karte → Workflow liegen in der lokalen SQLite-Datenbank im Electron-`userData`-Ordner, nicht im Repository. Die Queue löscht keine Workflow-Historie und startet eine bereits zugeordnete Karte nicht nochmals automatisch.
+
+Gezielte Prüfung im Quell-Repository: `npx vitest run tests/main/queue.test.ts`. Die Tests verwenden ausschließlich synthetische Projekte und einen kontrollierten Test-Runner; der vollständige CLI-Pfad wird zusätzlich von den allgemeinen PTY-Tests geprüft.

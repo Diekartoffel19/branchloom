@@ -2,11 +2,12 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentPreset, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
+import type { AgentPreset, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { StudioStore } from './store';
+import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
 import { proposeWorkflow } from './workflow-planner';
 import { transcribeAudio } from './voice/transcribe';
@@ -27,10 +28,15 @@ function mustStore(): StudioStore {
 function installIpc(): void {
   const db = mustStore();
   let workflowEngine: WorkflowEngine;
+  let queueEngine: ProjectQueueEngine;
   runner = new SessionRunner(db, (event: SessionEvent) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:session-event', event);
-  }, (session, finalMessage) => workflowEngine.onSessionFinished(session, finalMessage));
+  }, (session, finalMessage) => {
+    workflowEngine.onSessionFinished(session, finalMessage);
+    queueEngine.onSessionFinished(session);
+  });
   workflowEngine = new WorkflowEngine(db, runner);
+  queueEngine = new ProjectQueueEngine(db, workflowEngine);
 
   const bind = <K extends keyof StudioAPI>(name: K, handler: (...args: never[]) => unknown): void => {
     ipcMain.handle(`studio:${String(name)}`, (event, ...args: unknown[]) => {
@@ -43,9 +49,17 @@ function installIpc(): void {
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
   bind('createColumn', (input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null }) => db.createColumn(input));
   bind('updateColumn', (input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null }) => db.updateColumn(input));
-  bind('createCard', (input: { projectId: string; columnId: string; title: string; description?: string }) => db.createCard(input));
+  bind('createCard', (input: { projectId: string; columnId: string; title: string; description?: string }) => {
+    const card = db.createCard(input);
+    queueEngine.onBoardChanged(card.projectId);
+    return card;
+  });
   bind('updateCard', (input: { id: string; title?: string; description?: string }) => db.updateCard(input));
-  bind('setCardArchived', (input: { id: string; archived: boolean }) => db.setCardArchived(input));
+  bind('setCardArchived', (input: { id: string; archived: boolean }) => {
+    const card = db.setCardArchived(input);
+    queueEngine.onBoardChanged(card.projectId);
+    return card;
+  });
   bind('moveCard', (input: { id: string; columnId: string }) => {
     const before = db.card(input.id);
     const moved = db.moveCard(input);
@@ -58,6 +72,7 @@ function installIpc(): void {
         throw error;
       }
     }
+    queueEngine.onBoardChanged(moved.projectId);
     return moved;
   });
   bind('agents', () => db.agents());
@@ -66,9 +81,19 @@ function installIpc(): void {
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('sendSession', (input: { sessionId: string; text: string }) => runner?.send(input));
   bind('resizeSession', (input: { sessionId: string; cols: number; rows: number }) => runner?.resize(input));
-  bind('stopSession', (sessionId: string) => runner?.stop(sessionId));
+  bind('stopSession', (sessionId: string) => {
+    runner?.stop(sessionId);
+    const stopped = db.session(sessionId);
+    workflowEngine.onSessionFinished(stopped);
+    queueEngine.onSessionFinished(stopped);
+  });
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
-  bind('setWorkflowState', (input: { id: string; state: WorkflowState }) => workflowEngine.setState(input));
+  bind('setWorkflowState', (input: { id: string; state: WorkflowState }) => {
+    const workflow = workflowEngine.setState(input);
+    queueEngine.onBoardChanged(workflow.projectId);
+    return workflow;
+  });
+  bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));
   bind('proposeWorkflow', (input: { projectId: string; request: string }) => proposeWorkflow(db, input));

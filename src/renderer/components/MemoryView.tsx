@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, Eye, Link2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import type { MemoryNote, ProjectSnapshot } from '../../shared/types';
 import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../memory-graph';
-import { MemoryMarkdown } from '../memory-markdown';
+import { MemoryMarkdown, memoryMarkdownFileName, parseMemoryMarkdownFile, serializeMemoryNote } from '../memory-markdown';
 import type { Mutate } from './shared';
 import '../memory.css';
 
@@ -14,6 +14,8 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const [draft, setDraft] = useState({ title: '', body: '', tags: '' });
   const [newNote, setNewNote] = useState(false);
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const notes = useMemo(() => [...snapshot.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snapshot.notes]);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
   const shown = useMemo(() => notes.filter((note) => `${note.title} ${note.body} ${note.tags.join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [notes, query]);
@@ -58,11 +60,46 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     if (removed !== null) { setSelectedId(null); setNewNote(false); }
   }
 
+  async function importMarkdown(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    try {
+      if (!/\.md$/i.test(file.name) || file.size > 500_000) throw new Error('Bitte eine Markdown-Datei bis 500 KB auswählen.');
+      const parsed = parseMemoryMarkdownFile(file.name, await file.text());
+      setSelectedId(null);
+      setNewNote(true);
+      setMode('edit');
+      setDraft({ title: parsed.title, body: parsed.body, tags: parsed.tags.join(', ') });
+      setImportError('');
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }
+
+  function exportMarkdown() {
+    if (!selected) return;
+    const blob = new Blob([serializeMemoryNote(selected)], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = memoryMarkdownFileName(selected.title);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
+
   return <div className="standard-page memory-page">
     <div className="view-header">
       <div><div className="eyebrow">VERKNÜPFTES WISSEN</div><h2>Dein Memory</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
-      <button className="primary-button" type="button" onClick={beginNew}><Plus size={17} /> Neue Notiz</button>
+      <div className="memory-header-actions">
+        <input ref={fileInputRef} className="sr-only" type="file" accept=".md,text/markdown" aria-label="Markdown-Datei auswählen" onChange={(event) => void importMarkdown(event)} />
+        <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} /> Markdown importieren</button>
+        <button className="primary-button" type="button" onClick={beginNew}><Plus size={17} /> Neue Notiz</button>
+      </div>
     </div>
+    {importError ? <p className="inline-error" role="alert">{importError}</p> : null}
     <div className="memory-layout">
       <aside className="memory-list">
         <label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Memory durchsuchen…" aria-label="Memory durchsuchen" /></label>
@@ -77,6 +114,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
             <span>{newNote ? 'NEUE NOTIZ' : mode === 'preview' ? 'NOTIZ ANSEHEN' : 'NOTIZ BEARBEITEN'}</span>
             <div>
               {selected ? <button className="secondary-button small" type="button" onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}>{mode === 'preview' ? <Pencil size={14} /> : <Eye size={14} />}{mode === 'preview' ? 'Bearbeiten' : 'Vorschau'}</button> : null}
+              {selected && mode === 'preview' ? <button className="secondary-button small" type="button" onClick={exportMarkdown}><Download size={14} /> .md</button> : null}
               {selected ? <button className="icon-button danger-icon" type="button" aria-label="Notiz löschen" onClick={() => void remove()}><Trash2 size={17} /></button> : null}
             </div>
           </div>

@@ -13,6 +13,7 @@ const mocked = vi.hoisted(() => ({
   permissionCheckHandler: null as null | (() => boolean),
   downloadHandler: null as null | ((event: { preventDefault(): void }) => void),
   removedDownloadHandler: null as null | ((event: { preventDefault(): void }) => void),
+  menus: [] as unknown[],
 }));
 
 vi.mock('electron', async () => {
@@ -56,6 +57,10 @@ vi.mock('electron', async () => {
   }
   return {
     WebContentsView: FakeView,
+    Menu: { buildFromTemplate: (template: unknown) => {
+      mocked.menus.push(template);
+      return { popup: vi.fn() };
+    } },
     session: { fromPartition: () => ({
       setPermissionRequestHandler: (handler: typeof mocked.permissionRequestHandler) => { mocked.permissionRequestHandler = handler; },
       setPermissionCheckHandler: (handler: typeof mocked.permissionCheckHandler) => { mocked.permissionCheckHandler = handler; },
@@ -198,5 +203,33 @@ describe('isolated embedded browser', () => {
     } finally {
       rmSync(path, { recursive: true, force: true });
     }
+  });
+
+  it('opens a safe page link only after the explicit context-menu action', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    browser.setBounds({ x: 0, y: 0, width: 700, height: 500 });
+    browser.setVisible(true);
+    await browser.navigate('https://source.test/');
+    const sourceId = browser.state().activeTabId;
+    const view = mocked.views.at(-1) as { webContents: EventEmitter & { windowOpenHandler: () => { action: string } } };
+    const menuCount = mocked.menus.length;
+    view.webContents.emit('context-menu', {}, { linkURL: 'file:///C:/private.txt' });
+    view.webContents.emit('context-menu', {}, { linkURL: '' });
+    expect(mocked.menus).toHaveLength(menuCount);
+    view.webContents.emit('context-menu', {}, { linkURL: 'https://destination.test/page' });
+    expect(mocked.menus).toHaveLength(menuCount + 1);
+    expect(browser.state().tabs).toHaveLength(1);
+    const [item] = mocked.menus.at(-1) as Array<{ label: string; enabled: boolean; click: () => void }>;
+    expect(item?.label).toBe('Link in neuem Tab öffnen');
+    expect(item?.enabled).toBe(true);
+    item?.click();
+    await Promise.resolve();
+    expect(browser.state().tabs).toHaveLength(2);
+    expect(browser.state().activeTabId).not.toBe(sourceId);
+    expect(browser.state().url).toBe('https://destination.test/page');
+    expect(view.webContents.windowOpenHandler().action).toBe('deny');
+    view.webContents.emit('context-menu', {}, { linkURL: 'https://other.test/' });
+    expect(mocked.menus).toHaveLength(menuCount + 1);
+    browser.dispose();
   });
 });

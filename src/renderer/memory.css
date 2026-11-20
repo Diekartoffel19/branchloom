@@ -1,3 +1,6 @@
+.memory-header-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.memory-header-actions .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media(max-width:600px){.memory-header-actions{align-items:stretch}.memory-header-actions button{justify-content:center}}
 .memory-modebar{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#69c9c0;letter-spacing:.12em;font-size:10px;font-weight:750;margin-bottom:18px}
 .memory-modebar>div{display:flex;align-items:center;gap:8px}
 .memory-preview{min-height:220px;color:#dce8f0;overflow-wrap:anywhere}

@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { MemoryNote } from '../../src/shared/types';
-import { MemoryMarkdown, parseMemoryBlocks } from '../../src/renderer/memory-markdown';
+import { MemoryMarkdown, memoryMarkdownFileName, parseMemoryBlocks, parseMemoryMarkdownFile, serializeMemoryNote } from '../../src/renderer/memory-markdown';
 
 const note: MemoryNote = {
   id: 'linked', projectId: 'project', title: 'Entscheidung', body: '',
@@ -10,6 +10,18 @@ const note: MemoryNote = {
 };
 
 describe('Memory Markdown preview', () => {
+  it('exports a note as Obsidian-compatible Markdown and imports it into an editable draft', () => {
+    const source = { ...note, title: 'Plan: Herbst', body: 'Absatz mit [[Entscheidung]].', tags: ['Idee', 'Wichtig'] };
+    const file = serializeMemoryNote(source);
+    expect(memoryMarkdownFileName(source.title)).toBe('Plan_ Herbst.md');
+    expect(parseMemoryMarkdownFile('Plan_ Herbst.md', file)).toEqual({
+      title: source.title, body: source.body, tags: source.tags,
+    });
+    expect(memoryMarkdownFileName('CON')).toBe('Notiz.md');
+    expect(parseMemoryMarkdownFile('Eigene Notiz.md', 'Nur Text')).toEqual({ title: 'Eigene Notiz', body: 'Nur Text', tags: [] });
+    expect(parseMemoryMarkdownFile('fallback.md', '# Überschrift\nDirekt darunter')).toEqual({ title: 'Überschrift', body: 'Direkt darunter', tags: [] });
+  });
+
   it('parses headings, list items, quotes, paragraphs and fenced code without executing markup', () => {
     expect(parseMemoryBlocks('# Plan\n\n- eins\n- zwei\n\n> Zitat\n\nText\n\n```js\nconst x = 1;\n```')).toEqual([
       { kind: 'heading', level: 1, text: 'Plan' },

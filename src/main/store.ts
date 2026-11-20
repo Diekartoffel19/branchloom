@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, Card, Column, MemoryNote, Project, ProjectSnapshot, Session, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentPreset, Card, Column, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 
@@ -32,6 +32,7 @@ interface SessionRow { id: string; project_id: string; card_id: string; agent_id
 export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
 interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
+interface QueueRow { project_id: string; state: QueueState; template_workflow_id: string | null; active_workflow_id: string | null; pause_reason: string | null; updated_at: string }
 interface NoteRow { id: string; project_id: string; title: string; body: string; tags_json: string; links_json: string; created_at: string; updated_at: string }
 
 const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, path: row.path, createdAt: row.created_at });
@@ -65,6 +66,8 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS trello_imports (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_id TEXT NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, imported_at TEXT NOT NULL, PRIMARY KEY (project_id, source_id));
       CREATE TABLE IF NOT EXISTS card_worktrees (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_root TEXT NOT NULL, path TEXT NOT NULL UNIQUE, branch TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS project_queues (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, state TEXT NOT NULL, template_workflow_id TEXT REFERENCES workflows(id), active_workflow_id TEXT REFERENCES workflows(id), pause_reason TEXT, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS queue_runs (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL UNIQUE REFERENCES workflows(id) ON DELETE CASCADE, PRIMARY KEY (project_id, card_id));
       CREATE INDEX IF NOT EXISTS idx_columns_project ON columns(project_id, position);
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
       CREATE INDEX IF NOT EXISTS idx_sessions_card ON sessions(card_id, started_at DESC);
@@ -89,6 +92,7 @@ export class StudioStore {
       .run(now(), '\n[Jarvis Studio restarted; this session was not replayed.]\n');
     this.db.prepare("UPDATE workflows SET state = 'paused', updated_at = ? WHERE state = 'running'").run(now());
     this.db.prepare("UPDATE workflow_progress SET state = 'needs_review' WHERE state = 'running'").run();
+    this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.', updated_at = ? WHERE state = 'running'").run(now());
   }
 
   close(): void { this.db.close(); }
@@ -118,7 +122,50 @@ export class StudioStore {
       sessions: (this.db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY started_at DESC LIMIT 200').all(projectId) as SessionRow[]).map(session),
       workflows: (this.db.prepare('SELECT * FROM workflows WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as WorkflowRow[]).map((row) => this.hydrateWorkflow(row)),
       notes: (this.db.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY updated_at DESC').all(projectId) as NoteRow[]).map(note),
+      queue: this.projectQueue(projectId),
     };
+  }
+
+  projectQueue(projectId: string): ProjectQueue {
+    this.project(projectId);
+    const row = this.db.prepare('SELECT * FROM project_queues WHERE project_id = ?').get(projectId) as QueueRow | undefined;
+    const completedCount = (this.db.prepare("SELECT COUNT(*) AS count FROM queue_runs q JOIN workflows w ON w.id = q.workflow_id WHERE q.project_id = ? AND w.state = 'done' AND w.current_step >= json_array_length(w.steps_json)").get(projectId) as { count: number }).count;
+    return row ? { projectId, state: row.state, templateWorkflowId: row.template_workflow_id, activeWorkflowId: row.active_workflow_id, pauseReason: row.pause_reason, completedCount, updatedAt: row.updated_at }
+      : { projectId, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount, updatedAt: null };
+  }
+  saveProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null }): ProjectQueue {
+    this.project(input.projectId);
+    if (!['off', 'running', 'paused'].includes(input.state)) throw new Error('Ungültiger Warteschlangen-Status.');
+    if (input.templateWorkflowId && this.workflow(input.templateWorkflowId).projectId !== input.projectId) throw new Error('Workflow-Vorlage gehört zu einem anderen Projekt.');
+    if (input.activeWorkflowId && this.workflow(input.activeWorkflowId).projectId !== input.projectId) throw new Error('Aktiver Workflow gehört zu einem anderen Projekt.');
+    this.db.prepare('INSERT INTO project_queues (project_id, state, template_workflow_id, active_workflow_id, pause_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET state=excluded.state, template_workflow_id=excluded.template_workflow_id, active_workflow_id=excluded.active_workflow_id, pause_reason=excluded.pause_reason, updated_at=excluded.updated_at').run(input.projectId, input.state, input.templateWorkflowId, input.activeWorkflowId, input.pauseReason, now());
+    return this.projectQueue(input.projectId);
+  }
+  activeSessionForProject(projectId: string): Session | null {
+    const row = this.db.prepare("SELECT * FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1").get(projectId) as SessionRow | undefined;
+    return row ? session(row) : null;
+  }
+  nextQueueCard(projectId: string): Card | null {
+    const snapshot = this.snapshot(projectId);
+    const todo = snapshot.columns.find((item) => item.name.trim().toLowerCase() === 'to do');
+    if (!todo) throw new Error('Für die Warteschlange fehlt eine To-Do-Spalte.');
+    const linked = new Set(snapshot.workflows.flatMap((item) => item.cardIds));
+    const claimed = new Set((this.db.prepare('SELECT card_id FROM queue_runs WHERE project_id = ?').all(projectId) as Array<{ card_id: string }>).map((item) => item.card_id));
+    return snapshot.cards.filter((item) => item.columnId === todo.id && !item.archivedAt && !linked.has(item.id) && !claimed.has(item.id)).sort((a, b) => a.position - b.position)[0] ?? null;
+  }
+  claimQueueCard(projectId: string, cardId: string, templateWorkflowId: string): Workflow {
+    return this.db.transaction(() => {
+      const queue = this.projectQueue(projectId);
+      if (queue.state !== 'running' || queue.activeWorkflowId || queue.templateWorkflowId !== templateWorkflowId) throw new Error('Warteschlange ist nicht bereit.');
+      if (this.nextQueueCard(projectId)?.id !== cardId) throw new Error('Karte ist nicht die nächste freie To-Do-Karte.');
+      const template = this.workflow(templateWorkflowId);
+      if (template.projectId !== projectId) throw new Error('Workflow-Vorlage gehört zu einem anderen Projekt.');
+      const card = this.card(cardId);
+      const flow = this.createWorkflow({ projectId, name: `${template.name}: ${card.title}`.slice(0, 200), cardIds: [cardId], steps: template.steps.map((step) => ({ ...step, id: randomUUID() })) });
+      this.db.prepare('INSERT INTO queue_runs (project_id, card_id, workflow_id) VALUES (?, ?, ?)').run(projectId, cardId, flow.id);
+      this.saveProjectQueue({ projectId, state: 'running', templateWorkflowId, activeWorkflowId: flow.id, pauseReason: null });
+      return flow;
+    })();
   }
 
   column(id: string): Column { return column(required(this.db.prepare('SELECT * FROM columns WHERE id = ?').get(id) as ColumnRow | undefined, 'Column not found')); }

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Card, ProjectSnapshot } from '../../src/shared/types';
 import { filterBoardCards } from '../../src/renderer/board-filters';
-import { BoardView } from '../../src/renderer/components/BoardView';
+import { BoardView, isMoveShortcut, moveDestinations } from '../../src/renderer/components/BoardView';
 import { CardPanel } from '../../src/renderer/components/CardPanel';
 
 const stamp = '2026-01-01T00:00:00.000Z';
@@ -13,6 +13,20 @@ const cards: Card[] = [
 ];
 
 describe('board filters and archive visibility', () => {
+  it('offers keyboard moves only for active cards and ignores modified shortcuts', () => {
+    const columns = [
+      { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null },
+      { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: true, agentId: 'agent' },
+    ];
+    expect(moveDestinations(columns, cards[0]!).map((column) => column.id)).toEqual(['done']);
+    expect(moveDestinations(columns, cards[1]!)).toEqual([]);
+    expect(moveDestinations(columns.slice(0, 1), cards[0]!)).toEqual([]);
+    expect(isMoveShortcut({ key: 'm', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false })).toBe(true);
+    expect(isMoveShortcut({ key: 'M', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false })).toBe(true);
+    expect(isMoveShortcut({ key: 'm', altKey: false, ctrlKey: true, metaKey: false, shiftKey: false })).toBe(false);
+    expect(isMoveShortcut({ key: 'Enter', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false })).toBe(false);
+  });
+
   it('filters by text, column and archive state without removing stored cards', () => {
     expect(filterBoardCards(cards, { query: '', columnId: '', visibility: 'active' }).map((card) => card.id)).toEqual(['active']);
     expect(filterBoardCards(cards, { query: 'historie', columnId: '', visibility: 'all' }).map((card) => card.id)).toEqual(['archived']);
@@ -36,6 +50,11 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('Archiv (1)');
     expect(html).toContain('Karten suchen');
     expect(html).toContain('Spalte filtern');
+    expect(html).toContain('role="search"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('aria-keyshortcuts="M"');
+    expect(html).toContain('Verschieben');
+    expect(html).toContain('Karte „Aktive Suche“ in „To Do“ öffnen');
     const archived = renderToStaticMarkup(createElement(CardPanel, { card: cards[1]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(archived).toContain('Wiederherstellen');
     expect(archived).toContain('ARCHIVIERT');

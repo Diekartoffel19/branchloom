@@ -1,5 +1,6 @@
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
+export type QueueState = 'off' | 'running' | 'paused';
 
 export interface Project { id: string; name: string; path: string; createdAt: string }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null }
@@ -9,10 +10,11 @@ export interface AgentDetection { kind: AgentPreset['kind']; command: string; av
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean }
 export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; createdAt: string; updatedAt: string }
+export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null }
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
 export interface MemoryNote { id: string; projectId: string; title: string; body: string; tags: string[]; links: string[]; createdAt: string; updatedAt: string }
-export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[] }
+export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
 export interface BrowserTabState { id: string; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
@@ -40,6 +42,7 @@ export interface StudioAPI {
   stopSession(sessionId: string): Promise<void>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;
+  setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;
   proposeWorkflow(input: { projectId: string; request: string }): Promise<WorkflowProposal>;

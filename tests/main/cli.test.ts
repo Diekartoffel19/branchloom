@@ -7,7 +7,17 @@ import { resolveAgentLauncher, SessionRunner } from '../../src/main/cli';
 import { StudioStore } from '../../src/main/store';
 
 const roots: string[] = [];
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  for (const root of roots.splice(0)) {
+    try { rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); }
+    catch (error) {
+      // ConPTY can briefly retain handles after child.kill() on Windows.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (process.platform !== 'win32' || !['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(code ?? '')) throw error;
+    }
+  }
+});
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'jarvis-studio-pty-'));
@@ -44,6 +54,21 @@ describe('real CLI PTY', () => {
     const session = runner.start({ cardId: card.id, agentId: agent.id, prompt: '' });
     runner.stop(session.id);
     expect(store.session(session.id).state).toBe('stopped');
+    runner.dispose();
+    store.close();
+  });
+
+  it('allows parallel manual cards while the project queue is off', () => {
+    const { store, card } = fixture();
+    const second = store.createCard({ projectId: card.projectId, columnId: card.columnId, title: 'Another manual task' });
+    const agent = store.saveAgent({ name: 'Waiting fixture', kind: 'custom', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], model: null, enabled: true });
+    const runner = new SessionRunner(store, () => undefined, () => undefined);
+    const firstRun = runner.start({ cardId: card.id, agentId: agent.id, prompt: '' });
+    const secondRun = runner.start({ cardId: second.id, agentId: agent.id, prompt: '' });
+    expect(store.session(firstRun.id).state).toBe('running');
+    expect(store.session(secondRun.id).state).toBe('running');
+    runner.stop(firstRun.id);
+    runner.stop(secondRun.id);
     runner.dispose();
     store.close();
   });

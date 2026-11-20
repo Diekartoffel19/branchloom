@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { session, WebContentsView, type BrowserWindow, type Session } from 'electron';
+import { Menu, session, WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type { BrowserBounds, BrowserState, BrowserTabState } from '../shared/types';
 import { clampBrowserBounds, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
 import { BrowserSessionPersistence, MAX_BROWSER_TABS } from './browser-persistence';
@@ -177,6 +177,15 @@ export class StudioBrowser {
       }
     });
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    contents.on('context-menu', (_event, params) => {
+      const link = params.linkURL;
+      if (!this.visible || tab.id !== this.activeTabId || !isSafeBrowserUrl(link)) return;
+      Menu.buildFromTemplate([{
+        label: 'Link in neuem Tab öffnen',
+        enabled: this.tabs.length < MAX_BROWSER_TABS,
+        click: () => { void this.openLinkInNewTab(link); },
+      }]).popup({ window: this.window });
+    });
     contents.on('will-navigate', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
     contents.on('will-redirect', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
     contents.on('did-navigate', () => { tab.error = null; this.schedulePersist(); this.publish(); });
@@ -194,6 +203,14 @@ export class StudioBrowser {
   private detach(tab: Tab): void {
     if (!this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
     if (this.attachedTabId === tab.id) this.attachedTabId = null;
+  }
+
+  private async openLinkInNewTab(address: string): Promise<void> {
+    // Validate again at click time; a menu can stay open while tabs or pages change.
+    const url = normalizeBrowserAddress(address);
+    if (this.tabs.length >= MAX_BROWSER_TABS || this.disposed) return;
+    this.newTab();
+    await this.navigate(url);
   }
 
   private layout(): void {

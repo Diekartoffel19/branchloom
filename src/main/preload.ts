@@ -22,6 +22,7 @@ const studio: StudioAPI = {
   stopSession: (id) => invoke('stopSession', id),
   createWorkflow: (input) => invoke('createWorkflow', input),
   setWorkflowState: (input) => invoke('setWorkflowState', input),
+  setProjectQueue: (input) => invoke('setProjectQueue', input),
   workflowAgentSettings: () => invoke('workflowAgentSettings'),
   saveWorkflowAgentSettings: (input) => invoke('saveWorkflowAgentSettings', input),
   proposeWorkflow: (input) => invoke('proposeWorkflow', input),
