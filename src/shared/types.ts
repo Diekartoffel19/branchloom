@@ -3,7 +3,7 @@ export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
 
 export interface Project { id: string; name: string; path: string; createdAt: string }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null }
-export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; position: number; createdAt: string; updatedAt: string }
+export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
@@ -30,11 +30,13 @@ export interface StudioAPI {
   createCard(input: { projectId: string; columnId: string; title: string; description?: string }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string }): Promise<Card>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;
+  setCardArchived(input: { id: string; archived: boolean }): Promise<Card>;
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   sendSession(input: { sessionId: string; text: string }): Promise<void>;
+  resizeSession(input: { sessionId: string; cols: number; rows: number }): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentPreset, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
+import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { StudioStore } from './store';
 import { WorkflowEngine } from './workflows';
@@ -44,6 +45,7 @@ function installIpc(): void {
   bind('updateColumn', (input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null }) => db.updateColumn(input));
   bind('createCard', (input: { projectId: string; columnId: string; title: string; description?: string }) => db.createCard(input));
   bind('updateCard', (input: { id: string; title?: string; description?: string }) => db.updateCard(input));
+  bind('setCardArchived', (input: { id: string; archived: boolean }) => db.setCardArchived(input));
   bind('moveCard', (input: { id: string; columnId: string }) => {
     const before = db.card(input.id);
     const moved = db.moveCard(input);
@@ -63,6 +65,7 @@ function installIpc(): void {
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('sendSession', (input: { sessionId: string; text: string }) => runner?.send(input));
+  bind('resizeSession', (input: { sessionId: string; cols: number; rows: number }) => runner?.resize(input));
   bind('stopSession', (sessionId: string) => runner?.stop(sessionId));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
   bind('setWorkflowState', (input: { id: string; state: WorkflowState }) => workflowEngine.setState(input));
@@ -112,7 +115,7 @@ function createWindow(): void {
     if (window && !window.isDestroyed()) window.webContents.send('studio:browser-state', state);
   }, () => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:browser-search-shortcut');
-  });
+  }, new BrowserSessionPersistence(app.getPath('userData')));
   // `npm start` runs the built renderer from source, while `npm run dev`
   // explicitly opts into Vite. Electron's app.isPackaged is false in both
   // source modes, so it cannot decide this on its own.

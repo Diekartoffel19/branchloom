@@ -1,30 +1,29 @@
 # Status
 
-Stand: 20.11.2026, 23:30 Uhr (Europe/Berlin). Dieses Dokument beschreibt den geprüften Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 00:05 Uhr (Europe/Berlin). Dies ist der geprüfte Entwicklungsstand, keine vollständige Kangentic-Parität.
 
-## Bereits umgesetzt
+## Umgesetzt
 
-- Eigenständige Electron/React/SQLite-App mit mehreren lokalen Projekten, Board-Spalten, Karten, Verschieben und gespeicherten Einstellungen. App-Daten liegen außerhalb des Quell-Repositorys im Electron-`userData`-Ordner.
-- Echte CLI-Sitzungen über PTY: Codex, Claude, Gemini und ein anpassbarer Prozess können konfiguriert werden. Live-Ausgabe, Eingabe und Stop sind verfügbar. Ein lokaler Codex-One-Shot mit synthetischem Projekt hat in 19,6 Sekunden erfolgreich geantwortet. Eine native UI-Probe hat Projekt, Karte, Memory-Notiz und manuellen Workflow gespeichert.
-- Einfache Workflow-Ausführung mit persistiertem Fortschritt, Abschlussmarker und Pause bei Fehler oder App-Neustart. Freigaben stehen vor einem Schritt, agentenlose Schritte warten auf ausdrückliche Bestätigung. Der globale Workflow-Agent hat eigene Einstellungen für Agent, Modell und Effort sowie eine Vorschau mit expliziter Übernahme. Ein echter, schreibgeschützter Codex-Aufruf erzeugte in rund 13 Sekunden einen gültigen Vorschlag ohne Datei- oder Kartenänderung.
-- Manuelle Memory-Notizen mit `[[Verknüpfungen]]`, Rückverweisen und Graph.
-- Globale Suche im aktiven Projekt (Karten, Workflows und Memory-Notizen) mit Strg/⌘+K, Tastaturauswahl und Rücksprung. Eingebetteter Browser mit isolierter Session, mehreren Tabs und getrenntem Verlauf pro Tab, URL-Policy, Vor/Zurück/Neu laden und abgewiesenen Pop-ups, Downloads und Browser-Berechtigungen. Ein echter Webseitenaufruf im Fenster ist noch nicht visuell geprüft.
-- Trello-Board-JSON-Import mit lokaler Vorschau, expliziter Kartenauswahl, stabiler ID-Duplikaterkennung auch nach Neustart und ohne Agenten-Autostart. Persönliche Exportdaten werden nicht gespeichert; Tests verwenden synthetische Exporte.
-- Optionale Git-Worktrees pro Karte und expliziter Agentensitzung: eigener Branch und Ordner außerhalb des Projekt-Checkouts, Wiederverwendung nach App-Neustart, Stop ohne Löschen. Es gibt noch keinen Merge- oder Cleanup-Dialog; Worktrees sind keine Sicherheits-Sandbox.
-- Projektaktivität aus gespeicherten Sitzungen, Workflows und Karten ohne Lauf mit Filtern und Sprüngen. Fehlende Token- und Kostenwerte werden als „nicht erfasst“ angezeigt.
-- Offline-Spracheingabe nach Aufnahmeende über Faster-Whisper. Das lokale Whisper-Base-Modell und die Node/Python-Brücke wurden mit einem synthetischen deutschen Windows-SAPI-Clip geprüft; beide gaben denselben Transkripttext zurück. Die Mikrofonoberfläche selbst wurde noch nicht durchgeklickt.
-- Öffentliche Sicherheitsgrundlage: ignorierte lokale Daten, Secret-/Pfadprüfung vor Push, Windows-CI mit Build und Tests.
+- Eigenständige Electron/React/SQLite-App mit mehreren lokalen Projekten, konfigurierbaren Board-Spalten, Karten, Drag-and-drop, Suche, Spaltenfilter und persistentem Archiv. Archivierte Karten bleiben lesbar und wiederherstellbar; sie starten keine Agenten. Daten liegen außerhalb des Quell-Repositorys im Electron-`userData`-Ordner.
+- Echte PTY-Sitzungen für Codex, Claude, Gemini und anpassbare CLI-Prozesse mit Live-Ausgabe, Eingabe, Stop und begrenztem Terminal-Resize. Nach App-Neustart werden vorher laufende Sitzungen mit erhaltener Ausgabe als fehlgeschlagen markiert, ohne Replay. Codex CLI wurde mit einem synthetischen Projekt live geprüft; Claude und Gemini sind auf diesem Laptop nicht installiert.
+- Persistente einfache Workflow-Route mit Abschlussmarker, Freigabe vor Schritten, manuellen Schritten, Pause bei Fehler oder Neustart. Globaler Workflow-Agent mit eigener Agent-/Modell-/Effort-Einstellung und schreibgeschütztem Codex-Planer; ein echter Codex-Aufruf lieferte einen gültigen Vorschlag. Die Vorschau braucht eine explizite Übernahme.
+- Manuelle Memory-Notizen mit `[[Verknüpfungen]]`, Rückverweisen, Graph, globaler Suche und sicherer Markdown-Vorschau mit anklickbaren bekannten Notizen. Noch keine automatische Indizierung von Agentengesprächen.
+- Projektweite Suche mit Strg/⌘+K, Aktivitätsansicht für Agentenläufe, Workflows und Karten ohne Lauf. Der eingebettete Browser hat isolierte Session, mehrere Tabs, eigenen Verlauf, URL-Policy und blockiert Pop-ups, Downloads und Browser-Berechtigungen. Tab-Adressen werden lokal gespeichert und beim Neustart angezeigt; Webseiten laden erst beim Öffnen. Ein echter Webseitenlauf im sichtbaren Fenster bleibt ungeprüft.
+- Trello-Board-JSON-Import mit lokaler Vorschau, gezielter Auswahl, ID-Duplikaterkennung und Archivübernahme. Kein Agenten-Autostart beim Import; Tests nutzen synthetische Daten.
+- Optionale Git-Worktrees pro Karte bei expliziten Agentensitzungen: eigener Branch/Ordner außerhalb des Projekt-Checkouts, Wiederverwendung nach Neustart, kein automatisches Löschen. Noch kein Merge- oder Cleanup-Dialog.
+- Offline-Spracheingabe nach Aufnahmeende mit Faster-Whisper. Python-Brücke und lokales Whisper-Base-Modell lieferten für einen synthetischen deutschen Windows-SAPI-Clip das gleiche Transkript. Der Mikrofonklick in der UI ist noch nicht visuell geprüft.
+- Öffentlicher Secret-/Pfad-Scan vor Push, ignorierte lokale Daten, Windows-CI mit Tests und nativem Paketbau.
 
 ## Prüfungen
 
-`npm run typecheck`, `npm test` (57 bestanden, 2 bewusst übersprungene Live-Tests), `npm run build` und `npm audit --audit-level=critical` (0 Funde) bestanden auf dem Entwicklungslaptop. Beide optionalen Codex-Live-Tests wurden separat erfolgreich ausgeführt: PTY-Endantwort mit Abschlussmarker und schreibgeschützter strukturierter Workflow-Plan. `npm run smoke:source` startete den gebauten Electron-Hauptprozess, native Module und Renderer ohne Vite. Die Live-Tests hängen von angemeldeten CLIs ab und sind nicht Teil des normalen CI-Laufs. Der native UI-Durchlauf wurde auf Wunsch des Nutzers beendet; es gab danach keine weitere Rechnersteuerung. Responsive Darstellung bei 390 px, Mikrofonklick und Browser-Seitenansicht sind deshalb noch visuell offen.
+Auf dem Entwicklungslaptop bestanden `npm run typecheck`, `npm test` (70 bestanden, 2 optionale Live-Tests übersprungen), `npm run build`, `npm run smoke:source` und `npm audit --audit-level=critical` (0 Funde). Die beiden Codex-Live-Tests wurden separat erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht weiter visuell geprüft.
 
-Ein lokaler regulärer Forge-Paketbau scheiterte an fehlenden Visual-Studio-C++-Build-Tools beim Neuaufbau von `better-sqlite3`. Ein ausdrücklich als Diagnose markierter Paketbau mit den schon im lokalen Electron funktionierenden Binärmodulen gelang; dieser Build ist kein allgemein getestetes Release. [Windows-CI 44823350598](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44823350598) baute die nativen Module regulär und erzeugte ein portables ZIP. Das heruntergeladene CI-ZIP bestand den verdeckten Electron-Starttest auf diesem Laptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release. Der erste CI-Lauf scheiterte nur an zwei fehlenden optionalen Lockfile-Einträgen; Commit `7748b3e` korrigierte sie, der Folgelauf ist grün.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44823350598](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44823350598) baute native Module regulär und erzeugte ein portables ZIP. Dieses ZIP startete im verdeckten Electron-Smoke-Test auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release. Die folgenden CI-Läufe für neue Worktrees deckten Windows-Kurzpfad-Probleme auf. Der zweite Fix bestand lokal 4/4 Worktree-Tests; die Bestätigung durch einen neuen CI-Lauf steht aus.
 
-## Nächste konkrete Arbeit
+## Nächster Schritt
 
-1. Worktree-, Tab- und Aktivitätsänderungen nach Public-Scan committen und pushen; CI für diesen Stand prüfen.
-2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald die Nutzersteuerung wieder erlaubt ist.
-3. Weitere Kangentic-Parität: Warteschlange/Recovery, Worktree-Merge/Verwaltung und zusätzliche CLI-/Importadapter mit getrennten Abnahmen.
+1. Den aktuellen Worktree-Fix und die neuen Features nach Public-Scan committen und pushen; den Windows-CI-Lauf bis zum Ergebnis prüfen.
+2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
+3. Danach weitere Paritätsbausteine: Warteschlange/Recovery, Worktree-Merge/Verwaltung, zusätzliche CLI- und Importadapter.
 
-Jarvis' bisheriger Kangentic-Workflow ist pausiert. Jarvis selbst bleibt während des Aufbaus dieser App unverändert. Die Paritätsliste in [PARITY.md](PARITY.md) nennt offene Funktionen und Abnahmekriterien.
+Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.

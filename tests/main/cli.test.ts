@@ -12,10 +12,11 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'jarvis-studio-pty-'));
   roots.push(root);
-  const store = new StudioStore(join(root, 'store.sqlite'));
+  const dbPath = join(root, 'store.sqlite');
+  const store = new StudioStore(dbPath);
   const project = store.createProject({ name: 'PTY fixture', path: root });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id, title: 'Run a real process' });
-  return { store, card };
+  return { store, card, dbPath };
 }
 
 describe('real CLI PTY', () => {
@@ -68,4 +69,45 @@ describe('real CLI PTY', () => {
     runner.dispose();
     store.close();
   }, 15_000);
+
+  it('validates and applies a bounded terminal resize only while running', async () => {
+    const { store, card } = fixture();
+    const agent = store.saveAgent({ name: 'Resize fixture', kind: 'custom', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], model: null, enabled: true });
+    const runner = new SessionRunner(store, () => undefined, () => undefined);
+    const session = runner.start({ cardId: card.id, agentId: agent.id, prompt: '' });
+    expect(() => runner.resize({ sessionId: session.id, cols: 80, rows: 25 })).not.toThrow();
+    expect(() => runner.resize({ sessionId: session.id, cols: 100, rows: 40 })).not.toThrow();
+    expect(() => runner.resize({ sessionId: session.id, cols: 0, rows: 40 })).toThrow('Terminalgröße');
+    expect(() => runner.resize({ sessionId: session.id, cols: 100.5, rows: 40 })).toThrow('Terminalgröße');
+    runner.stop(session.id);
+    expect(() => runner.resize({ sessionId: session.id, cols: 100, rows: 40 })).toThrow('läuft nicht');
+    runner.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    store.close();
+  }, 15_000);
+
+  it('recovers an interrupted session as failed without replaying it', () => {
+    const { store, card, dbPath } = fixture();
+    const agent = store.agents()[0]!;
+    const original = store.createSession({ cardId: card.id, agentId: agent.id });
+    store.appendOutput(original.id, 'Synthetic output before interruption.');
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    const recovered = reopened.session(original.id);
+    expect(recovered.state).toBe('failed');
+    expect(recovered.endedAt).not.toBeNull();
+    expect(recovered.output).toContain('Synthetic output before interruption.');
+    expect(recovered.output).toContain('restarted');
+    const events: SessionEvent[] = [];
+    const runner = new SessionRunner(reopened, (event) => events.push(event), () => undefined);
+    expect(events).toHaveLength(0);
+    expect(() => runner.send({ sessionId: original.id, text: 'retry' })).toThrow('not running');
+    expect(() => runner.stop(original.id)).toThrow('not running');
+    expect(reopened.snapshot(card.projectId).sessions).toHaveLength(1);
+    runner.dispose();
+    reopened.close();
+    const secondOpen = new StudioStore(dbPath);
+    expect(secondOpen.session(original.id).output).toBe(recovered.output);
+    secondOpen.close();
+  });
 });

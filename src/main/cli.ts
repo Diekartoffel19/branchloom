@@ -96,6 +96,7 @@ export class SessionRunner {
 
   start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot'; useWorktree?: boolean }): Session {
     const card = this.store.card(input.cardId);
+    if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     const project = this.store.project(card.projectId);
     const column = this.store.column(card.columnId);
     const agentId = input.agentId ?? column.agentId;
@@ -171,6 +172,15 @@ export class SessionRunner {
     if (!child) throw new Error('Session is not running');
     if (!input.text.trim() || input.text.length > 10_000 || /\0/.test(input.text)) throw new Error('Message must be 1-10000 characters');
     child.write(`${input.text}\r`);
+  }
+
+  resize(input: { sessionId: string; cols: number; rows: number }): void {
+    if (!Number.isInteger(input.cols) || !Number.isInteger(input.rows) || input.cols < 20 || input.cols > 300 || input.rows < 5 || input.rows > 100) {
+      throw new Error('Terminalgröße muss zwischen 20–300 Spalten und 5–100 Zeilen liegen.');
+    }
+    const child = this.processes.get(input.sessionId);
+    if (!child || this.store.session(input.sessionId).state !== 'running') throw new Error('Sitzung läuft nicht mehr.');
+    if (child.cols !== input.cols || child.rows !== input.rows) child.resize(input.cols, input.rows);
   }
 
   stop(sessionId: string): void {

@@ -17,6 +17,7 @@ export class WorkflowEngine {
     const old = this.store.workflow(input.id);
     if (old.state === 'done' && input.state !== 'done') throw new Error('Completed workflows cannot be restarted');
     if (input.state === 'running') {
+      if (old.cardIds.some((cardId) => this.store.card(cardId).archivedAt)) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
       const overlapping = this.store.snapshot(old.projectId).workflows.find((other) =>
         other.id !== old.id && other.state === 'running' && other.cardIds.some((cardId) => old.cardIds.includes(cardId)));
       if (overlapping) throw new Error(`Card is already running in workflow ${overlapping.name}`);

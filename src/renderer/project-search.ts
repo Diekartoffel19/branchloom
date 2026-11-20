@@ -27,7 +27,7 @@ export function projectSearchResults(snapshot: ProjectSnapshot, query: string, l
   const all: IndexedResult[] = [
     ...snapshot.cards.map((card) => ({
       kind: 'card' as const, id: card.id, title: card.title,
-      context: `Karte · ${snapshot.columns.find((column) => column.id === card.columnId)?.name ?? 'Unbekannte Spalte'}`,
+      context: `Karte · ${snapshot.columns.find((column) => column.id === card.columnId)?.name ?? 'Unbekannte Spalte'}${card.archivedAt ? ' · Archiviert' : ''}`,
       snippet: snippet(card.description, terms[0]), searchable: card.description, updatedAt: card.updatedAt,
     })),
     ...snapshot.notes.map((note) => ({

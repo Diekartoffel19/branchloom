@@ -1,7 +1,11 @@
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserWindow } from 'electron';
 import { clampBrowserBounds, isSafeBrowserUrl, normalizeBrowserAddress } from '../../src/main/browser-policy';
+import { BrowserSessionPersistence } from '../../src/main/browser-persistence';
 
 const mocked = vi.hoisted(() => ({
   views: [] as unknown[],
@@ -165,5 +169,34 @@ describe('isolated embedded browser', () => {
     expect(window.attached).toHaveLength(0);
     expect(() => browser.selectTab('missing')).toThrow('nicht gefunden');
     browser.dispose();
+  });
+
+  it('restores tabs and active URL after restart without loading hidden pages', async () => {
+    const path = mkdtempSync(join(tmpdir(), 'studio-browser-restart-'));
+    try {
+      const persistence = new BrowserSessionPersistence(path);
+      const first = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined, () => undefined, persistence);
+      await first.navigate('https://first.test/path');
+      const firstId = first.state().activeTabId!;
+      first.newTab();
+      first.selectTab(firstId);
+      first.dispose();
+      first.dispose();
+      expect(persistence.load()).toEqual({ urls: ['https://first.test/path', null], activeIndex: 0 });
+
+      const window = fakeWindow();
+      const second = new StudioBrowser(window as unknown as BrowserWindow, () => undefined, () => undefined, persistence);
+      expect(second.state().tabs).toHaveLength(2);
+      expect(second.state().url).toBe('https://first.test/path');
+      const restoredViews = mocked.views.slice(-2) as Array<{ webContents: { entries: string[] } }>;
+      expect(restoredViews.every((view) => view.webContents.entries.length === 0)).toBe(true);
+      second.setBounds({ x: 0, y: 0, width: 700, height: 500 });
+      second.setVisible(true);
+      expect(restoredViews[0]?.webContents.entries).toEqual(['https://first.test/path']);
+      expect(restoredViews[1]?.webContents.entries).toEqual([]);
+      second.dispose();
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+    }
   });
 });

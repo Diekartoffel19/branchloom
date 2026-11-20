@@ -33,7 +33,7 @@ describe('board view', () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: '2026-01-01T00:00:00Z' },
       columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null }],
-      cards: [{ id: 'card', projectId: 'p', columnId: 'todo', title: '<script>alert(1)</script>', description: 'Beschreibung', position: 0, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }],
+      cards: [{ id: 'card', projectId: 'p', columnId: 'todo', title: '<script>alert(1)</script>', description: 'Beschreibung', position: 0, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null }],
       agents: [], sessions: [], workflows: [], notes: [],
     };
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));

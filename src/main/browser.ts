@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { session, WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type { BrowserBounds, BrowserState, BrowserTabState } from '../shared/types';
 import { clampBrowserBounds, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
+import { BrowserSessionPersistence, MAX_BROWSER_TABS } from './browser-persistence';
 
 const PARTITION = 'persist:jarvis-studio-browser';
 
-interface Tab { id: string; view: WebContentsView; requestedUrl: string; error: string | null }
+interface Tab { id: string; view: WebContentsView; requestedUrl: string; restoredUrl: string | null; error: string | null }
 
 export class StudioBrowser {
   private readonly tabs: Tab[] = [];
@@ -15,13 +16,20 @@ export class StudioBrowser {
   private bounds: BrowserBounds | null = null;
   private readonly browserSession: Session;
   private readonly preventDownload = (event: Electron.Event): void => event.preventDefault();
+  private persistTimer: NodeJS.Timeout | null = null;
+  private disposed = false;
 
-  constructor(private readonly window: BrowserWindow, private readonly emit: (state: BrowserState) => void, private readonly onSearchShortcut: () => void = () => undefined) {
+  constructor(private readonly window: BrowserWindow, private readonly emit: (state: BrowserState) => void, private readonly onSearchShortcut: () => void = () => undefined, private readonly persistence: BrowserSessionPersistence | null = null) {
     this.browserSession = session.fromPartition(PARTITION);
     this.browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     this.browserSession.setPermissionCheckHandler(() => false);
     this.browserSession.on('will-download', this.preventDownload);
     this.window.on('resize', () => this.layout());
+    const saved = this.persistence?.load();
+    if (saved) {
+      for (const url of saved.urls) this.createTab(url);
+      this.activeTabId = this.tabs[saved.activeIndex]?.id ?? null;
+    }
   }
 
   state(): BrowserState {
@@ -40,9 +48,11 @@ export class StudioBrowser {
   }
 
   newTab(): BrowserState {
+    if (this.tabs.length >= MAX_BROWSER_TABS) throw new Error(`Höchstens ${MAX_BROWSER_TABS} Browser-Tabs sind möglich.`);
     const tab = this.createTab();
     this.activeTabId = tab.id;
     this.layout();
+    this.schedulePersist();
     this.publish();
     return this.state();
   }
@@ -51,6 +61,7 @@ export class StudioBrowser {
     if (!this.tabs.some((tab) => tab.id === id)) throw new Error('Browser-Tab nicht gefunden.');
     this.activeTabId = id;
     this.layout();
+    this.schedulePersist();
     this.publish();
     return this.state();
   }
@@ -64,17 +75,21 @@ export class StudioBrowser {
     if (this.activeTabId === id) this.activeTabId = this.tabs[Math.min(index, this.tabs.length - 1)]?.id ?? null;
     this.layout();
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
+    this.schedulePersist();
     this.publish();
     return this.state();
   }
 
   async navigate(address: string): Promise<BrowserState> {
     const url = normalizeBrowserAddress(address);
+    if (!this.activeTab() && this.tabs.length >= MAX_BROWSER_TABS) throw new Error(`Höchstens ${MAX_BROWSER_TABS} Browser-Tabs sind möglich.`);
     const tab = this.activeTab() ?? this.createTab();
     this.activeTabId = tab.id;
     tab.requestedUrl = url;
+    tab.restoredUrl = null;
     tab.error = null;
     this.layout();
+    this.schedulePersist();
     this.publish();
     try {
       await tab.view.webContents.loadURL(url);
@@ -115,6 +130,9 @@ export class StudioBrowser {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.flushPersist();
     this.browserSession.removeListener('will-download', this.preventDownload);
     const attached = this.tabs.find((tab) => tab.id === this.attachedTabId);
     if (attached) this.detach(attached);
@@ -127,9 +145,10 @@ export class StudioBrowser {
 
   private tabState(tab: Tab): BrowserTabState {
     const contents = tab.view.webContents;
+    const currentUrl = contents.getURL();
     return {
       id: tab.id,
-      url: contents.getURL() || tab.requestedUrl,
+      url: isSafeBrowserUrl(currentUrl) ? currentUrl : tab.requestedUrl,
       title: contents.getTitle() || '',
       loading: contents.isLoading(),
       canGoBack: contents.navigationHistory.canGoBack(),
@@ -138,7 +157,7 @@ export class StudioBrowser {
     };
   }
 
-  private createTab(): Tab {
+  private createTab(restoredUrl: string | null = null): Tab {
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -149,7 +168,7 @@ export class StudioBrowser {
         partition: PARTITION,
       },
     });
-    const tab: Tab = { id: randomUUID(), view, requestedUrl: '', error: null };
+    const tab: Tab = { id: randomUUID(), view, requestedUrl: restoredUrl ?? '', restoredUrl, error: null };
     const contents = view.webContents;
     contents.on('before-input-event', (event, input) => {
       if (tab.id === this.activeTabId && input.type === 'keyDown' && (input.control || input.meta) && input.key.toLowerCase() === 'k') {
@@ -160,8 +179,8 @@ export class StudioBrowser {
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
     contents.on('will-navigate', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
     contents.on('will-redirect', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
-    contents.on('did-navigate', () => { tab.error = null; this.publish(); });
-    contents.on('did-navigate-in-page', () => this.publish());
+    contents.on('did-navigate', () => { tab.error = null; this.schedulePersist(); this.publish(); });
+    contents.on('did-navigate-in-page', () => { this.schedulePersist(); this.publish(); });
     contents.on('page-title-updated', () => this.publish());
     contents.on('did-start-loading', () => this.publish());
     contents.on('did-stop-loading', () => this.publish());
@@ -189,7 +208,35 @@ export class StudioBrowser {
         this.window.contentView.addChildView(active.view);
         this.attachedTabId = active.id;
       }
+      if (active.restoredUrl) {
+        const url = active.restoredUrl;
+        active.restoredUrl = null;
+        void active.view.webContents.loadURL(url).catch((reason: unknown) => {
+          active.error = reason instanceof Error ? reason.message : String(reason);
+          this.publish();
+        });
+      }
     }
+  }
+
+  private schedulePersist(): void {
+    if (!this.persistence || this.disposed) return;
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = setTimeout(() => this.flushPersist(), 250);
+    this.persistTimer.unref();
+  }
+
+  private flushPersist(): void {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = null;
+    if (!this.persistence) return;
+    const urls = this.tabs.map((tab) => {
+      const url = this.tabState(tab).url;
+      return url && isSafeBrowserUrl(url) ? url : null;
+    });
+    const activeIndex = this.tabs.findIndex((tab) => tab.id === this.activeTabId);
+    try { this.persistence.save({ urls, activeIndex }); }
+    catch { console.error('[Jarvis Studio] Browser-Sitzung konnte nicht gespeichert werden.'); }
   }
 
   private publish(): void { this.emit(this.state()); }

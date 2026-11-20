@@ -1,0 +1,19 @@
+.memory-modebar{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#69c9c0;letter-spacing:.12em;font-size:10px;font-weight:750;margin-bottom:18px}
+.memory-modebar>div{display:flex;align-items:center;gap:8px}
+.memory-preview{min-height:220px;color:#dce8f0;overflow-wrap:anywhere}
+.memory-preview>h2{font-size:22px;line-height:1.3;margin:0 0 18px}
+.memory-markdown{font-size:13px;line-height:1.65}
+.memory-markdown h1,.memory-markdown h2,.memory-markdown h3{color:#e8f8f4;line-height:1.35;margin:20px 0 9px}
+.memory-markdown h1{font-size:19px}.memory-markdown h2{font-size:16px}.memory-markdown h3{font-size:14px}
+.memory-markdown p{margin:0 0 13px;white-space:pre-wrap}
+.memory-markdown ul{padding-left:22px;margin:0 0 15px}
+.memory-markdown li{margin:4px 0}
+.memory-markdown blockquote{border-left:3px solid #5aa99f;color:#b5cbc9;padding:4px 0 4px 14px;margin:12px 0;white-space:pre-wrap}
+.memory-markdown pre{background:#0e1927;border:1px solid #314658;border-radius:8px;padding:12px;overflow:auto;font-size:12px}
+.memory-markdown code{background:#223b46;border-radius:4px;padding:1px 4px}
+.memory-markdown pre code{background:transparent;padding:0}
+.memory-wikilink{display:inline;border:0;background:transparent;color:#7ee1d4;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit;padding:0}
+.memory-wikilink.missing{color:#ab9cb0;text-decoration-style:dotted}
+.memory-preview-empty{color:#849aad;font-size:12px}
+.memory-preview-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:18px}
+.memory-preview-tags span{border:1px solid #37646a;background:#214148;color:#afede6;border-radius:6px;font-size:11px;padding:4px 8px}

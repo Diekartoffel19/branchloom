@@ -78,7 +78,9 @@ export function ensureCardWorktree(store: StudioStore, cardId: string): { path: 
     verifyExisting({ cardId, projectId: project.id, sourceRoot, path, branch, createdAt: '' }, sourceRoot, path);
     store.saveCardWorktree({ cardId, projectId: project.id, sourceRoot, path, branch });
   }
-  const subdirectory = relative(sourceRoot, project.path);
+  // Git reports the repository-relative prefix regardless of whether Windows
+  // spelled the project path with its 8.3 alias or its long directory name.
+  const subdirectory = git(project.path, ['rev-parse', '--show-prefix']).replace(/[/\\]+$/, '');
   const cwd = join(path, subdirectory);
   if (!within(path, cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()) throw new Error('Das Projekt-Unterverzeichnis fehlt im Worktree.');
   return { path, cwd, branch };

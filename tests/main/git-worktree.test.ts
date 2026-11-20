@@ -11,7 +11,15 @@ const roots: string[] = [];
 afterEach(async () => {
   // ConPTY can briefly retain directory handles after kill() on Windows.
   await new Promise((resolve) => setTimeout(resolve, 500));
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 200 });
+  for (const root of roots.splice(0)) {
+    try { rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); }
+    catch (error) {
+      // Git/ConPTY may retain a Windows directory handle for the rest of this
+      // test process. The fixture lives in the runner's temporary directory.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (process.platform !== 'win32' || !['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(code ?? '')) throw error;
+    }
+  }
 });
 
 function git(cwd: string, args: string[]): string {

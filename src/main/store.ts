@@ -26,7 +26,7 @@ function optionalText(value: string, label: string, max = 30000): string {
 
 interface ProjectRow { id: string; name: string; path: string; created_at: string }
 interface ColumnRow { id: string; project_id: string; name: string; position: number; auto_start: number; agent_id: string | null }
-interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; position: number; created_at: string; updated_at: string }
+interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; position: number; created_at: string; updated_at: string; archived_at: string | null }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
 interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null }
 export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
@@ -36,7 +36,7 @@ interface NoteRow { id: string; project_id: string; title: string; body: string;
 
 const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, path: row.path, createdAt: row.created_at });
 const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id });
-const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, position: row.position, createdAt: row.created_at, updatedAt: row.updated_at });
+const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
 const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path });
 const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
@@ -56,7 +56,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, command TEXT NOT NULL, args_json TEXT NOT NULL, model TEXT, enabled INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id));
-      CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT);
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, agent_id TEXT NOT NULL REFERENCES agents(id), state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS workflows (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, card_ids_json TEXT NOT NULL, steps_json TEXT NOT NULL, state TEXT NOT NULL, current_step INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_progress (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, session_id TEXT REFERENCES sessions(id), state TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index, card_id));
@@ -73,6 +73,8 @@ export class StudioStore {
     `);
     const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
     if (!sessionColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE sessions ADD COLUMN worktree_path TEXT');
+    const cardColumns = this.db.pragma('table_info(cards)') as Array<{ name: string }>;
+    if (!cardColumns.some((item) => item.name === 'archived_at')) this.db.exec('ALTER TABLE cards ADD COLUMN archived_at TEXT');
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
@@ -139,23 +141,38 @@ export class StudioStore {
     const destination = this.column(input.columnId);
     if (destination.projectId !== input.projectId) throw new Error('Column belongs to another project');
     const stamp = now();
-    const value: Card = { id: randomUUID(), projectId: input.projectId, columnId: input.columnId, title: trimmed(input.title, 'Card title'), description: optionalText(input.description ?? '', 'Card description'), position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(input.columnId) as { next: number }).next, createdAt: stamp, updatedAt: stamp };
-    this.db.prepare('INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.columnId, value.title, value.description, value.position, value.createdAt, value.updatedAt);
+    const value: Card = { id: randomUUID(), projectId: input.projectId, columnId: input.columnId, title: trimmed(input.title, 'Card title'), description: optionalText(input.description ?? '', 'Card description'), position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(input.columnId) as { next: number }).next, createdAt: stamp, updatedAt: stamp, archivedAt: null };
+    this.db.prepare('INSERT INTO cards (id, project_id, column_id, title, description, position, created_at, updated_at, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)').run(value.id, value.projectId, value.columnId, value.title, value.description, value.position, value.createdAt, value.updatedAt);
     return value;
   }
   updateCard(input: { id: string; title?: string; description?: string }): Card {
     const old = this.card(input.id);
+    if (old.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     const value = { ...old, title: input.title === undefined ? old.title : trimmed(input.title, 'Card title'), description: input.description === undefined ? old.description : optionalText(input.description, 'Card description'), updatedAt: now() };
     this.db.prepare('UPDATE cards SET title = ?, description = ?, updated_at = ? WHERE id = ?').run(value.title, value.description, value.updatedAt, input.id);
     return value;
   }
   moveCard(input: { id: string; columnId: string }): Card {
     const old = this.card(input.id);
+    if (old.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     const destination = this.column(input.columnId);
     if (destination.projectId !== old.projectId) throw new Error('Cannot move a card to another project');
     const value = { ...old, columnId: destination.id, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(destination.id) as { next: number }).next, updatedAt: now() };
     this.db.prepare('UPDATE cards SET column_id = ?, position = ?, updated_at = ? WHERE id = ?').run(value.columnId, value.position, value.updatedAt, input.id);
     return value;
+  }
+  setCardArchived(input: { id: string; archived: boolean }): Card {
+    if (typeof input.archived !== 'boolean') throw new Error('Archivstatus muss wahr oder falsch sein.');
+    const old = this.card(input.id);
+    if (Boolean(old.archivedAt) === input.archived) return old;
+    if (input.archived) {
+      if (this.db.prepare("SELECT 1 FROM sessions WHERE card_id = ? AND state = 'running' LIMIT 1").get(old.id)) throw new Error('Laufende Agentensitzung zuerst stoppen.');
+      const running = this.db.prepare("SELECT card_ids_json FROM workflows WHERE project_id = ? AND state = 'running'").all(old.projectId) as Array<{ card_ids_json: string }>;
+      if (running.some((row) => parseArray<string>(row.card_ids_json).includes(old.id))) throw new Error('Laufenden Workflow mit dieser Karte zuerst pausieren.');
+    }
+    const stamp = now();
+    this.db.prepare('UPDATE cards SET archived_at = ?, updated_at = ? WHERE id = ?').run(input.archived ? stamp : null, stamp, old.id);
+    return this.card(old.id);
   }
 
   previewTrelloImport(input: { projectId: string; json: string }): TrelloImportPreview {
@@ -196,7 +213,8 @@ export class StudioStore {
         }
         const item = sourceCards.get(sourceId)!;
         // Direct store insertion intentionally bypasses the IPC move-to-column auto-start path.
-        const newCard = this.createCard({ projectId: input.projectId, columnId: input.columnId, title: item.title, description: item.description });
+        const added = this.createCard({ projectId: input.projectId, columnId: input.columnId, title: item.title, description: item.description });
+        const newCard = item.archived ? this.setCardArchived({ id: added.id, archived: true }) : added;
         insert.run(input.projectId, sourceId, newCard.id, now());
         created.push(newCard);
       }
@@ -220,6 +238,7 @@ export class StudioStore {
   session(id: string): Session { return session(required(this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined, 'Session not found')); }
   createSession(input: { cardId: string; agentId: string; worktreePath?: string | null }): Session {
     const source = this.card(input.cardId);
+    if (source.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     this.agent(input.agentId);
     const value: Session = { id: randomUUID(), projectId: source.projectId, cardId: source.id, agentId: input.agentId, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '', worktreePath: input.worktreePath ?? null };
     this.db.prepare('INSERT INTO sessions (id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, output, worktree_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output, value.worktreePath);
@@ -264,7 +283,11 @@ export class StudioStore {
     this.project(input.projectId);
     if (input.cardIds.length === 0 || input.steps.length === 0 || input.steps.length > 30) throw new Error('Workflow needs cards and 1-30 steps');
     if (new Set(input.cardIds).size !== input.cardIds.length) throw new Error('Workflow has duplicate cards');
-    for (const cardId of input.cardIds) if (this.card(cardId).projectId !== input.projectId) throw new Error('Workflow card belongs to another project');
+    for (const cardId of input.cardIds) {
+      const item = this.card(cardId);
+      if (item.projectId !== input.projectId) throw new Error('Workflow card belongs to another project');
+      if (item.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    }
     for (const step of input.steps) {
       if (this.column(step.columnId).projectId !== input.projectId) throw new Error('Workflow column belongs to another project');
       if (step.agentId) this.agent(step.agentId);
@@ -275,8 +298,9 @@ export class StudioStore {
     return value;
   }
   setWorkflowState(id: string, state: WorkflowState): Workflow {
-    this.workflow(id);
+    const current = this.workflow(id);
     if (!['draft', 'running', 'paused', 'done'].includes(state)) throw new Error('Invalid workflow state');
+    if (state === 'running' && current.cardIds.some((cardId) => this.card(cardId).archivedAt)) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
     this.db.prepare('UPDATE workflows SET state = ?, updated_at = ? WHERE id = ?').run(state, now(), id);
     return this.workflow(id);
   }

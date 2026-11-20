@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, Link2, Plus, Search, Trash2 } from 'lucide-react';
+import { BrainCircuit, Eye, Link2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import type { MemoryNote, ProjectSnapshot } from '../../shared/types';
 import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../memory-graph';
+import { MemoryMarkdown } from '../memory-markdown';
 import type { Mutate } from './shared';
+import '../memory.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null }
 
@@ -11,19 +13,31 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ title: '', body: '', tags: '' });
   const [newNote, setNewNote] = useState(false);
+  const [mode, setMode] = useState<'preview' | 'edit'>('preview');
   const notes = useMemo(() => [...snapshot.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snapshot.notes]);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
   const shown = useMemo(() => notes.filter((note) => `${note.title} ${note.body} ${note.tags.join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [notes, query]);
 
-  useEffect(() => { if (openNote && notes.some((note) => note.id === openNote.id)) { setQuery(''); setSelectedId(openNote.id); } }, [openNote?.id, openNote?.token, snapshot.project.id]);
+  useEffect(() => {
+    if (openNote && notes.some((note) => note.id === openNote.id)) {
+      setQuery('');
+      setSelectedId(openNote.id);
+    }
+  }, [openNote?.id, openNote?.token, snapshot.project.id]);
 
   useEffect(() => {
     if (!selected) return;
     setDraft({ title: selected.title, body: selected.body, tags: selected.tags.join(', ') });
     setNewNote(false);
+    setMode('preview');
   }, [selected?.id]);
 
-  function beginNew() { setSelectedId(null); setNewNote(true); setDraft({ title: '', body: '', tags: '' }); }
+  function beginNew() {
+    setSelectedId(null);
+    setNewNote(true);
+    setMode('edit');
+    setDraft({ title: '', body: '', tags: '' });
+  }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,7 +49,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
       tags: draft.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
       links: linkedIdsForBody(draft.body, notes).filter((id) => id !== selected?.id),
     }));
-    if (saved) { setSelectedId(saved.id); setNewNote(false); }
+    if (saved) { setSelectedId(saved.id); setNewNote(false); setMode('preview'); }
   }
 
   async function remove() {
@@ -44,9 +58,41 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     if (removed !== null) { setSelectedId(null); setNewNote(false); }
   }
 
-  return <div className="standard-page memory-page"><div className="view-header"><div><div className="eyebrow">VERKNÜPFTES WISSEN</div><h2>Dein Memory</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div><button className="primary-button" type="button" onClick={beginNew}><Plus size={17} /> Neue Notiz</button></div>
-    <div className="memory-layout"><aside className="memory-list"><label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Memory durchsuchen…" aria-label="Memory durchsuchen" /></label><div className="memory-list-items">{shown.map((note) => <button key={note.id} type="button" className={selectedId === note.id ? 'memory-item selected' : 'memory-item'} onClick={() => setSelectedId(note.id)}><strong>{note.title}</strong><span>{note.body.slice(0, 92) || 'Keine Beschreibung'}</span><small>{note.tags.slice(0, 3).join(' · ') || new Date(note.updatedAt).toLocaleDateString('de-DE')}</small></button>)}{shown.length === 0 ? <p className="list-empty">{notes.length === 0 ? 'Noch keine Notizen.' : 'Keine Treffer.'}</p> : null}</div></aside>
-      <div className="memory-main">{newNote || selected ? <><form className="memory-editor" onSubmit={(event) => void save(event)}><div className="memory-editor-top"><span>{selected ? 'NOTIZ BEARBEITEN' : 'NEUE NOTIZ'}</span>{selected ? <button className="icon-button danger-icon" type="button" aria-label="Notiz löschen" onClick={() => void remove()}><Trash2 size={17} /></button> : null}</div><input className="memory-title" value={draft.title} onChange={(event) => setDraft((old) => ({ ...old, title: event.target.value }))} placeholder="Titel der Notiz" aria-label="Titel der Notiz" required maxLength={120} /><label className="field-label">Text<textarea className="memory-body" value={draft.body} onChange={(event) => setDraft((old) => ({ ...old, body: event.target.value }))} placeholder="Gedanken, Entscheidungen, Kontext… Verknüpfe mit [[Notiztitel]]." rows={10} /></label><label className="field-label">Tags (Komma getrennt)<input value={draft.tags} onChange={(event) => setDraft((old) => ({ ...old, tags: event.target.value }))} placeholder="Projekt, Idee, Entscheidung" /></label><div className="memory-editor-actions"><span>Gespeichert wird lokal für dieses Projekt.</span><button className="primary-button" type="submit">Notiz speichern</button></div></form>{selected ? <div className="backlinks"><h3><Link2 size={16} /> Verknüpft von</h3>{backlinks(notes, selected.id).length ? backlinks(notes, selected.id).map((note) => <button key={note.id} type="button" onClick={() => setSelectedId(note.id)}>{note.title}</button>) : <p>Noch keine Rückverweise.</p>}</div> : null}</> : <div className="feature-empty memory-empty"><BrainCircuit size={30} /><h3>{notes.length ? 'Wähle eine Notiz' : 'Dein Wissen bekommt Struktur'}</h3><p>{notes.length ? 'Öffne eine Notiz links oder nutze die Karte, um Zusammenhänge zu erkunden.' : 'Lege deine erste Notiz an und verknüpfe später weitere mit doppelten eckigen Klammern.'}</p><button className="secondary-button" type="button" onClick={beginNew}>Notiz anlegen</button></div>}</div>
+  return <div className="standard-page memory-page">
+    <div className="view-header">
+      <div><div className="eyebrow">VERKNÜPFTES WISSEN</div><h2>Dein Memory</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
+      <button className="primary-button" type="button" onClick={beginNew}><Plus size={17} /> Neue Notiz</button>
+    </div>
+    <div className="memory-layout">
+      <aside className="memory-list">
+        <label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Memory durchsuchen…" aria-label="Memory durchsuchen" /></label>
+        <div className="memory-list-items">
+          {shown.map((note) => <button key={note.id} type="button" className={selectedId === note.id ? 'memory-item selected' : 'memory-item'} onClick={() => setSelectedId(note.id)}><strong>{note.title}</strong><span>{note.body.slice(0, 92) || 'Keine Beschreibung'}</span><small>{note.tags.slice(0, 3).join(' · ') || new Date(note.updatedAt).toLocaleDateString('de-DE')}</small></button>)}
+          {shown.length === 0 ? <p className="list-empty">{notes.length === 0 ? 'Noch keine Notizen.' : 'Keine Treffer.'}</p> : null}
+        </div>
+      </aside>
+      <div className="memory-main">
+        {newNote || selected ? <>
+          <div className="memory-modebar">
+            <span>{newNote ? 'NEUE NOTIZ' : mode === 'preview' ? 'NOTIZ ANSEHEN' : 'NOTIZ BEARBEITEN'}</span>
+            <div>
+              {selected ? <button className="secondary-button small" type="button" onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}>{mode === 'preview' ? <Pencil size={14} /> : <Eye size={14} />}{mode === 'preview' ? 'Bearbeiten' : 'Vorschau'}</button> : null}
+              {selected ? <button className="icon-button danger-icon" type="button" aria-label="Notiz löschen" onClick={() => void remove()}><Trash2 size={17} /></button> : null}
+            </div>
+          </div>
+          {mode === 'preview' && selected ? <div className="memory-preview">
+            <h2>{selected.title}</h2>
+            <MemoryMarkdown body={draft.body} notes={notes} onOpenNote={setSelectedId} />
+            {selected.tags.length ? <div className="memory-preview-tags">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}
+          </div> : <form className="memory-editor" onSubmit={(event) => void save(event)}>
+            <input className="memory-title" value={draft.title} onChange={(event) => setDraft((old) => ({ ...old, title: event.target.value }))} placeholder="Titel der Notiz" aria-label="Titel der Notiz" required maxLength={120} />
+            <label className="field-label">Text<textarea className="memory-body" value={draft.body} onChange={(event) => setDraft((old) => ({ ...old, body: event.target.value }))} placeholder="Gedanken, Entscheidungen, Kontext… Verknüpfe mit [[Notiztitel]]." rows={10} /></label>
+            <label className="field-label">Tags (Komma getrennt)<input value={draft.tags} onChange={(event) => setDraft((old) => ({ ...old, tags: event.target.value }))} placeholder="Projekt, Idee, Entscheidung" /></label>
+            <div className="memory-editor-actions"><span>Gespeichert wird lokal für dieses Projekt.</span><button className="primary-button" type="submit">Notiz speichern</button></div>
+          </form>}
+          {selected ? <div className="backlinks"><h3><Link2 size={16} /> Verknüpft von</h3>{backlinks(notes, selected.id).length ? backlinks(notes, selected.id).map((note) => <button key={note.id} type="button" onClick={() => setSelectedId(note.id)}>{note.title}</button>) : <p>Noch keine Rückverweise.</p>}</div> : null}
+        </> : <div className="feature-empty memory-empty"><BrainCircuit size={30} /><h3>{notes.length ? 'Wähle eine Notiz' : 'Dein Wissen bekommt Struktur'}</h3><p>{notes.length ? 'Öffne eine Notiz links oder nutze die Karte, um Zusammenhänge zu erkunden.' : 'Lege deine erste Notiz an und verknüpfe später weitere mit doppelten eckigen Klammern.'}</p><button className="secondary-button" type="button" onClick={beginNew}>Notiz anlegen</button></div>}
+      </div>
     </div>
     <div className="graph-panel"><div className="graph-header"><div><div className="eyebrow">ZUSAMMENHÄNGE</div><h3>Knowledge Graph</h3></div><span>{notes.length} Knoten · {noteEdges(notes).length} Verbindungen</span></div><MemoryGraph notes={notes} selectedId={selectedId} onSelect={setSelectedId} /></div>
   </div>;

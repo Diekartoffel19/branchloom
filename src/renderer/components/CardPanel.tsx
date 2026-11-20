@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, CircleStop, Mic, MicOff, Play, Send, Terminal, X } from 'lucide-react';
+import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
 import type { Card, ProjectSnapshot } from '../../shared/types';
 import type { Mutate } from './shared';
 
@@ -15,6 +15,8 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState('');
+  const [archiveError, setArchiveError] = useState('');
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const outputRef = useRef<HTMLPreElement | null>(null);
@@ -29,10 +31,44 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const chosenAgentId = agentId || defaultAgentId;
 
   useEffect(() => { if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight; }, [session?.output]);
+  useEffect(() => {
+    const element = outputRef.current;
+    if (!element || !session || session.state !== 'running' || typeof ResizeObserver === 'undefined') return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const update = (): void => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const style = getComputedStyle(element);
+        const size = Number.parseFloat(style.fontSize) || 11;
+        const lineHeight = Number.parseFloat(style.lineHeight) || size * 1.5;
+        const width = element.clientWidth - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0);
+        const height = element.clientHeight - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0);
+        const cols = Math.max(20, Math.min(300, Math.floor(width / (size * 0.62))));
+        const rows = Math.max(5, Math.min(100, Math.floor(height / lineHeight)));
+        void window.studio.resizeSession({ sessionId: session.id, cols, rows }).catch(() => { /* Session may finish during resize. */ });
+      }, 100);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    update();
+    return () => { observer.disconnect(); if (timer) clearTimeout(timer); };
+  }, [session?.id, session?.state]);
 
   async function saveCard(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (card.archivedAt) return;
     await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description }));
+  }
+
+  async function changeArchive(archived: boolean) {
+    if (archived && !window.confirm(`„${card.title}“ archivieren? Die Karte bleibt erhalten und kann wiederhergestellt werden.`)) return;
+    setArchiveBusy(true); setArchiveError('');
+    const changed = await mutate(async () => {
+      try { return await window.studio.setCardArchived({ id: card.id, archived }); }
+      catch (reason) { setArchiveError(reason instanceof Error ? reason.message : String(reason)); throw reason; }
+    });
+    setArchiveBusy(false);
+    if (changed) onClose();
   }
 
   async function send(event: React.FormEvent<HTMLFormElement>) {
@@ -81,16 +117,18 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   }
 
   return <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside className="card-drawer" aria-label={`Karte ${card.title}`}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}</small><h2>{card.title}</h2></div><button className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
+    <aside className="card-drawer" aria-label={`Karte ${card.title}`}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2>{card.title}</h2></div><button className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
       <div className="drawer-content">
-        <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label><label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label><div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div></form>
+        <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}><label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label><label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label><div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div></fieldset></form>
+        <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
+        {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
-        <p className="section-copy">Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.</p>
-        <label className="field-label">Agent auswählen<select value={chosenAgentId} onChange={(event) => setAgentId(event.target.value)}><option value="">Agent wählen</option>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label>
-        <label className="field-label">Auftrag<textarea rows={4} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Was soll der Agent an dieser Karte tun?" /></label>
-        <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={useWorktree} onChange={(event) => setUseWorktree(event.target.checked)} /> Isolierten Git-Worktree für diese Sitzung verwenden</span></label>
-        <div className="agent-actions"><button className="primary-button" type="button" disabled={!chosenAgentId || session?.state === 'running'} onClick={() => void mutate(() => window.studio.startSession({ cardId: card.id, agentId: chosenAgentId, prompt: prompt.trim() || undefined, useWorktree }))}><Play size={16} /> Agent starten</button><button type="button" className={recording ? 'voice-button recording' : 'voice-button'} disabled={transcribing} onClick={() => recording ? recorderRef.current?.stop() : void startRecording()} title={recording ? 'Aufnahme beenden' : 'Spracheingabe'}>{recording ? <MicOff size={17} /> : <Mic size={17} />}{transcribing ? 'Transkribiere…' : recording ? 'Aufnahme beenden' : 'Sprechen'}</button></div>
+        <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>
+        <label className="field-label">Agent auswählen<select value={chosenAgentId} disabled={Boolean(card.archivedAt)} onChange={(event) => setAgentId(event.target.value)}><option value="">Agent wählen</option>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label>
+        <label className="field-label">Auftrag<textarea rows={4} value={prompt} disabled={Boolean(card.archivedAt)} onChange={(event) => setPrompt(event.target.value)} placeholder="Was soll der Agent an dieser Karte tun?" /></label>
+        <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={useWorktree} disabled={Boolean(card.archivedAt)} onChange={(event) => setUseWorktree(event.target.checked)} /> Isolierten Git-Worktree für diese Sitzung verwenden</span></label>
+        <div className="agent-actions"><button className="primary-button" type="button" disabled={Boolean(card.archivedAt) || !chosenAgentId || session?.state === 'running'} onClick={() => void mutate(() => window.studio.startSession({ cardId: card.id, agentId: chosenAgentId, prompt: prompt.trim() || undefined, useWorktree }))}><Play size={16} /> Agent starten</button><button type="button" className={recording ? 'voice-button recording' : 'voice-button'} disabled={Boolean(card.archivedAt) || transcribing} onClick={() => recording ? recorderRef.current?.stop() : void startRecording()} title={recording ? 'Aufnahme beenden' : 'Spracheingabe'}>{recording ? <MicOff size={17} /> : <Mic size={17} />}{transcribing ? 'Transkribiere…' : recording ? 'Aufnahme beenden' : 'Sprechen'}</button></div>
         {voiceError ? <p className="inline-error" role="alert">{voiceError}</p> : null}
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}
         <div className="drawer-divider" />

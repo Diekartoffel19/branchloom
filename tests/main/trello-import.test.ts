@@ -66,6 +66,7 @@ describe('local Trello board import', () => {
     const repeated = reopened.acceptTrelloImport({ projectId: project.id, columnId: column.id, json: reexport, fingerprint: nextPreview.fingerprint, sourceIds: [ids.first, ids.archived] });
     expect(repeated.skippedDuplicateIds).toEqual([ids.first]);
     expect(repeated.created.map((item) => item.title)).toEqual(['Old task']);
+    expect(repeated.created[0]?.archivedAt).toBeTruthy();
     expect(reopened.snapshot(project.id).cards).toHaveLength(3);
     expect(reopened.card(accepted.created[0]!.id).description).toBe('Implement one step');
     reopened.close();
