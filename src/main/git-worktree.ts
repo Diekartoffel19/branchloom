@@ -34,10 +34,21 @@ function commonDir(path: string): string {
   return realpathSync(value);
 }
 
+function sameDirectory(first: string, second: string): boolean {
+  const left = statSync(first, { bigint: true });
+  const right = statSync(second, { bigint: true });
+  // Git can emit an 8.3 Windows path for one checkout and a long path for
+  // another. File identity is more reliable than comparing their spellings.
+  if (left.ino !== 0n && right.ino !== 0n) return left.dev === right.dev && left.ino === right.ino;
+  const a = realpathSync.native(first);
+  const b = realpathSync.native(second);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
 function verifyExisting(record: CardWorktree, sourceRoot: string, expectedPath: string): void {
   if (resolve(record.sourceRoot) !== resolve(sourceRoot) || resolve(record.path) !== resolve(expectedPath)) throw new Error('Der gespeicherte Worktree gehört nicht mehr zu diesem Projekt.');
   if (!existsSync(record.path) || lstatSync(record.path).isSymbolicLink() || !statSync(record.path).isDirectory()) throw new Error('Der gespeicherte Worktree fehlt oder wurde ersetzt. Keine Dateien wurden gelöscht.');
-  if (gitRoot(record.path) !== realpathSync(record.path) || commonDir(record.path) !== commonDir(sourceRoot)) throw new Error('Der Worktree gehört zu einem anderen Git-Repository.');
+  if (!sameDirectory(gitRoot(record.path), record.path) || !sameDirectory(commonDir(record.path), commonDir(sourceRoot))) throw new Error('Der Worktree gehört zu einem anderen Git-Repository.');
   if (git(record.path, ['rev-parse', '--symbolic-full-name', 'HEAD']) !== `refs/heads/${record.branch}`) throw new Error('Der Worktree steht nicht mehr auf seinem Karten-Branch.');
 }
 
