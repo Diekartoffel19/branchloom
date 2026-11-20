@@ -5,6 +5,7 @@ import { delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:pat
 import pty, { type IPty } from 'node-pty';
 import type { AgentDetection, AgentPreset, Session, SessionEvent } from '../shared/types';
 import { StudioStore } from './store';
+import { ensureCardWorktree } from './git-worktree';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -93,7 +94,7 @@ export class SessionRunner {
     private readonly onFinished: (session: Session, finalMessage: string | null) => void,
   ) {}
 
-  start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot' }): Session {
+  start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot'; useWorktree?: boolean }): Session {
     const card = this.store.card(input.cardId);
     const project = this.store.project(card.projectId);
     const column = this.store.column(card.columnId);
@@ -106,7 +107,8 @@ export class SessionRunner {
     if (!launcher) throw new Error(`Agent executable or supported Node shim not found: ${agent.command}`);
     const prompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
-    const row = this.store.createSession({ cardId: card.id, agentId });
+    const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
+    const row = this.store.createSession({ cardId: card.id, agentId, worktreePath: worktree?.path });
     let finalFile: { directory: string; path: string } | null = null;
     try {
       if (input.mode === 'one-shot' && agent.kind === 'codex') {
@@ -121,7 +123,7 @@ export class SessionRunner {
     let child: IPty;
     try {
       child = pty.spawn(launcher.executable, [...launcher.prefixArgs, ...cliArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path)], {
-        cwd: project.path,
+        cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
         name: 'xterm-256color',

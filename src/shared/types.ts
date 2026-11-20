@@ -6,7 +6,7 @@ export interface Column { id: string; projectId: string; name: string; position:
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; position: number; createdAt: string; updatedAt: string }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null }
-export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string }
+export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean }
 export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; createdAt: string; updatedAt: string }
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
@@ -15,7 +15,8 @@ export interface MemoryNote { id: string; projectId: string; title: string; body
 export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[] }
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
-export interface BrowserState { url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
+export interface BrowserTabState { id: string; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
+export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
@@ -32,7 +33,7 @@ export interface StudioAPI {
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
-  startSession(input: { cardId: string; agentId?: string; prompt?: string }): Promise<Session>;
+  startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   sendSession(input: { sessionId: string; text: string }): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
@@ -52,6 +53,9 @@ export interface StudioAPI {
   browserBack(): Promise<BrowserState>;
   browserForward(): Promise<BrowserState>;
   browserReload(): Promise<BrowserState>;
+  browserNewTab(): Promise<BrowserState>;
+  browserSelectTab(id: string): Promise<BrowserState>;
+  browserCloseTab(id: string): Promise<BrowserState>;
   browserSetVisible(visible: boolean): Promise<BrowserState>;
   browserSetBounds(bounds: BrowserBounds | null): Promise<BrowserState>;
   onBrowserState(callback: (state: BrowserState) => void): () => void;

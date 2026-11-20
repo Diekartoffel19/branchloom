@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import type { AgentPreset, Card, Column, MemoryNote, Project, ProjectSnapshot, Session, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
@@ -28,7 +28,9 @@ interface ProjectRow { id: string; name: string; path: string; created_at: strin
 interface ColumnRow { id: string; project_id: string; name: string; position: number; auto_start: number; agent_id: string | null }
 interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; position: number; created_at: string; updated_at: string }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
-interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string }
+interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null }
+export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
+interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
 interface NoteRow { id: string; project_id: string; title: string; body: string; tags_json: string; links_json: string; created_at: string; updated_at: string }
 
@@ -36,15 +38,17 @@ const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, pat
 const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id });
 const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, position: row.position, createdAt: row.created_at, updatedAt: row.updated_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
-const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output });
+const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path });
 const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
 const note = (row: NoteRow): MemoryNote => ({ id: row.id, projectId: row.project_id, title: row.title, body: row.body, tags: parseArray<string>(row.tags_json), links: parseArray<string>(row.links_json), createdAt: row.created_at, updatedAt: row.updated_at });
 
 /** The only persisted state. The database lives in Electron userData, never inside a project or Git repository. */
 export class StudioStore {
   readonly db: Database.Database;
+  readonly worktreeBase: string;
 
   constructor(file: string) {
+    this.worktreeBase = join(dirname(file), 'worktrees');
     this.db = new Database(file);
     this.db.pragma('foreign_keys = ON');
     this.db.pragma('journal_mode = WAL');
@@ -60,12 +64,15 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT NOT NULL, tags_json TEXT NOT NULL, links_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS trello_imports (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_id TEXT NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, imported_at TEXT NOT NULL, PRIMARY KEY (project_id, source_id));
+      CREATE TABLE IF NOT EXISTS card_worktrees (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_root TEXT NOT NULL, path TEXT NOT NULL UNIQUE, branch TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_columns_project ON columns(project_id, position);
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
       CREATE INDEX IF NOT EXISTS idx_sessions_card ON sessions(card_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows(project_id, state);
       CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id, updated_at DESC);
     `);
+    const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
+    if (!sessionColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE sessions ADD COLUMN worktree_path TEXT');
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
@@ -211,11 +218,22 @@ export class StudioStore {
 
   latestSession(cardId: string): Session | null { const row = this.db.prepare('SELECT * FROM sessions WHERE card_id = ? ORDER BY started_at DESC LIMIT 1').get(cardId) as SessionRow | undefined; return row ? session(row) : null; }
   session(id: string): Session { return session(required(this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined, 'Session not found')); }
-  createSession(input: { cardId: string; agentId: string }): Session {
+  createSession(input: { cardId: string; agentId: string; worktreePath?: string | null }): Session {
     const source = this.card(input.cardId);
     this.agent(input.agentId);
-    const value: Session = { id: randomUUID(), projectId: source.projectId, cardId: source.id, agentId: input.agentId, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '' };
-    this.db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output);
+    const value: Session = { id: randomUUID(), projectId: source.projectId, cardId: source.id, agentId: input.agentId, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '', worktreePath: input.worktreePath ?? null };
+    this.db.prepare('INSERT INTO sessions (id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, output, worktree_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output, value.worktreePath);
+    return value;
+  }
+  cardWorktree(cardId: string): CardWorktree | null {
+    const row = this.db.prepare('SELECT * FROM card_worktrees WHERE card_id = ?').get(cardId) as WorktreeRow | undefined;
+    return row ? { cardId: row.card_id, projectId: row.project_id, sourceRoot: row.source_root, path: row.path, branch: row.branch, createdAt: row.created_at } : null;
+  }
+  saveCardWorktree(input: Omit<CardWorktree, 'createdAt'>): CardWorktree {
+    const source = this.card(input.cardId);
+    if (source.projectId !== input.projectId) throw new Error('Worktree card belongs to another project');
+    const value: CardWorktree = { ...input, createdAt: now() };
+    this.db.prepare('INSERT INTO card_worktrees (card_id, project_id, source_root, path, branch, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(value.cardId, value.projectId, value.sourceRoot, value.path, value.branch, value.createdAt);
     return value;
   }
   appendOutput(id: string, text: string): void {

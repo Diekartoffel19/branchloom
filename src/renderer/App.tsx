@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, BrainCircuit, Columns3, GitBranch, Globe2, Plus, RefreshCw, Search, Settings2, Sparkles } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, GitBranch, Globe2, Plus, RefreshCw, Search, Settings2, Sparkles } from 'lucide-react';
 import type { Project, ProjectSnapshot } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
@@ -7,13 +7,15 @@ import { MemoryView } from './components/MemoryView';
 import { AgentView } from './components/AgentView';
 import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
+import { ActivityView } from './components/ActivityView';
 import type { ProjectSearchResult, SearchKind } from './project-search';
 
-type View = 'board' | 'workflows' | 'memory' | 'agents' | 'browser';
+type View = 'board' | 'activity' | 'workflows' | 'memory' | 'agents' | 'browser';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
 
 const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
+  { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
   { id: 'agents', name: 'Agenten', icon: Bot },
@@ -96,9 +98,13 @@ export function App() {
     requestAnimationFrame(() => (previous?.isConnected ? previous : searchButtonRef.current)?.focus());
   }
 
+  function navigateToEntity(kind: SearchKind, id: string) {
+    setNavigationTarget((old) => ({ kind, id, token: (old?.token ?? 0) + 1 }));
+    setView(kind === 'card' ? 'board' : kind === 'note' ? 'memory' : 'workflows');
+  }
+
   function navigateToResult(result: ProjectSearchResult) {
-    setNavigationTarget((old) => ({ kind: result.kind, id: result.id, token: (old?.token ?? 0) + 1 }));
-    setView(result.kind === 'card' ? 'board' : result.kind === 'note' ? 'memory' : 'workflows');
+    navigateToEntity(result.kind, result.id);
     closeSearch();
   }
 
@@ -178,6 +184,7 @@ export function App() {
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><Sparkles size={30} /></div><h2>Dein Agenten-Workspace beginnt hier.</h2><p>Lege ein Projekt mit dem Ordner an, in dem deine Agenten arbeiten sollen. Danach kannst du Aufgaben auf dem Board planen, CLI-Agenten starten und Wissen verknüpfen.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Erstes Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
+        {view === 'activity' ? <ActivityView snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}

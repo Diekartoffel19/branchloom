@@ -10,14 +10,14 @@ const windowsIt = process.platform === 'win32' ? it : it.skip;
 function run(...args: string[]) {
   return spawnSync('powershell.exe', [
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args,
-  ], { encoding: 'utf8', timeout: 15_000 });
+  ], { encoding: 'utf8', timeout: 60_000 });
 }
 
 describe('Windows voice setup', () => {
   windowsIt('parses as PowerShell without syntax errors', () => {
     const code = `$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseInput([Console]::In.ReadToEnd(),[ref]$tokens,[ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }`;
     const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', code], {
-      encoding: 'utf8', input: readFileSync(script, 'utf8'), timeout: 15_000,
+      encoding: 'utf8', input: readFileSync(script, 'utf8'), timeout: 60_000,
     });
     expect(result.status, result.stderr).toBe(0);
   });

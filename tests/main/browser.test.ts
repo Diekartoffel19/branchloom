@@ -17,8 +17,15 @@ vi.mock('electron', async () => {
     url = '';
     title = '';
     destroyed = false;
+    entries: string[] = [];
+    index = -1;
     windowOpenHandler: unknown;
-    navigationHistory = { canGoBack: () => false, canGoForward: () => false, goBack: vi.fn(), goForward: vi.fn() };
+    navigationHistory = {
+      canGoBack: () => this.index > 0,
+      canGoForward: () => this.index < this.entries.length - 1,
+      goBack: () => { if (this.index > 0) { this.url = this.entries[--this.index]!; this.emit('did-navigate'); } },
+      goForward: () => { if (this.index < this.entries.length - 1) { this.url = this.entries[++this.index]!; this.emit('did-navigate'); } },
+    };
     getURL() { return this.url; }
     getTitle() { return this.title; }
     isLoading() { return false; }
@@ -28,6 +35,9 @@ vi.mock('electron', async () => {
     setWindowOpenHandler(handler: unknown) { this.windowOpenHandler = handler; }
     async loadURL(url: string) {
       this.emit('did-start-loading');
+      this.entries = this.entries.slice(0, this.index + 1);
+      this.entries.push(url);
+      this.index = this.entries.length - 1;
       this.url = url;
       this.title = 'Example';
       this.emit('did-navigate');
@@ -122,5 +132,38 @@ describe('isolated embedded browser', () => {
     browser.dispose();
     expect(view.webContents.destroyed).toBe(true);
     expect(mocked.removedDownloadHandler).toBe(mocked.downloadHandler);
+  });
+
+  it('keeps independent history per tab and closes only the selected tab', async () => {
+    const window = fakeWindow();
+    const browser = new StudioBrowser(window as unknown as BrowserWindow, () => undefined);
+    browser.setBounds({ x: 10, y: 10, width: 700, height: 500 });
+    browser.setVisible(true);
+    await browser.navigate('first.example');
+    const firstId = browser.state().activeTabId!;
+    await browser.navigate('second.example');
+    expect(browser.state().canGoBack).toBe(true);
+    const secondId = browser.newTab().activeTabId!;
+    expect(secondId).not.toBe(firstId);
+    expect(browser.state().tabs).toHaveLength(2);
+    await browser.navigate('third.example');
+    expect(browser.state().canGoBack).toBe(false);
+    expect(window.attached).toHaveLength(1);
+    browser.selectTab(firstId);
+    expect(browser.state().url).toBe('https://second.example/');
+    expect(browser.back().url).toBe('https://first.example/');
+    expect(browser.forward().url).toBe('https://second.example/');
+    browser.selectTab(secondId);
+    expect(browser.state().url).toBe('https://third.example/');
+    expect(browser.state().canGoBack).toBe(false);
+    browser.closeTab(firstId);
+    expect(browser.state().tabs).toHaveLength(1);
+    expect(browser.state().activeTabId).toBe(secondId);
+    browser.closeTab(secondId);
+    expect(browser.state().tabs).toHaveLength(0);
+    expect(browser.state().activeTabId).toBeNull();
+    expect(window.attached).toHaveLength(0);
+    expect(() => browser.selectTab('missing')).toThrow('nicht gefunden');
+    browser.dispose();
   });
 });

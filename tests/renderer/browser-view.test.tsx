@@ -12,6 +12,8 @@ describe('browser controls', () => {
     expect(html).toContain('aria-label="Vorwärts"');
     expect(html).toContain('aria-label="Neu laden"');
     expect(html).toContain('Öffnen');
+    expect(html).toContain('aria-label="Browser-Tabs"');
+    expect(html).toContain('aria-label="Neuer Tab"');
     expect(html).toContain('Webseiten laufen getrennt');
   });
 });

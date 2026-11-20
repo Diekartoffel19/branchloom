@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Globe2, RotateCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Globe2, Plus, RotateCw, X } from 'lucide-react';
 import type { BrowserState } from '../../shared/types';
 
-const EMPTY: BrowserState = { url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null };
+const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
 export function BrowserView({ active }: { active: boolean }) {
@@ -24,7 +24,7 @@ export function BrowserView({ active }: { active: boolean }) {
 
   useEffect(() => {
     if (!editing.current) setAddress(state.url);
-  }, [state.url]);
+  }, [state.url, state.activeTabId]);
 
   useEffect(() => {
     if (!window.studio) return;
@@ -71,6 +71,15 @@ export function BrowserView({ active }: { active: boolean }) {
   }
 
   return <section className="browser-page" aria-label="Browser">
+    <div className="browser-tabbar" role="tablist" aria-label="Browser-Tabs">
+      {state.tabs.map((tab, index) => <div className={tab.id === state.activeTabId ? 'browser-tab active' : 'browser-tab'} key={tab.id}>
+        <button type="button" role="tab" aria-selected={tab.id === state.activeTabId} aria-label={`${tab.title || tab.url || `Neuer Tab ${index + 1}`} auswählen`} className="browser-tab-select" onClick={() => void command(() => window.studio.browserSelectTab(tab.id))}>
+          <Globe2 size={14} aria-hidden="true" /><span>{tab.title || tab.url || 'Neuer Tab'}</span>{tab.loading ? <RotateCw size={12} className="spin" aria-label="Lädt" /> : null}
+        </button>
+        <button type="button" className="browser-tab-close" title="Tab schließen" aria-label={`${tab.title || tab.url || `Tab ${index + 1}`} schließen`} onClick={() => void command(() => window.studio.browserCloseTab(tab.id))}><X size={13} /></button>
+      </div>)}
+      <button type="button" className="browser-tab-add" aria-label="Neuer Tab" title="Neuer Tab" onClick={() => void command(() => window.studio.browserNewTab())}><Plus size={17} /></button>
+    </div>
     <div className="browser-toolbar">
       <div className="browser-nav-buttons">
         <button type="button" className="icon-button" aria-label="Zurück" title="Zurück" disabled={!state.canGoBack} onClick={() => void command(() => window.studio.browserBack())}><ArrowLeft size={17} /></button>

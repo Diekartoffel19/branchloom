@@ -61,7 +61,7 @@ function installIpc(): void {
   bind('agents', () => db.agents());
   bind('detectAgents', () => detectAgents());
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
-  bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string }) => runner?.start(input));
+  bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('sendSession', (input: { sessionId: string; text: string }) => runner?.send(input));
   bind('stopSession', (sessionId: string) => runner?.stop(sessionId));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
@@ -83,6 +83,9 @@ function installIpc(): void {
   bind('browserBack', () => browser?.back());
   bind('browserForward', () => browser?.forward());
   bind('browserReload', () => browser?.reload());
+  bind('browserNewTab', () => browser?.newTab());
+  bind('browserSelectTab', (id: string) => browser?.selectTab(id));
+  bind('browserCloseTab', (id: string) => browser?.closeTab(id));
   bind('browserSetVisible', (visible: boolean) => browser?.setVisible(visible === true));
   bind('browserSetBounds', (bounds: { x: number; y: number; width: number; height: number } | null) => browser?.setBounds(bounds));
 }

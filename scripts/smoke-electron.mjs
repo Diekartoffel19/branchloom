@@ -4,10 +4,13 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
-const packaged = process.argv.includes('--package');
-const executable = packaged
+const explicitIndex = process.argv.indexOf('--executable');
+const explicitExecutable = explicitIndex < 0 ? null : process.argv[explicitIndex + 1];
+if (explicitIndex >= 0 && !explicitExecutable) throw new Error('--executable braucht einen Pfad');
+const packaged = process.argv.includes('--package') || explicitExecutable !== null;
+const executable = explicitExecutable ?? (packaged
   ? join(process.cwd(), 'out', 'Jarvis Studio-win32-x64', 'Jarvis Studio.exe')
-  : require('electron');
+  : require('electron'));
 if (!existsSync(executable)) throw new Error(`Electron-Binary fehlt: ${executable}`);
 const args = packaged ? ['--studio-smoke'] : ['.', '--studio-smoke'];
 const child = spawn(executable, args, {
