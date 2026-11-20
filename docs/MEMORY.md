@@ -7,6 +7,7 @@ Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. De
 1. Unter **Memory → Neue Notiz** Titel, Text und optionale Tags eingeben.
 2. **Notiz speichern** wählen. Beim Öffnen einer gespeicherten Notiz erscheint die Vorschau.
 3. **Bearbeiten** und **Vorschau** wechseln zwischen Editor und Ansicht. Die Vorschau unterstützt Überschriften, Listen, Zitate, Codeblöcke, Inline-Code, Fettdruck und Wiki-Links. Rohes HTML wird nur als Text angezeigt.
+4. Die Pfeile über einer Notiz springen durch den zuletzt besuchten Notizverlauf. Tags über der Liste filtern Notizen; die Suche berücksichtigt Titel, Text und Tags.
 
 ## Markdown austauschen
 

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import type { MemoryNote, ProjectSnapshot } from '../../shared/types';
 import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../memory-graph';
 import { MemoryMarkdown, memoryMarkdownFileName, parseMemoryMarkdownFile, serializeMemoryNote } from '../memory-markdown';
+import { emptyNoteNavigation, filterMemoryNotes, nextMemoryNote, openMemoryNote, previousMemoryNote } from '../memory-navigation';
 import type { Mutate } from './shared';
 import '../memory.css';
 
@@ -10,7 +11,9 @@ interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: st
 
 export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [navigation, setNavigation] = useState(emptyNoteNavigation);
+  const selectedId = navigation.currentId;
+  const [activeTag, setActiveTag] = useState('');
   const [draft, setDraft] = useState({ title: '', body: '', tags: '' });
   const [newNote, setNewNote] = useState(false);
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
@@ -18,12 +21,21 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const notes = useMemo(() => [...snapshot.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snapshot.notes]);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
-  const shown = useMemo(() => notes.filter((note) => `${note.title} ${note.body} ${note.tags.join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [notes, query]);
+  const shown = useMemo(() => filterMemoryNotes(notes, query, activeTag), [notes, query, activeTag]);
+  const tags = useMemo(() => [...new Set(notes.flatMap((note) => note.tags))].sort((a, b) => a.localeCompare(b, 'de-DE')), [notes]);
+
+  function selectNote(id: string) { setNavigation((old) => openMemoryNote(old, id)); }
+
+  useEffect(() => {
+    setNavigation(emptyNoteNavigation());
+    setActiveTag('');
+    setQuery('');
+  }, [snapshot.project.id]);
 
   useEffect(() => {
     if (openNote && notes.some((note) => note.id === openNote.id)) {
       setQuery('');
-      setSelectedId(openNote.id);
+      setNavigation((old) => openMemoryNote(old, openNote.id));
     }
   }, [openNote?.id, openNote?.token, snapshot.project.id]);
 
@@ -35,7 +47,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   }, [selected?.id]);
 
   function beginNew() {
-    setSelectedId(null);
+    setNavigation(emptyNoteNavigation());
     setNewNote(true);
     setMode('edit');
     setDraft({ title: '', body: '', tags: '' });
@@ -51,13 +63,13 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
       tags: draft.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
       links: linkedIdsForBody(draft.body, notes).filter((id) => id !== selected?.id),
     }));
-    if (saved) { setSelectedId(saved.id); setNewNote(false); setMode('preview'); }
+    if (saved) { selectNote(saved.id); setNewNote(false); setMode('preview'); }
   }
 
   async function remove() {
     if (!selected || !window.confirm(`„${selected.title}“ löschen?`)) return;
     const removed = await mutate(() => window.studio.deleteNote(selected.id));
-    if (removed !== null) { setSelectedId(null); setNewNote(false); }
+    if (removed !== null) { setNavigation(emptyNoteNavigation()); setNewNote(false); }
   }
 
   async function importMarkdown(event: React.ChangeEvent<HTMLInputElement>) {
@@ -67,7 +79,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     try {
       if (!/\.md$/i.test(file.name) || file.size > 500_000) throw new Error('Bitte eine Markdown-Datei bis 500 KB auswählen.');
       const parsed = parseMemoryMarkdownFile(file.name, await file.text());
-      setSelectedId(null);
+      setNavigation(emptyNoteNavigation());
       setNewNote(true);
       setMode('edit');
       setDraft({ title: parsed.title, body: parsed.body, tags: parsed.tags.join(', ') });
@@ -100,11 +112,12 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
       </div>
     </div>
     {importError ? <p className="inline-error" role="alert">{importError}</p> : null}
+    {tags.length ? <div className="memory-tag-filter" aria-label="Notizen nach Tag filtern"><button className={activeTag ? '' : 'active'} type="button" aria-pressed={!activeTag} onClick={() => setActiveTag('')}>Alle</button>{tags.map((tag) => <button className={activeTag === tag ? 'active' : ''} key={tag} type="button" aria-pressed={activeTag === tag} onClick={() => setActiveTag(tag)}>#{tag}</button>)}</div> : null}
     <div className="memory-layout">
       <aside className="memory-list">
         <label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Memory durchsuchen…" aria-label="Memory durchsuchen" /></label>
         <div className="memory-list-items">
-          {shown.map((note) => <button key={note.id} type="button" className={selectedId === note.id ? 'memory-item selected' : 'memory-item'} onClick={() => setSelectedId(note.id)}><strong>{note.title}</strong><span>{note.body.slice(0, 92) || 'Keine Beschreibung'}</span><small>{note.tags.slice(0, 3).join(' · ') || new Date(note.updatedAt).toLocaleDateString('de-DE')}</small></button>)}
+          {shown.map((note) => <button key={note.id} type="button" className={selectedId === note.id ? 'memory-item selected' : 'memory-item'} onClick={() => selectNote(note.id)}><strong>{note.title}</strong><span>{note.body.slice(0, 92) || 'Keine Beschreibung'}</span><small>{note.tags.slice(0, 3).join(' · ') || new Date(note.updatedAt).toLocaleDateString('de-DE')}</small></button>)}
           {shown.length === 0 ? <p className="list-empty">{notes.length === 0 ? 'Noch keine Notizen.' : 'Keine Treffer.'}</p> : null}
         </div>
       </aside>
@@ -113,6 +126,8 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
           <div className="memory-modebar">
             <span>{newNote ? 'NEUE NOTIZ' : mode === 'preview' ? 'NOTIZ ANSEHEN' : 'NOTIZ BEARBEITEN'}</span>
             <div>
+              <button className="icon-button" type="button" disabled={!navigation.back.length} aria-label="Vorherige Notiz" title="Vorherige Notiz" onClick={() => setNavigation(previousMemoryNote)}><ArrowLeft size={16} /></button>
+              <button className="icon-button" type="button" disabled={!navigation.forward.length} aria-label="Nächste Notiz" title="Nächste Notiz" onClick={() => setNavigation(nextMemoryNote)}><ArrowRight size={16} /></button>
               {selected ? <button className="secondary-button small" type="button" onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}>{mode === 'preview' ? <Pencil size={14} /> : <Eye size={14} />}{mode === 'preview' ? 'Bearbeiten' : 'Vorschau'}</button> : null}
               {selected && mode === 'preview' ? <button className="secondary-button small" type="button" onClick={exportMarkdown}><Download size={14} /> .md</button> : null}
               {selected ? <button className="icon-button danger-icon" type="button" aria-label="Notiz löschen" onClick={() => void remove()}><Trash2 size={17} /></button> : null}
@@ -120,7 +135,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
           </div>
           {mode === 'preview' && selected ? <div className="memory-preview">
             <h2>{selected.title}</h2>
-            <MemoryMarkdown body={draft.body} notes={notes} onOpenNote={setSelectedId} />
+            <MemoryMarkdown body={draft.body} notes={notes} onOpenNote={selectNote} />
             {selected.tags.length ? <div className="memory-preview-tags">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}
           </div> : <form className="memory-editor" onSubmit={(event) => void save(event)}>
             <input className="memory-title" value={draft.title} onChange={(event) => setDraft((old) => ({ ...old, title: event.target.value }))} placeholder="Titel der Notiz" aria-label="Titel der Notiz" required maxLength={120} />
@@ -128,11 +143,11 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
             <label className="field-label">Tags (Komma getrennt)<input value={draft.tags} onChange={(event) => setDraft((old) => ({ ...old, tags: event.target.value }))} placeholder="Projekt, Idee, Entscheidung" /></label>
             <div className="memory-editor-actions"><span>Gespeichert wird lokal für dieses Projekt.</span><button className="primary-button" type="submit">Notiz speichern</button></div>
           </form>}
-          {selected ? <div className="backlinks"><h3><Link2 size={16} /> Verknüpft von</h3>{backlinks(notes, selected.id).length ? backlinks(notes, selected.id).map((note) => <button key={note.id} type="button" onClick={() => setSelectedId(note.id)}>{note.title}</button>) : <p>Noch keine Rückverweise.</p>}</div> : null}
+          {selected ? <div className="backlinks"><h3><Link2 size={16} /> Verknüpft von</h3>{backlinks(notes, selected.id).length ? backlinks(notes, selected.id).map((note) => <button key={note.id} type="button" onClick={() => selectNote(note.id)}>{note.title}</button>) : <p>Noch keine Rückverweise.</p>}</div> : null}
         </> : <div className="feature-empty memory-empty"><BrainCircuit size={30} /><h3>{notes.length ? 'Wähle eine Notiz' : 'Dein Wissen bekommt Struktur'}</h3><p>{notes.length ? 'Öffne eine Notiz links oder nutze die Karte, um Zusammenhänge zu erkunden.' : 'Lege deine erste Notiz an und verknüpfe später weitere mit doppelten eckigen Klammern.'}</p><button className="secondary-button" type="button" onClick={beginNew}>Notiz anlegen</button></div>}
       </div>
     </div>
-    <div className="graph-panel"><div className="graph-header"><div><div className="eyebrow">ZUSAMMENHÄNGE</div><h3>Knowledge Graph</h3></div><span>{notes.length} Knoten · {noteEdges(notes).length} Verbindungen</span></div><MemoryGraph notes={notes} selectedId={selectedId} onSelect={setSelectedId} /></div>
+    <div className="graph-panel"><div className="graph-header"><div><div className="eyebrow">ZUSAMMENHÄNGE</div><h3>Knowledge Graph</h3></div><span>{notes.length} Knoten · {noteEdges(notes).length} Verbindungen</span></div><MemoryGraph notes={notes} selectedId={selectedId} onSelect={selectNote} /></div>
   </div>;
 }
 

@@ -1,7 +1,12 @@
 .memory-header-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .memory-header-actions .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media(max-width:600px){.memory-header-actions{align-items:stretch}.memory-header-actions button{justify-content:center}}
+.memory-tag-filter{display:flex;gap:7px;overflow:auto;padding:0 0 12px;margin-bottom:4px}
+.memory-tag-filter button{white-space:nowrap;border:1px solid #355365;border-radius:999px;background:#152635;color:#a6beca;padding:5px 10px;font-size:11px;cursor:pointer}
+.memory-tag-filter button.active{border-color:#70d2c5;background:#24504e;color:#e2fff7}
+.memory-tag-filter button:focus-visible{outline:2px solid #8beddf;outline-offset:2px}
 .memory-modebar{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#69c9c0;letter-spacing:.12em;font-size:10px;font-weight:750;margin-bottom:18px}
+.memory-modebar>div{flex-wrap:wrap;justify-content:flex-end}
 .memory-modebar>div{display:flex;align-items:center;gap:8px}
 .memory-preview{min-height:220px;color:#dce8f0;overflow-wrap:anywhere}
 .memory-preview>h2{font-size:22px;line-height:1.3;margin:0 0 18px}
