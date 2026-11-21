@@ -8,8 +8,8 @@ import { CardPanel } from '../../src/renderer/components/CardPanel';
 
 const stamp = '2026-01-01T00:00:00.000Z';
 const cards: Card[] = [
-  { id: 'active', projectId: 'p', columnId: 'todo', title: 'Aktive Suche', description: 'Wichtig', position: 0, createdAt: stamp, updatedAt: stamp, archivedAt: null },
-  { id: 'archived', projectId: 'p', columnId: 'done', title: 'Alte Aufgabe', description: 'Historie behalten', position: 0, createdAt: stamp, updatedAt: stamp, archivedAt: stamp },
+  { id: 'active', projectId: 'p', columnId: 'todo', title: 'Aktive Suche', description: 'Wichtig', priority: 'urgent', labels: ['Kundenmail', 'Heute'], position: 0, createdAt: stamp, updatedAt: stamp, archivedAt: null },
+  { id: 'archived', projectId: 'p', columnId: 'done', title: 'Alte Aufgabe', description: 'Historie behalten', priority: 'low', labels: ['Archiv'], position: 0, createdAt: stamp, updatedAt: stamp, archivedAt: stamp },
 ];
 
 describe('board filters and archive visibility', () => {
@@ -35,6 +35,12 @@ describe('board filters and archive visibility', () => {
     expect(cards).toHaveLength(2);
   });
 
+  it('combines exact priority and label filters and searches label text', () => {
+    expect(filterBoardCards(cards, { query: '', columnId: '', visibility: 'all', priority: 'urgent', label: 'kundenmail' }).map((card) => card.id)).toEqual(['active']);
+    expect(filterBoardCards(cards, { query: '', columnId: '', visibility: 'all', priority: 'low', label: 'Kundenmail' })).toEqual([]);
+    expect(filterBoardCards(cards, { query: 'heute', columnId: '', visibility: 'active' }).map((card) => card.id)).toEqual(['active']);
+  });
+
   it('renders only active cards on the normal board and exposes archive filter', () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Synthetic', path: 'C:\\test', createdAt: stamp },
@@ -49,12 +55,20 @@ describe('board filters and archive visibility', () => {
     expect(html).not.toContain('Alte Aufgabe');
     expect(html).toContain('Archiv (1)');
     expect(html).toContain('Karten suchen');
+    expect(html).toContain('Priorität filtern');
+    expect(html).toContain('Label filtern');
+    expect(html).toContain('Dringend');
+    expect(html).toContain('Kundenmail');
     expect(html).toContain('Spalte filtern');
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('aria-keyshortcuts="M"');
     expect(html).toContain('Verschieben');
     expect(html).toContain('Karte „Aktive Suche“ in „To Do“ öffnen');
+    const activePanel = renderToStaticMarkup(createElement(CardPanel, { card: cards[0]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
+    expect(activePanel).toContain('Labels, mit Komma getrennt');
+    expect(activePanel).toContain('value="Kundenmail, Heute"');
+    expect(activePanel).toContain('<option value="urgent" selected=""');
     const archived = renderToStaticMarkup(createElement(CardPanel, { card: cards[1]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(archived).toContain('Wiederherstellen');
     expect(archived).toContain('ARCHIVIERT');

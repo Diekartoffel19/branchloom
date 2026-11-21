@@ -33,13 +33,15 @@ describe('board view', () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: '2026-01-01T00:00:00Z' },
       columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null }],
-      cards: [{ id: 'card', projectId: 'p', columnId: 'todo', title: '<script>alert(1)</script>', description: 'Beschreibung', position: 0, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null }],
+      cards: [{ id: 'card', projectId: 'p', columnId: 'todo', title: '<script>alert(1)</script>', description: 'Beschreibung', priority: 'none', labels: ['<svg onload=alert(1)>'], position: 0, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null }],
       agents: [], sessions: [], workflows: [], notes: [],
     };
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(html).toContain('To Do');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;svg onload=alert(1)&gt;');
+    expect(html).not.toContain('<svg onload=alert(1)>');
     expect(html).toContain('Beschreibung');
   });
 });

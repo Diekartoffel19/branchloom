@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
-import type { Card, ProjectSnapshot, WorktreeReview } from '../../shared/types';
+import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
+import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 
 interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void }
@@ -8,6 +9,8 @@ interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose
 export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
+  const [priority, setPriority] = useState<CardPriority>(card.priority);
+  const [labelsInput, setLabelsInput] = useState(card.labels.join(', '));
   const [agentId, setAgentId] = useState('');
   const [prompt, setPrompt] = useState('');
   const [useWorktree, setUseWorktree] = useState(false);
@@ -24,7 +27,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const outputRef = useRef<HTMLPreElement | null>(null);
 
-  useEffect(() => { setTitle(card.title); setDescription(card.description); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); }, [card.id]);
+  useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); }, [card.id]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
@@ -60,7 +63,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   async function saveCard(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (card.archivedAt) return;
-    await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description }));
+    await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description, priority, labels: labelsInput.split(',').map((item) => item.trim()).filter(Boolean) }));
   }
 
   async function reviewWorktree() {
@@ -140,7 +143,15 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   return <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="card-drawer" aria-label={`Karte ${card.title}`}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2>{card.title}</h2></div><button className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
       <div className="drawer-content">
-        <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}><label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label><label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label><div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div></fieldset></form>
+        <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}>
+          <label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label>
+          <div className="card-metadata-fields">
+            <label>Priorität<select value={priority} onChange={(event) => setPriority(event.target.value as CardPriority)}>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+            <label>Labels, mit Komma getrennt<input value={labelsInput} maxLength={500} onChange={(event) => setLabelsInput(event.target.value)} placeholder="z. B. Planung, Bug" /><small>Bis zu 12 Labels mit je 32 Zeichen.</small></label>
+          </div>
+          <div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div>
+        </fieldset></form>
         <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         <div className="drawer-divider" />

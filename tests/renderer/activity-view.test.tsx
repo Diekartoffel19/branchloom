@@ -11,8 +11,8 @@ const snapshot: ProjectSnapshot = {
   project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: t0 },
   columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null }],
   cards: [
-    { id: 'c1', projectId: 'p', columnId: 'todo', title: 'Fehler prüfen', description: '', position: 0, createdAt: t0, updatedAt: t0, archivedAt: null },
-    { id: 'c2', projectId: 'p', columnId: 'todo', title: 'Noch offen', description: '', position: 1, createdAt: t0, updatedAt: t0, archivedAt: null },
+    { id: 'c1', projectId: 'p', columnId: 'todo', title: 'Fehler prüfen', description: '', priority: 'none', labels: [], position: 0, createdAt: t0, updatedAt: t0, archivedAt: null },
+    { id: 'c2', projectId: 'p', columnId: 'todo', title: 'Noch offen', description: '', priority: 'none', labels: [], position: 1, createdAt: t0, updatedAt: t0, archivedAt: null },
   ],
   agents: [{ id: 'a', name: 'Test-CLI', kind: 'codex', command: 'codex', args: [], model: null, enabled: true }],
   sessions: [
