@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 02:46 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 02:56 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -17,19 +17,19 @@ Stand: 21.11.2026, 02:46 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (109 bestanden, 2 optionale Live-Tests übersprungen), fünf gezielte Resume-Tests und `npm run build`. Der Git-Umbenennungs-Kollisionsfall und alle vier Worktree-Merge-Tests bestanden auch isoliert. Der Resume-Zweig bestand vor Integration den Quell-Electron-Smoke. Ein lokaler Smoke des integrierten Stands überschritt unter paralleler Last 120 Sekunden ohne Startsignal; die Windows-CI muss das gepackte Ergebnis deshalb erneut prüfen. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker im neuen Terminal, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume und Transkriptsuche `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (113 bestanden, 2 optionale Live-Tests übersprungen), acht gezielte Suchtests, `npm run build` und `npm run smoke:source`. Der Git-Umbenennungs-Kollisionsfall und alle vier Worktree-Merge-Tests bestanden auch isoliert. Ein früherer lokaler Smoke überschritt unter paralleler Last 120 Sekunden ohne Startsignal; ohne diese Last startete derselbe integrierte Quellstand in 28 Sekunden. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
 Für den Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Der echte Ordnerdialog wurde noch nicht visuell bedient.
 
 Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische Import- und UI-Tests, Typprüfung, Produktionsbuild und die vollständige kombinierte Suite (104 bestanden, 2 optionale Live-Tests übersprungen). Ein echter Trello-Export wurde noch nicht in der UI importiert.
 
-Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Die Vollsuite meldete 107 bestandene Tests und zwei optionale Skips; ein bestehender Git-Divergenztest traf unter paralleler lokaler Last sein 120-Sekunden-Limit. Derselbe Test bestand isoliert mit 240-Sekunden-Limit. Der kombinierte Stand und die Windows-CI stehen noch aus. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
+Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44849396846](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44849396846) für `3bdc13d` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Start des gepackten Programms. Der Resume-Stand ist darin noch nicht enthalten. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44851935951](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44851935951) für `86a8355` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Start des gepackten Programms. Die neue Transkriptsuche ist darin noch nicht enthalten. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Transkriptsuche im kombinierten Stand prüfen; dann Public-Scan, Push und Windows-CI mit Paket-Smoke. Danach Agent/Modell/Effort direkt pro Board-Spalte integrieren.
+1. Transkriptsuche nach Public-Scan pushen und Windows-CI mit Paket-Smoke prüfen. Danach Agent/Modell/Effort direkt pro Board-Spalte integrieren.
 2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 3. Danach weitere Paritätsbausteine: zusätzliche CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
