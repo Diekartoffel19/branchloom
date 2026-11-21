@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 02:25 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 02:45 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -17,13 +17,13 @@ Stand: 21.11.2026, 02:25 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden für den kombinierten Board-/Memory-/Trello-Stand `npm run typecheck`, `npm test -- --maxWorkers=2` (104 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und zuvor `npm run smoke:source`. Der neue Git-Umbenennungs-Kollisionsfall bestand zusätzlich gezielt. Unter paralleler lokaler Last brauchte der Electron-Smoke über 45 Sekunden; sein Limit wurde auf 120 Sekunden erhöht und der Start danach erfolgreich geprüft. Für den Resume-Zweig bestanden fünf gezielte Tests, Typprüfung, Build und Quell-Electron-Smoke; sein Vollsuite-Lauf bestand 107 Tests, lief aber bei zwei älteren Git-Worktree-Tests unter Last in ein Zeitlimit. Die kombinierte Suite und Windows-CI stehen noch aus. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker im neuen Terminal, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (109 bestanden, 2 optionale Live-Tests übersprungen), fünf gezielte Resume-Tests und `npm run build`. Der Git-Umbenennungs-Kollisionsfall und alle vier Worktree-Merge-Tests bestanden auch isoliert. Der Resume-Zweig bestand vor Integration den Quell-Electron-Smoke. Ein lokaler Smoke des integrierten Stands überschritt unter paralleler Last 120 Sekunden ohne Startsignal; die Windows-CI muss das gepackte Ergebnis deshalb erneut prüfen. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker im neuen Terminal, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
 Für den Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Der echte Ordnerdialog wurde noch nicht visuell bedient.
 
 Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische Import- und UI-Tests, Typprüfung, Produktionsbuild und die vollständige kombinierte Suite (104 bestanden, 2 optionale Live-Tests übersprungen). Ein echter Trello-Export wurde noch nicht in der UI importiert.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44848500500](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44848500500) für `23f8524` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan und ein portables ZIP mit nativen Modulen. Ein neuer CI-Lauf prüft zusätzlich den Start des gepackten Programms; der Resume-Stand ist darin noch nicht enthalten. Ein früheres CI-ZIP startete im verdeckten Electron-Smoke-Test auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44849396846](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44849396846) für `3bdc13d` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Start des gepackten Programms. Der Resume-Stand ist darin noch nicht enthalten. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
