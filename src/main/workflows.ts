@@ -15,6 +15,7 @@ export class WorkflowEngine {
 
   setState(input: { id: string; state: WorkflowState }): Workflow {
     const old = this.store.workflow(input.id);
+    if (old.queueSkip && input.state !== 'paused') throw new Error('Dieser Queue-Workflow wurde übersprungen und kann nicht erneut gestartet werden. Sein Verlauf bleibt erhalten.');
     if (old.state === 'done' && input.state !== 'done') throw new Error('Completed workflows cannot be restarted');
     if (input.state === 'running') {
       if (old.cardIds.some((cardId) => this.store.card(cardId).archivedAt)) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');

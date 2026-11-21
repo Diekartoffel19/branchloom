@@ -169,6 +169,7 @@ function installIpc(): void {
     return workflow;
   });
   bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
+  bind('skipQueuedCard', (input: Parameters<StudioAPI['skipQueuedCard']>[0]) => db.skipQueuedCard(input));
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));
   bind('proposeWorkflow', (input: { projectId: string; request: string }) => proposeWorkflow(db, input));

@@ -139,4 +139,95 @@ describe('explicit durable project queue', () => {
     expect(() => restoredQueue.setState({ projectId: project.id, state: 'running' })).toThrow('nicht selbst erneut');
     reopened.close();
   });
+
+  it('keeps a failed run and its reason, then continues only after an explicit second action', () => {
+    const { store, dbPath, project, template, first, second, started, workflows, queue } = fixture();
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const firstSession = started[0]!;
+    const activeId = store.projectQueue(project.id).activeWorkflowId!;
+    const failed = store.finishSession(firstSession.id, 'failed', 1);
+    workflows.onSessionFinished(failed, 'Agent could not finish');
+    queue.onSessionFinished(failed);
+    expect(store.projectQueue(project.id).state).toBe('paused');
+    expect(() => queue.setState({ projectId: project.id, state: 'running' })).toThrow('nicht selbst erneut');
+    expect(() => store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: '  ' })).toThrow('Grund');
+    const skipped = store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'Externer Dienst ist nicht erreichbar' });
+    expect(skipped.state).toBe('paused');
+    expect(skipped.activeWorkflowId).toBeNull();
+    expect(skipped.completedCount).toBe(0);
+    expect(started).toHaveLength(1);
+    expect(store.workflow(activeId).queueSkip?.reason).toBe('Externer Dienst ist nicht erreichbar');
+    expect(store.session(firstSession.id).state).toBe('failed');
+    expect(() => workflows.setState({ id: activeId, state: 'running' })).toThrow('übersprungen');
+    expect(() => store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'nochmal' })).toThrow('aktive angehaltene');
+    store.close();
+
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.workflow(activeId).queueSkip?.reason).toBe('Externer Dienst ist nicht erreichbar');
+    expect(reopened.projectQueue(project.id).state).toBe('paused');
+    expect(reopened.nextQueueCard(project.id)?.id).toBe(second.id);
+    expect(reopened.nextQueueCard(project.id)?.id).not.toBe(first.id);
+    const resumed: Session[] = [];
+    const runner = { start: ({ cardId, agentId }: { cardId: string; agentId: string }) => { const session = reopened.createSession({ cardId, agentId }); resumed.push(session); return session; }, stop: () => undefined } as unknown as SessionRunner;
+    const restoredQueue = new ProjectQueueEngine(reopened, new WorkflowEngine(reopened, runner));
+    restoredQueue.setState({ projectId: project.id, state: 'running' });
+    expect(resumed.map((item) => item.cardId)).toEqual([second.id]);
+    expect(reopened.workflow(activeId).queueSkip?.reason).toBe('Externer Dienst ist nicht erreichbar');
+    reopened.close();
+  });
+
+  it('refuses to skip a running workflow or while any project session is live', () => {
+    const { store, project, template, first, started, queue } = fixture();
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const activeId = store.projectQueue(project.id).activeWorkflowId!;
+    expect(() => store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'Blockiert' })).toThrow('aktive angehaltene');
+    queue.setState({ projectId: project.id, state: 'paused' });
+    const agentId = started[0]!.agentId;
+    const unrelated = store.createSession({ cardId: first.id, agentId });
+    expect(() => store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'Blockiert' })).toThrow('Agent läuft');
+    expect(store.projectQueue(project.id).activeWorkflowId).toBe(activeId);
+    expect(store.workflow(activeId).queueSkip).toBeUndefined();
+    store.finishSession(unrelated.id, 'stopped', null);
+    store.close();
+  });
+
+  it('requires an explicit skip for an approval pause and never counts it as completed', () => {
+    const { store, project, template, started, queue } = fixture();
+    const approvalTemplate = store.createWorkflow({ projectId: project.id, name: 'Approval route', cardIds: template.cardIds, steps: template.steps.map((step) => ({ ...step, id: 'approval-step', requireApproval: true })) });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: approvalTemplate.id });
+    const activeId = store.projectQueue(project.id).activeWorkflowId!;
+    expect(store.workflow(activeId).pauseReason).toBe('approval');
+    expect(started).toHaveLength(0);
+    expect(store.projectQueue(project.id).state).toBe('paused');
+    store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'Freigabe aktuell nicht möglich' });
+    expect(store.projectQueue(project.id).completedCount).toBe(0);
+    expect(store.workflow(activeId).pauseReason).toBe('approval');
+    store.close();
+  });
+
+  it('does not skip an already completed workflow', () => {
+    const { store, project, template, started, workflows, queue } = fixture();
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const activeId = store.projectQueue(project.id).activeWorkflowId!;
+    const finished = store.finishSession(started[0]!.id, 'exited', 0);
+    workflows.onSessionFinished(finished, `Done\n${DONE_MARKER}`);
+    queue.setState({ projectId: project.id, state: 'paused' });
+    expect(store.workflow(activeId).state).toBe('done');
+    expect(() => store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'Nicht nötig' })).toThrow('nicht pausiert');
+    store.close();
+  });
+
+  it('also resolves a stopped queue without silently reactivating it', () => {
+    const { store, project, template, second, started, queue } = fixture();
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const activeId = store.projectQueue(project.id).activeWorkflowId!;
+    queue.setState({ projectId: project.id, state: 'off' });
+    expect(store.workflow(activeId).state).toBe('paused');
+    const result = store.skipQueuedCard({ projectId: project.id, workflowId: activeId, reason: 'User chose another task' });
+    expect(result.state).toBe('off');
+    expect(result.activeWorkflowId).toBeNull();
+    expect(started).toHaveLength(1);
+    expect(store.nextQueueCard(project.id)?.id).toBe(second.id);
+    store.close();
+  });
 });

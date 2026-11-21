@@ -78,6 +78,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS card_worktrees (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_root TEXT NOT NULL, path TEXT NOT NULL UNIQUE, branch TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS project_queues (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, state TEXT NOT NULL, template_workflow_id TEXT REFERENCES workflows(id), active_workflow_id TEXT REFERENCES workflows(id), pause_reason TEXT, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS queue_runs (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL UNIQUE REFERENCES workflows(id) ON DELETE CASCADE, PRIMARY KEY (project_id, card_id));
+      CREATE TABLE IF NOT EXISTS queue_run_skips (workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE, reason TEXT NOT NULL, skipped_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_columns_project ON columns(project_id, position);
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
       CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id, added_at);
@@ -226,6 +227,24 @@ export class StudioStore {
       this.db.prepare('INSERT INTO queue_runs (project_id, card_id, workflow_id) VALUES (?, ?, ?)').run(projectId, cardId, flow.id);
       this.saveProjectQueue({ projectId, state: 'running', templateWorkflowId, activeWorkflowId: flow.id, pauseReason: null });
       return flow;
+    })();
+  }
+
+  skipQueuedCard(input: { projectId: string; workflowId: string; reason: string }): ProjectQueue {
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (reason.length < 3 || reason.length > 500) throw new Error('Bitte einen Grund mit 3 bis 500 Zeichen angeben.');
+    return this.db.transaction(() => {
+      const queue = this.projectQueue(input.projectId);
+      if (queue.state === 'running' || queue.activeWorkflowId !== input.workflowId) throw new Error('Nur der aktive angehaltene Queue-Workflow kann übersprungen werden.');
+      const active = this.workflow(input.workflowId);
+      if (active.projectId !== input.projectId || active.state !== 'paused') throw new Error('Der Queue-Workflow ist nicht pausiert.');
+      if (this.activeSessionForProject(input.projectId)) throw new Error('Ein Agent läuft noch; zuerst die Sitzung beenden.');
+      const run = this.db.prepare('SELECT card_id FROM queue_runs WHERE project_id = ? AND workflow_id = ?').get(input.projectId, input.workflowId) as { card_id: string } | undefined;
+      if (!run || active.cardIds.length !== 1 || active.cardIds[0] !== run.card_id) throw new Error('Keine gültige Queue-Zuordnung für diesen Workflow.');
+      const runningProgress = this.db.prepare("SELECT 1 FROM workflow_progress WHERE workflow_id = ? AND state = 'running' LIMIT 1").get(input.workflowId);
+      if (runningProgress) throw new Error('Der Workflow hat noch einen laufenden Schritt.');
+      this.db.prepare('INSERT INTO queue_run_skips (workflow_id, reason, skipped_at) VALUES (?, ?, ?)').run(input.workflowId, reason, now());
+      return this.saveProjectQueue({ projectId: input.projectId, state: queue.state, templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: null, pauseReason: queue.state === 'paused' ? 'Queue-Karte ausdrücklich übersprungen. Verlauf prüfen und Queue für die nächste Karte fortsetzen.' : null });
     })();
   }
 
@@ -500,6 +519,8 @@ export class StudioStore {
   workflow(id: string): Workflow { return this.hydrateWorkflow(required(this.db.prepare('SELECT * FROM workflows WHERE id = ?').get(id) as WorkflowRow | undefined, 'Workflow not found')); }
   private hydrateWorkflow(row: WorkflowRow): Workflow {
     const value = workflow(row);
+    const skip = this.db.prepare('SELECT reason, skipped_at FROM queue_run_skips WHERE workflow_id = ?').get(value.id) as { reason: string; skipped_at: string } | undefined;
+    if (skip) value.queueSkip = { reason: skip.reason, at: skip.skipped_at };
     if (value.state !== 'paused') return value;
     const step = value.steps[value.currentStep];
     const progress = this.workflowProgress(value.id, value.currentStep);

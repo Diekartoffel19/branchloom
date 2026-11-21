@@ -17,7 +17,7 @@ export interface CommandTerminal { id: string; projectId: string; shell: Command
 export interface CommandTerminalEvent { terminalId: string; projectId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle: string; agentName: string; startedAt: string; snippet: string }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean }
-export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; createdAt: string; updatedAt: string }
+export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; queueSkip?: { reason: string; at: string }; createdAt: string; updatedAt: string }
 export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null }
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
@@ -78,6 +78,7 @@ export interface StudioAPI {
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;
+  skipQueuedCard(input: { projectId: string; workflowId: string; reason: string }): Promise<ProjectQueue>;
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;
   proposeWorkflow(input: { projectId: string; request: string }): Promise<WorkflowProposal>;
