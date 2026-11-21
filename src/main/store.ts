@@ -374,7 +374,7 @@ export class StudioStore {
   }
   commandTerminals(projectId: string): CommandTerminal[] {
     this.project(projectId);
-    return (this.db.prepare('SELECT * FROM command_terminals WHERE project_id = ? ORDER BY started_at DESC, id DESC LIMIT 30').all(projectId) as CommandTerminalRow[]).map(commandTerminal);
+    return (this.db.prepare('SELECT * FROM command_terminals WHERE project_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 30').all(projectId) as CommandTerminalRow[]).map(commandTerminal);
   }
   commandTerminal(id: string): CommandTerminal {
     return commandTerminal(required(this.db.prepare('SELECT * FROM command_terminals WHERE id = ?').get(id) as CommandTerminalRow | undefined, 'Terminal nicht gefunden.'));
