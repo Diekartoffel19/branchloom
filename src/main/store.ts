@@ -2,10 +2,11 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, Card, CardPriority, Column, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentPreset, Card, CardPriority, Column, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
+import { installSessionSearch, searchSessionTranscripts } from './session-search';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -81,6 +82,7 @@ export class StudioStore {
     if (!cardColumns.some((item) => item.name === 'archived_at')) this.db.exec('ALTER TABLE cards ADD COLUMN archived_at TEXT');
     if (!cardColumns.some((item) => item.name === 'priority')) this.db.exec("ALTER TABLE cards ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'");
     if (!cardColumns.some((item) => item.name === 'labels_json')) this.db.exec("ALTER TABLE cards ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'");
+    installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
@@ -286,6 +288,15 @@ export class StudioStore {
 
   latestSession(cardId: string): Session | null { const row = this.db.prepare('SELECT * FROM sessions WHERE card_id = ? ORDER BY started_at DESC LIMIT 1').get(cardId) as SessionRow | undefined; return row ? session(row) : null; }
   session(id: string): Session { return session(required(this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined, 'Session not found')); }
+  sessionForProject(projectId: string, sessionId: string): Session {
+    const row = this.db.prepare('SELECT * FROM sessions WHERE id = ? AND project_id = ?').get(sessionId, projectId) as SessionRow | undefined;
+    if (!row) throw new Error('Sitzung gehört zu einem anderen Projekt oder wurde entfernt.');
+    return session(row);
+  }
+  searchSessionTranscripts(projectId: string, query: string): SessionSearchHit[] {
+    this.project(projectId);
+    return searchSessionTranscripts(this.db, projectId, query);
+  }
   createSession(input: { cardId: string; agentId: string; worktreePath?: string | null }): Session {
     const source = this.card(input.cardId);
     if (source.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');

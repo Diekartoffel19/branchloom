@@ -8,7 +8,7 @@ import { AgentView } from './components/AgentView';
 import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
-import type { ProjectSearchResult, SearchKind } from './project-search';
+import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
 import './theme.css';
 
@@ -109,7 +109,7 @@ export function App() {
 
   function navigateToEntity(kind: SearchKind, id: string) {
     setNavigationTarget((old) => ({ kind, id, token: (old?.token ?? 0) + 1 }));
-    setView(kind === 'card' ? 'board' : kind === 'note' ? 'memory' : 'workflows');
+    setView(viewForSearchKind(kind));
   }
 
   function navigateToResult(result: ProjectSearchResult) {
@@ -193,7 +193,7 @@ export function App() {
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><Sparkles size={30} /></div><h2>Dein Agenten-Workspace beginnt hier.</h2><p>Lege ein Projekt mit dem Ordner an, in dem deine Agenten arbeiten sollen. Danach kannst du Aufgaben auf dem Board planen, CLI-Agenten starten und Wissen verknüpfen.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Erstes Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
-        {view === 'activity' ? <ActivityView snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} /> : null}
+        {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}

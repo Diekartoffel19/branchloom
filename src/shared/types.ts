@@ -9,6 +9,7 @@ export interface Card { id: string; projectId: string; columnId: string; title: 
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
+export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle: string; agentName: string; startedAt: string; snippet: string }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean }
 export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; createdAt: string; updatedAt: string }
 export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null }
@@ -46,6 +47,8 @@ export interface StudioAPI {
   writeSessionInput(input: { sessionId: string; data: string }): Promise<void>;
   resizeSession(input: { sessionId: string; cols: number; rows: number }): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
+  searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
+  sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;

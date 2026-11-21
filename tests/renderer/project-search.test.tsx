@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ProjectSnapshot } from '../../src/shared/types';
 import { SearchPalette } from '../../src/renderer/components/SearchPalette';
-import { projectSearchResults } from '../../src/renderer/project-search';
+import { projectSearchResults, sessionSearchResult, viewForSearchKind } from '../../src/renderer/project-search';
 import { workflowPauseCopy } from '../../src/renderer/components/WorkflowView';
 
 const date = '2026-01-01T00:00:00Z';
@@ -38,6 +38,12 @@ describe('project search', () => {
     expect(html).toContain('role="listbox"');
     expect(html).toContain('&lt;b&gt;Entscheidung&lt;/b&gt;');
     expect(html).not.toContain('<b>Entscheidung</b>');
+  });
+  it('maps an exact transcript hit to the Activity route without embedding private output in the result', () => {
+    const result = sessionSearchResult({ sessionId: 'specific-run', cardId: 'c', cardTitle: 'E-Mails prüfen', agentName: 'Codex', startedAt: date, snippet: 'Wichtige Frist' });
+    expect(result).toMatchObject({ kind: 'session', id: 'specific-run', title: 'E-Mails prüfen', snippet: 'Wichtige Frist' });
+    expect(viewForSearchKind(result.kind)).toBe('activity');
+    expect(renderToStaticMarkup(createElement(SearchPalette, { snapshot, onClose: () => undefined, onNavigate: () => undefined }))).toContain('Agentenverläufe suchen');
   });
 });
 

@@ -5,32 +5,49 @@ import { activityItems, formatDuration, sessionDuration, type ActivityKindFilter
 import { readableSessionOutput, serializeSessionTranscript, sessionTranscriptFileName } from '../activity-transcript';
 import '../activity.css';
 
-interface Props { snapshot: ProjectSnapshot; onOpenCard: (id: string) => void; onOpenWorkflow: (id: string) => void }
+interface Props { snapshot: ProjectSnapshot; openSession?: { id: string; token: number } | null; onSessionClosed?: () => void; onOpenCard: (id: string) => void; onOpenWorkflow: (id: string) => void }
 
 function dateTime(value: string): string {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : 'nicht erfasst';
 }
 
-export function ActivityView({ snapshot, onOpenCard, onOpenWorkflow }: Props) {
+export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCard, onOpenWorkflow }: Props) {
   const [kind, setKind] = useState<ActivityKindFilter>('all');
   const [status, setStatus] = useState<ActivityStatusFilter>('all');
   const [query, setQuery] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [externalSession, setExternalSession] = useState<Session | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState('');
   const [now, setNow] = useState(() => Date.now());
+  const selectedInSnapshot = Boolean(selectedSessionId && snapshot.sessions.some((item) => item.id === selectedSessionId));
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
-  useEffect(() => { setSelectedSessionId(null); }, [snapshot.project.id]);
+  useEffect(() => { setSelectedSessionId(null); setExternalSession(null); }, [snapshot.project.id]);
+  useEffect(() => { if (openSession) setSelectedSessionId(openSession.id); }, [openSession?.id, openSession?.token]);
+  useEffect(() => {
+    if (!selectedSessionId || selectedInSnapshot) { setExternalSession(null); setSessionLoading(false); setSessionError(''); return; }
+    let active = true;
+    setSessionLoading(true);
+    setSessionError('');
+    void window.studio.sessionForProject({ projectId: snapshot.project.id, sessionId: selectedSessionId })
+      .then((value) => { if (active) setExternalSession(value); })
+      .catch(() => { if (active) setSessionError('Dieser gespeicherte Verlauf konnte nicht geladen werden.'); })
+      .finally(() => { if (active) setSessionLoading(false); });
+    return () => { active = false; };
+  }, [selectedSessionId, snapshot.project.id, selectedInSnapshot]);
+  function closeTranscript() { setSelectedSessionId(null); setExternalSession(null); onSessionClosed?.(); }
   useEffect(() => {
     if (!selectedSessionId) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelectedSessionId(null); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeTranscript(); };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedSessionId]);
+  }, [selectedSessionId, onSessionClosed]);
 
   const rows = useMemo(() => activityItems(snapshot, now, kind), [snapshot, now, kind]);
   const filtered = useMemo(() => rows.filter((item) => (status === 'all' || item.status === status) && `${item.title} ${item.subtitle} ${item.detail}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [rows, status, query]);
   const shown = filtered.slice(0, 100);
-  const selectedSession = snapshot.sessions.find((item) => item.id === selectedSessionId) ?? null;
+  const selectedSession = snapshot.sessions.find((item) => item.id === selectedSessionId) ?? (externalSession?.id === selectedSessionId ? externalSession : null);
   const cardIdsWithRuns = new Set(snapshot.sessions.map((session) => session.cardId));
   const runningCount = snapshot.sessions.filter((session) => session.state === 'running').length + snapshot.workflows.filter((workflow) => workflow.state === 'running').length;
   const attentionCount = snapshot.sessions.filter((session) => session.state === 'failed' || (session.state === 'exited' && session.exitCode !== null && session.exitCode !== 0)).length + snapshot.workflows.filter((workflow) => workflow.state === 'paused' && ['approval', 'manual', 'review'].includes(workflow.pauseReason ?? '')).length;
@@ -75,12 +92,12 @@ export function ActivityView({ snapshot, onOpenCard, onOpenWorkflow }: Props) {
       </article>;
     })}{filtered.length === 0 ? <div className="feature-empty activity-empty"><Clock3 size={28} /><h3>{rows.length === 0 ? 'Noch keine Aktivität' : 'Keine Treffer'}</h3><p>{rows.length === 0 ? 'Starte einen Agenten auf einer Karte oder lege einen Workflow an. Hier erscheinen dann die gespeicherten Zustände.' : 'Ändere Status, Art oder Suchbegriff.'}</p></div> : null}</div>
     {filtered.length > shown.length ? <p className="activity-more">{filtered.length - shown.length} weitere Einträge. Nutze die Filter, um sie einzugrenzen.</p> : null}
-    {selectedSession ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSessionId(null); }}>
+    {selectedSessionId ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeTranscript(); }}>
       <section className="dialog wide activity-transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="activity-transcript-title">
-        <div className="dialog-heading"><div><small>GESPEICHERTER AGENTENLAUF</small><h2 id="activity-transcript-title">{snapshot.cards.find((card) => card.id === selectedSession.cardId)?.title ?? 'Entfernte Karte'}</h2></div><button className="icon-button" type="button" autoFocus aria-label="Verlauf schließen" onClick={() => setSelectedSessionId(null)}><X size={18} /></button></div>
-        <div className="activity-transcript-meta"><span>Beginn: {dateTime(selectedSession.startedAt)}</span><span>Ende: {selectedSession.endedAt ? dateTime(selectedSession.endedAt) : 'läuft'}</span><span>Dauer: {formatDuration(sessionDuration(selectedSession, now))}</span><span>Status: {selectedSession.state}</span><span>Exit-Code: {selectedSession.exitCode ?? 'nicht erfasst'}</span></div>
-        <pre className="activity-transcript-output" role="log">{readableSessionOutput(selectedSession.output) || 'Noch keine Ausgabe gespeichert.'}</pre>
-        <div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => exportTranscript(selectedSession)}><Download size={15} /> Als Text speichern</button><button className="primary-button" type="button" onClick={() => setSelectedSessionId(null)}>Schließen</button></div>
+        <div className="dialog-heading"><div><small>GESPEICHERTER AGENTENLAUF</small><h2 id="activity-transcript-title">{selectedSession ? snapshot.cards.find((card) => card.id === selectedSession.cardId)?.title ?? 'Entfernte Karte' : 'Agentenverlauf'}</h2></div><button className="icon-button" type="button" autoFocus aria-label="Verlauf schließen" onClick={closeTranscript}><X size={18} /></button></div>
+        {selectedSession ? <div className="activity-transcript-meta"><span>Beginn: {dateTime(selectedSession.startedAt)}</span><span>Ende: {selectedSession.endedAt ? dateTime(selectedSession.endedAt) : 'läuft'}</span><span>Dauer: {formatDuration(sessionDuration(selectedSession, now))}</span><span>Status: {selectedSession.state}</span><span>Exit-Code: {selectedSession.exitCode ?? 'nicht erfasst'}</span></div> : null}
+        <pre className="activity-transcript-output" role="log">{selectedSession ? readableSessionOutput(selectedSession.output) || 'Noch keine Ausgabe gespeichert.' : sessionLoading ? 'Verlauf wird geladen…' : sessionError || 'Verlauf nicht gefunden.'}</pre>
+        <div className="dialog-actions">{selectedSession ? <button className="secondary-button" type="button" onClick={() => exportTranscript(selectedSession)}><Download size={15} /> Als Text speichern</button> : null}<button className="primary-button" type="button" onClick={closeTranscript}>Schließen</button></div>
       </section>
     </div> : null}
   </div>;

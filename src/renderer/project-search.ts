@@ -1,6 +1,9 @@
-import type { ProjectSnapshot } from '../shared/types';
+import type { ProjectSnapshot, SessionSearchHit } from '../shared/types';
 
-export type SearchKind = 'card' | 'note' | 'workflow';
+export type SearchKind = 'card' | 'note' | 'workflow' | 'session';
+export function viewForSearchKind(kind: SearchKind): 'board' | 'memory' | 'workflows' | 'activity' {
+  return kind === 'card' ? 'board' : kind === 'note' ? 'memory' : kind === 'session' ? 'activity' : 'workflows';
+}
 export interface ProjectSearchResult {
   kind: SearchKind;
   id: string;
@@ -10,6 +13,14 @@ export interface ProjectSearchResult {
   updatedAt: string;
 }
 interface IndexedResult extends ProjectSearchResult { searchable: string }
+
+export function sessionSearchResult(hit: SessionSearchHit): ProjectSearchResult {
+  return {
+    kind: 'session', id: hit.sessionId, title: hit.cardTitle,
+    context: `Agentenverlauf · ${hit.agentName} · ${new Date(hit.startedAt).toLocaleDateString('de-DE')}`,
+    snippet: hit.snippet.slice(0, 220), updatedAt: hit.startedAt,
+  };
+}
 
 function normalize(value: string): string {
   return value.toLocaleLowerCase('de-DE').normalize('NFKD').replace(/\p{M}/gu, '').replace(/[-_]/g, '');

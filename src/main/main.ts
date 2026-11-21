@@ -91,6 +91,8 @@ function installIpc(): void {
     workflowEngine.onSessionFinished(stopped);
     queueEngine.onSessionFinished(stopped);
   });
+  bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
+  bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
   bind('setWorkflowState', (input: { id: string; state: WorkflowState }) => {
     const workflow = workflowEngine.setState(input);
