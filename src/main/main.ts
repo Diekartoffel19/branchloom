@@ -49,8 +49,8 @@ function installIpc(): void {
   bind('projects', () => db.projects());
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
-  bind('createColumn', (input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null }) => db.createColumn(input));
-  bind('updateColumn', (input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null }) => db.updateColumn(input));
+  bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));
+  bind('updateColumn', (input: Parameters<StudioAPI['updateColumn']>[0]) => db.updateColumn(input));
   bind('createCard', (input: Parameters<StudioAPI['createCard']>[0]) => {
     const card = db.createCard(input);
     queueEngine.onBoardChanged(card.projectId);

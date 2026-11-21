@@ -29,7 +29,7 @@ describe('Trello import UI', () => {
   });
 
   it('renders a local file picker with explicit preview and no import before inspection', () => {
-    const columns: Column[] = [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null }];
+    const columns: Column[] = [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }];
     const html = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(html).toContain('type="file"');
     expect(html).toContain('Trello-JSON importieren');

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArrowRight, Bot, FileJson2, GripVertical, Plus, Search, Terminal, X } from 'lucide-react';
-import type { Card, CardPriority, Column, ProjectSnapshot } from '../../shared/types';
+import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
+import { COLUMN_EFFORTS } from '../../shared/column-settings';
 import type { Mutate } from './shared';
 import { CardPanel } from './CardPanel';
 import { TrelloImportPanel } from './TrelloImportPanel';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
+import '../column-settings.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number } | null }
 
@@ -117,13 +119,37 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onDro
   return <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
     <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div>{canCreate ? <button className="icon-button" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /></button> : null}</header>
     <div className="column-body">
-      {column.autoStart ? <div className="column-agent"><Bot size={13} /><span>Auto · {agent?.name ?? 'Kein Agent'}</span></div> : null}
+      {agent ? <div className="column-agent"><Bot size={13} /><span>{column.autoStart ? 'Auto' : 'Manuell'} · {agent.name}{column.model ? ` · ${column.model}` : ''}{column.effort ? ` · ${column.effort}` : ''}</span></div> : null}
       {cards.map((card) => <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} />)}
       {children}
       {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
     </div>
-    <footer className="column-footer"><label><input type="checkbox" checked={column.autoStart} onChange={(event) => void mutate(() => window.studio.updateColumn({ id: column.id, autoStart: event.target.checked }))} /> Agent automatisch starten</label>{column.autoStart ? <select aria-label={`Agent für ${column.name}`} value={column.agentId ?? ''} onChange={(event) => void mutate(() => window.studio.updateColumn({ id: column.id, agentId: event.target.value || null }))}><option value="">Agent wählen</option>{snapshot.agents.filter((item) => item.enabled).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : null}</footer>
+    <footer className="column-footer"><ColumnAgentSettings column={column} agents={snapshot.agents} mutate={mutate} /><label><input type="checkbox" checked={column.autoStart} disabled={!column.agentId} onChange={(event) => void mutate(() => window.studio.updateColumn({ id: column.id, autoStart: event.target.checked }))} /> Agent automatisch starten</label></footer>
   </section>;
+}
+
+export function ColumnAgentSettings({ column, agents, mutate }: { column: Column; agents: ProjectSnapshot['agents']; mutate: Mutate }) {
+  const [agentId, setAgentId] = useState(column.agentId ?? '');
+  const [model, setModel] = useState(column.model ?? '');
+  const [effort, setEffort] = useState<ColumnEffort | ''>(column.effort ?? '');
+  useEffect(() => { setAgentId(column.agentId ?? ''); setModel(column.model ?? ''); setEffort(column.effort ?? ''); }, [column.id, column.agentId, column.model, column.effort]);
+  const selectedAgent = agents.find((item) => item.id === agentId);
+  const modelSupported = selectedAgent && selectedAgent.kind !== 'custom';
+  const effortSupported = selectedAgent?.kind === 'codex';
+  const changed = agentId !== (column.agentId ?? '') || (modelSupported ? model : '') !== (column.model ?? '') || (effortSupported ? effort : '') !== (column.effort ?? '');
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await mutate(() => window.studio.updateColumn({ id: column.id, agentId: agentId || null, autoStart: agentId ? column.autoStart : false, model: modelSupported ? model.trim() || null : null, effort: effortSupported && effort ? effort : null }));
+  }
+
+  return <form className="column-settings" onSubmit={(event) => void save(event)}>
+    <label>Agent<select aria-label={`Agent für ${column.name}`} value={agentId} onChange={(event) => { setAgentId(event.target.value); setModel(''); setEffort(''); }}><option value="">Manueller Schritt</option>{agents.filter((item) => item.enabled || item.id === agentId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+    <label>Modell<input aria-label={`Modell für ${column.name}`} value={model} maxLength={200} disabled={!modelSupported} onChange={(event) => setModel(event.target.value)} placeholder={selectedAgent?.model || 'CLI-/Profilstandard'} /></label>
+    <label>Effort<select aria-label={`Effort für ${column.name}`} value={effort} disabled={!effortSupported} onChange={(event) => setEffort(event.target.value as ColumnEffort | '')}><option value="">Modellstandard</option>{COLUMN_EFFORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+    <small>{!selectedAgent ? 'Wähle einen Agenten. Modell und Effort bleiben sonst leer.' : selectedAgent.kind === 'custom' ? 'Eigene CLI: Modellargumente im Agentenprofil setzen.' : selectedAgent.kind !== 'codex' ? 'Effort ist derzeit nur für Codex CLI verfügbar.' : 'Verfügbare Effort-Stufen hängen vom gewählten Codex-Modell ab.'} Ein Workflow-Schritt mit einem anderen Agenten nutzt dessen Profilwerte.</small>
+    <button className="secondary-button small" type="submit" disabled={!changed}>Agent-Einstellungen speichern</button>
+  </form>;
 }
 
 function BoardCard({ card, column, columns, snapshot, onSelect, onMove }: {

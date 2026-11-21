@@ -9,7 +9,7 @@ const t0 = '2026-01-01T10:00:00.000Z';
 const t1 = '2026-01-01T10:02:05.000Z';
 const snapshot: ProjectSnapshot = {
   project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: t0 },
-  columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null }],
+  columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }],
   cards: [
     { id: 'c1', projectId: 'p', columnId: 'todo', title: 'Fehler prüfen', description: '', priority: 'none', labels: [], position: 0, createdAt: t0, updatedAt: t0, archivedAt: null },
     { id: 'c2', projectId: 'p', columnId: 'todo', title: 'Noch offen', description: '', priority: 'none', labels: [], position: 1, createdAt: t0, updatedAt: t0, archivedAt: null },

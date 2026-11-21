@@ -15,8 +15,8 @@ const cards: Card[] = [
 describe('board filters and archive visibility', () => {
   it('offers keyboard moves only for active cards and ignores modified shortcuts', () => {
     const columns = [
-      { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null },
-      { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: true, agentId: 'agent' },
+      { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null },
+      { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: true, agentId: 'agent', model: null, effort: null },
     ];
     expect(moveDestinations(columns, cards[0]!).map((column) => column.id)).toEqual(['done']);
     expect(moveDestinations(columns, cards[1]!)).toEqual([]);
@@ -45,8 +45,8 @@ describe('board filters and archive visibility', () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Synthetic', path: 'C:\\test', createdAt: stamp },
       columns: [
-        { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null },
-        { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: false, agentId: null },
+        { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null },
+        { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: false, agentId: null, model: null, effort: null },
       ],
       cards, agents: [], sessions: [], workflows: [], notes: [],
     };

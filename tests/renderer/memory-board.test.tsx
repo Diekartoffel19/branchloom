@@ -32,7 +32,7 @@ describe('board view', () => {
   it('renders real snapshot cards and escapes user supplied markup', () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: '2026-01-01T00:00:00Z' },
-      columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null }],
+      columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }],
       cards: [{ id: 'card', projectId: 'p', columnId: 'todo', title: '<script>alert(1)</script>', description: 'Beschreibung', priority: 'none', labels: ['<svg onload=alert(1)>'], position: 0, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null }],
       agents: [], sessions: [], workflows: [], notes: [],
     };

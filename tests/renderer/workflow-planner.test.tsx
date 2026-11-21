@@ -7,8 +7,8 @@ import { ProposalPreview, WorkflowPlanner } from '../../src/renderer/components/
 const snapshot: ProjectSnapshot = {
   project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: '2026-01-01T00:00:00Z' },
   columns: [
-    { id: 'planning', projectId: 'p', name: 'Planning', position: 0, autoStart: false, agentId: null },
-    { id: 'testing', projectId: 'p', name: 'Testing', position: 1, autoStart: false, agentId: null },
+    { id: 'planning', projectId: 'p', name: 'Planning', position: 0, autoStart: false, agentId: null, model: null, effort: null },
+    { id: 'testing', projectId: 'p', name: 'Testing', position: 1, autoStart: false, agentId: null, model: null, effort: null },
   ],
   cards: [], agents: [], sessions: [], workflows: [], notes: [],
 };

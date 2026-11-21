@@ -1,0 +1,7 @@
+.column-settings { display: flex; flex-direction: column; gap: 8px; }
+.column-settings label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.column-settings input, .column-settings select { width: 100%; min-width: 0; min-height: 30px; font-size: 11px; }
+.column-settings small { color: #91a5b8; font-size: 10px; line-height: 1.4; }
+.column-settings button { align-self: flex-start; }
+.column-agent span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme='light'] .column-settings small { color: #4a6173; }

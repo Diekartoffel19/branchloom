@@ -2,9 +2,10 @@ export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
 export type QueueState = 'off' | 'running' | 'paused';
 export type CardPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
+export type ColumnEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 export interface Project { id: string; name: string; path: string; createdAt: string }
-export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null }
+export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null }
@@ -32,8 +33,8 @@ export interface StudioAPI {
   projects(): Promise<Project[]>;
   createProject(input: { name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
-  createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null }): Promise<Column>;
-  updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null }): Promise<Column>;
+  createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
+  updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;

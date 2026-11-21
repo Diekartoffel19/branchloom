@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import pty, { type IPty } from 'node-pty';
-import type { AgentDetection, AgentPreset, Session, SessionEvent } from '../shared/types';
+import type { AgentDetection, AgentPreset, Column, ColumnEffort, Session, SessionEvent } from '../shared/types';
+import { columnSettings } from '../shared/column-settings';
 import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
 
@@ -63,13 +64,18 @@ export function detectAgents(env: NodeJS.ProcessEnv = process.env): AgentDetecti
   });
 }
 
-function cliArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string): string[] {
+export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string, column?: { model: string | null; effort: ColumnEffort | null }): string[] {
   const args = mode === 'one-shot' && agent.kind === 'codex'
     ? ['exec', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...agent.args]
     : [...agent.args];
-  if (agent.model) {
-    if (agent.kind === 'codex' || agent.kind === 'gemini') args.push('-m', agent.model);
-    else if (agent.kind === 'claude') args.push('--model', agent.model);
+  const model = column?.model ?? agent.model;
+  if (model) {
+    if (agent.kind === 'codex' || agent.kind === 'gemini') args.push('-m', model);
+    else if (agent.kind === 'claude') args.push('--model', model);
+  }
+  if (column?.effort) {
+    if (agent.kind !== 'codex') throw new Error('Spalten-Effort wird derzeit nur für Codex CLI unterstützt.');
+    args.push('-c', `model_reasoning_effort=${JSON.stringify(column.effort)}`);
   }
   // These CLIs accept a positional or -p prompt in one-shot mode and exit when
   // the turn ends. A custom adapter can place {prompt} in one of its args.
@@ -80,6 +86,11 @@ function cliArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-
     if (index >= 0) args[index] = args[index]!.replace('{prompt}', prompt);
   }
   return args;
+}
+
+/** An explicit card/workflow agent only inherits column overrides when it is that column's agent. */
+export function columnLaunchOverrides(column: Pick<Column, 'agentId' | 'model' | 'effort'>, agent: AgentPreset) {
+  return agent.id === column.agentId ? columnSettings(agent.kind, column.model, column.effort) : { model: null, effort: null };
 }
 
 /** A single explicit user-triggered agent run. No shell string or implicit restart. */
@@ -103,6 +114,7 @@ export class SessionRunner {
     if (!agentId) throw new Error('Choose an agent for this card or column');
     const agent = this.store.agent(agentId);
     if (!agent.enabled) throw new Error(`${agent.name} is disabled`);
+    const columnOverrides = columnLaunchOverrides(column, agent);
     if (this.store.latestSession(card.id)?.state === 'running') throw new Error('An agent is already running for this card');
     if (this.store.projectQueue(project.id).state === 'running' && this.store.activeSessionForProject(project.id)) {
       throw new Error('In der aktiven Projektwarteschlange läuft bereits ein Agent.');
@@ -126,7 +138,7 @@ export class SessionRunner {
     if (finalFile) this.finalMessageFiles.set(row.id, finalFile);
     let child: IPty;
     try {
-      child = pty.spawn(launcher.executable, [...launcher.prefixArgs, ...cliArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path)], {
+      child = pty.spawn(launcher.executable, [...launcher.prefixArgs, ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, columnOverrides)], {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
