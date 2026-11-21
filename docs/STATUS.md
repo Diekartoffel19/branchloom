@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 06:51 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 07:04 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -12,6 +12,7 @@ Stand: 21.11.2026, 06:51 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 - Explizit aktivierbare To-Do-Warteschlange pro Projekt mit gewählter Workflow-Route, maximal einem Agentenlauf pro Projekt und sichtbarem Pause-/Resume-Status. Nach Fehler oder Neustart bleibt sie zur Prüfung pausiert; unsichere Schritte werden nicht automatisch wiederholt. Eine pausierte, bereits beanspruchte Karte lässt sich nach Eingabe eines Grundes bewusst überspringen. Die Entscheidung und der Workflow-Verlauf bleiben lokal erhalten; die Queue setzt erst nach einem zweiten ausdrücklichen Klick mit der nächsten freien Karte fort. WLAN-Ausfälle werden nur über den Zustand des laufenden CLI-Prozesses erkannt.
 - Aktive Board-Karten können innerhalb ihrer Spalte mit Auf/Ab-Schaltflächen umgeordnet werden. Die gespeicherte To-Do-Reihenfolge bestimmt die nächste freie Queue-Karte. Filter verändern die Reihenfolge nicht; archivierte Karten bleiben an ihrem Platz. Die Reihenfolgeänderung startet keinen Agenten.
 - Die Workflow-Seite zeigt die nächsten bis zu fünf freien To-Do-Karten aus derselben Auswahlfunktion wie der Queue-Start. Die Vorschau berücksichtigt Umordnung und bereits beanspruchte Karten; sie startet selbst keinen Agenten.
+- Ungestartete Workflow-Entwürfe lassen sich nach Bestätigung entfernen, ohne Karten zu löschen. Dadurch werden To-Do-Karten wieder für die Queue frei. Aktive/pausierte Abläufe und verwendete Queue-Vorlagen sind geschützt; ungenutzte Vorlagenreferenzen werden transaktional entfernt.
 - Board-Spalten können im Spaltenkopf nach links oder rechts umgeordnet werden. Karten und Workflows behalten ihre Spalten-IDs; die Änderung ist transaktional und startet keinen Agenten. Auch bei aktivem Spaltenfilter beziehen sich die Schaltflächen auf die vollständige Board-Reihenfolge.
 - Board-Spalten lassen sich über ein Stiftsymbol umbenennen. Der Name muss projektweit eindeutig sein. Die To-Do-Spalte ist bei aktiver oder pausierter Queue für Umbenennung gesperrt; eine Queue benötigt später wieder eine Spalte namens To Do. Karten, Workflow-Referenzen und Agenteneinstellungen bleiben an der Spalten-ID.
 - Wirklich leere, in keinem Workflow verwendete Spalten lassen sich nach einer zweiten Bestätigung entfernen. Archivierte Karten, Workflow-Schritte, die letzte Spalte und eine nicht ausgeschaltete To-Do-Queue sperren das Löschen. Die verbleibenden Positionen werden transaktional verdichtet; Agenten und Projektdateien bleiben unberührt.
@@ -41,7 +42,9 @@ Der erste CI-Lauf für die Spaltenumbenennung ([44870695824](https://github.com/
 
 Für das Entfernen leerer Spalten bestanden sieben gezielte Datenbank-/Renderer-Tests, darunter Schutz für archivierte Karten, Workflow-Referenzen, Queue-To-Do, letzte Spalte, Neustart-Persistenz und Transaktions-Rollback. Typprüfung und Produktionsbuild bestanden. Der Quell-Smoke erstellte und entfernte eine synthetische leere Spalte. Die vollständige kombinierte Suite bestand vor dem zusätzlichen Letzte-Spalte-Test mit 186 Tests und 2 optional übersprungenen Live-Tests; der neue gezielte Test bestand danach. [Paket-CI 44871917807](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44871917807) bestand vollständig.
 
-Für die Queue-Vorschau bestanden 14 gezielte Tests aus Queue-Logik und Renderer sowie Typprüfung, Produktionsbuild, Public-Scan und Quell-Smoke mit sichtbarer Vorschau nach Reload. Die vollständige kombinierte Suite bestand mit 190 Tests; 2 optionale Live-Tests blieben übersprungen. Paket-CI folgt nach Push.
+Für die Queue-Vorschau bestanden 14 gezielte Tests aus Queue-Logik und Renderer sowie Typprüfung, Produktionsbuild, Public-Scan und Quell-Smoke mit sichtbarer Vorschau nach Reload. Die vollständige kombinierte Suite bestand mit 190 Tests; 2 optionale Live-Tests blieben übersprungen. [Windows-CI 44872850193](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44872850193) bestand einschließlich frischem Paket-Smoke.
+
+Für das Löschen ungestarteter Workflow-Entwürfe bestanden 16 gezielte Tests in drei Dateien, Typprüfung, Build, Public-Scan und Quell-Electron-Smoke inklusive tatsächlichem Klick auf Löschen und Bestätigung sowie IPC/SQLite-Pfad. Die vollständige Suite bestand mit 194 Tests; 2 optionale Live-Tests blieben übersprungen. Paket-CI folgt nach Push.
 
 Für den Antigravity-Adapter im isolierten Entwicklungszweig bestanden `npm run typecheck`, `npm run build`, drei reine Argument-/Fake-CLI-Tests, fünf CLI-Diagnose-Tests und vier Renderer-Tests. Die lokale `agy.exe` meldete bei `--version` `1.5.13`; `--help` bestätigte `-i`, `-p`, `--model` und `--effort`. `npm ci` mit nativen Build-Skripten scheiterte auf diesem Laptop an fehlender Visual-Studio-C++-Toolchain; die SQLite-/PTY-Integrationstests liefen nach Übernahme im Hauptcheckout erfolgreich. Ein Modellaufruf, Login-Test und sichtbarer UI-Durchlauf fanden nicht statt.
 
@@ -72,7 +75,7 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Queue-Vorschau nach Public-Scan pushen und Windows-CI mit frischem ZIP prüfen.
+1. Workflow-Entwurfslöschung nach vollständiger Suite und Public-Scan pushen und Windows-CI mit frischem ZIP prüfen.
 2. Weitere klar abgegrenzte Paritätsfunktionen anhand [PARITY.md](PARITY.md) implementieren und getrennt verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten sichtbaren UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 

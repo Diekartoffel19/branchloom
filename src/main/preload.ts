@@ -46,6 +46,7 @@ const studio: StudioAPI = {
   searchSessionTranscripts: (input) => invoke('searchSessionTranscripts', input),
   sessionForProject: (input) => invoke('sessionForProject', input),
   createWorkflow: (input) => invoke('createWorkflow', input),
+  deleteDraftWorkflow: (id) => invoke('deleteDraftWorkflow', id),
   setWorkflowState: (input) => invoke('setWorkflowState', input),
   setProjectQueue: (input) => invoke('setProjectQueue', input),
   queueCandidates: (projectId) => invoke('queueCandidates', projectId),

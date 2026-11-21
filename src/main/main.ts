@@ -165,6 +165,11 @@ function installIpc(): void {
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
+  bind('deleteDraftWorkflow', (id: string) => {
+    const projectId = db.deleteDraftWorkflow(id);
+    queueEngine.onBoardChanged(projectId);
+    return projectId;
+  });
   bind('setWorkflowState', (input: { id: string; state: WorkflowState }) => {
     const workflow = workflowEngine.setState(input);
     queueEngine.onBoardChanged(workflow.projectId);
@@ -304,6 +309,10 @@ function createWindow(): void {
           if (saved.columns.some((item) => item.id === removable.id)) throw new Error('Leere Spalte wurde nicht gelöscht.');
           const candidates = await window.studio.queueCandidates(project.id);
           if (candidates.length !== 1 || candidates[0].id !== card.id) throw new Error('Queue-Vorschau wich von der freien To-Do-Karte ab.');
+          const draft = await window.studio.createWorkflow({ projectId: project.id, name: 'Smoke-Entwurf', cardIds: [card.id], steps: [{ id: 'smoke-step', columnId: saved.columns[2].id, agentId: null, requireApproval: false }] });
+          if ((await window.studio.queueCandidates(project.id)).length !== 0) throw new Error('Karte mit Workflow-Entwurf blieb in der Queue.');
+          await window.studio.deleteDraftWorkflow(draft.id);
+          if ((await window.studio.queueCandidates(project.id))[0]?.id !== card.id) throw new Error('Gelöschter Entwurf gab die Karte nicht frei.');
           if (${process.platform === 'win32'}) {
             const terminal = await window.studio.startCommandTerminal({ projectId: project.id, shell: 'cmd' });
             await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'set STUDIO_SMOKE_PREFIX=JARVIS_STUDIO_\\r' });
@@ -360,6 +369,36 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!previewVisible) throw new Error('Nächste freie To-Do-Karte wurde im Workflow nicht angezeigt.');
+              const workflowProject = (await window.studio.projects())[0];
+              const workflowSnapshot = await window.studio.snapshot(workflowProject.id);
+              const workflowCard = workflowSnapshot.cards.find((item) => item.title === 'Smoke-Karte');
+              const workflowStepColumn = workflowSnapshot.columns.find((item) => item.name === 'Smoke-Umbenannt');
+              if (!workflowCard || !workflowStepColumn) throw new Error('Workflow-Smoke-Daten fehlen.');
+              const deleteDraft = await window.studio.createWorkflow({ projectId: workflowProject.id, name: 'Zu löschender Entwurf', cardIds: [workflowCard.id], steps: [{ id: 'delete-smoke-step', columnId: workflowStepColumn.id, agentId: null, requireApproval: false }] });
+              document.querySelector('button[aria-label="Aktualisieren"]')?.click();
+              let deleteButton;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                deleteButton = [...document.querySelectorAll('.workflow-list .workflow-card button')].find((item) => item.textContent?.includes('Entwurf löschen'));
+                if (deleteButton) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!deleteButton) throw new Error('Entwurf-Löschknopf fehlt.');
+              deleteButton.click();
+              let confirmDelete;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                confirmDelete = document.querySelector('[role="dialog"][aria-label="Workflow-Entwurf löschen"] .danger-button');
+                if (confirmDelete) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!confirmDelete) throw new Error('Bestätigung für Workflow-Entwurf fehlt.');
+              confirmDelete.click();
+              let draftDeleted = false;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                draftDeleted = !(await window.studio.snapshot(workflowProject.id)).workflows.some((item) => item.id === deleteDraft.id);
+                if (draftDeleted && document.querySelector('.queue-preview ol')?.textContent?.includes('Smoke-Karte')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!draftDeleted || !document.querySelector('.queue-preview ol')?.textContent?.includes('Smoke-Karte')) throw new Error('Workflow-Entwurf wurde nicht sichtbar gelöscht und Karte nicht freigegeben.');
               if (${process.platform === 'win32'}) {
                 const activityNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Aktivität'));
                 if (!activityNav) throw new Error('Aktivitätsnavigation fehlt.');

@@ -78,6 +78,7 @@ export interface StudioAPI {
   searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
   sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
+  deleteDraftWorkflow(id: string): Promise<string>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;
   queueCandidates(projectId: string): Promise<Card[]>;

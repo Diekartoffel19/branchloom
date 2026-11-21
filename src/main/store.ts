@@ -593,6 +593,19 @@ export class StudioStore {
     this.db.prepare('INSERT INTO workflows VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.name, json(value.cardIds), json(value.steps), value.state, value.currentStep, value.createdAt, value.updatedAt);
     return value;
   }
+  deleteDraftWorkflow(id: string): string {
+    return this.db.transaction(() => {
+      const workflow = this.workflow(id);
+      if (workflow.state !== 'draft' || workflow.currentStep !== 0) throw new Error('Nur ungestartete Workflow-Entwürfe können gelöscht werden.');
+      if (this.db.prepare('SELECT 1 FROM workflow_progress WHERE workflow_id = ? LIMIT 1').get(id) || this.db.prepare('SELECT 1 FROM workflow_step_approvals WHERE workflow_id = ? LIMIT 1').get(id)) throw new Error('Workflow hat bereits Fortschritt und bleibt im Verlauf erhalten.');
+      if (this.db.prepare('SELECT 1 FROM queue_runs WHERE workflow_id = ? LIMIT 1').get(id)) throw new Error('Beanspruchte Queue-Workflows bleiben im Verlauf erhalten.');
+      const queue = this.projectQueue(workflow.projectId);
+      if (queue.activeWorkflowId === id || (queue.templateWorkflowId === id && queue.state !== 'off')) throw new Error('Workflow wird von der Warteschlange verwendet. Zuerst die Queue ausschalten.');
+      if (queue.templateWorkflowId === id) this.saveProjectQueue({ projectId: workflow.projectId, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
+      this.db.prepare('DELETE FROM workflows WHERE id = ?').run(id);
+      return workflow.projectId;
+    })();
+  }
   setWorkflowState(id: string, state: WorkflowState): Workflow {
     const current = this.workflow(id);
     if (!['draft', 'running', 'paused', 'done'].includes(state)) throw new Error('Invalid workflow state');
