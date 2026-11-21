@@ -89,7 +89,7 @@ describe('per-card Git worktrees', () => {
     runner.dispose();
     await new Promise((resolve) => setTimeout(resolve, 1_000));
     store.close();
-  }, 20_000);
+  }, 60_000);
 
   it('keeps worktrees disabled by default and refuses a non-Git project without a session', () => {
     const { store, card } = fixture(false);

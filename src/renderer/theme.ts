@@ -1,0 +1,41 @@
+export type ThemePreference = 'dark' | 'light';
+
+export const THEME_STORAGE_KEY = 'jarvis-studio:theme';
+
+type ThemeStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+export function readThemePreference(storage: Pick<ThemeStorage, 'getItem'> | null, prefersLight: boolean): ThemePreference {
+  try {
+    const saved = storage?.getItem(THEME_STORAGE_KEY);
+    if (saved === 'dark' || saved === 'light') return saved;
+  } catch {
+    // Storage can be unavailable in restricted desktop/browser contexts.
+  }
+  return prefersLight ? 'light' : 'dark';
+}
+
+export function writeThemePreference(storage: Pick<ThemeStorage, 'setItem'> | null, theme: ThemePreference): void {
+  try {
+    storage?.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // The current choice still applies for this session if storage is blocked.
+  }
+}
+
+export function currentTheme(): ThemePreference {
+  if (typeof window === 'undefined') return 'dark';
+  let storage: Pick<ThemeStorage, 'getItem'> | null = null;
+  try { storage = window.localStorage; } catch { /* Browser storage may be blocked. */ }
+  const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches ?? false;
+  return readThemePreference(storage, prefersLight);
+}
+
+export function persistTheme(theme: ThemePreference): void {
+  let storage: Pick<ThemeStorage, 'setItem'> | null = null;
+  try { storage = window.localStorage; } catch { /* Browser storage may be blocked. */ }
+  writeThemePreference(storage, theme);
+}
+
+export function themeToggleLabel(theme: ThemePreference): string {
+  return theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren';
+}

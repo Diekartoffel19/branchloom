@@ -6,6 +6,7 @@ import type { AgentPreset, QueueState, SessionEvent, StudioAPI, WorkflowAgentSet
 import { StudioBrowser } from './browser';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
+import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { StudioStore } from './store';
 import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
@@ -100,6 +101,8 @@ function installIpc(): void {
   bind('acceptWorkflowProposal', (input: { projectId: string; proposal: WorkflowProposal }) => db.acceptWorkflowProposal(input));
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
+  bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
+  bind('mergeCardWorktree', (input: { cardId: string; previewToken: string; confirm: boolean }) => mergeCardWorktree(db, input));
   bind('saveNote', (input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }) => db.saveNote(input));
   bind('deleteNote', (id: string) => db.deleteNote(id));
   bind('transcribe', (audio: Uint8Array) => {
@@ -111,6 +114,8 @@ function installIpc(): void {
   bind('browserBack', () => browser?.back());
   bind('browserForward', () => browser?.forward());
   bind('browserReload', () => browser?.reload());
+  bind('browserCapture', () => browser?.captureActive());
+  bind('browserOpenExternal', () => browser?.openActiveExternally());
   bind('browserNewTab', () => browser?.newTab());
   bind('browserSelectTab', (id: string) => browser?.selectTab(id));
   bind('browserCloseTab', (id: string) => browser?.closeTab(id));

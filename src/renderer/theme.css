@@ -1,0 +1,295 @@
+/* These overrides use a root prefix so the existing component styles keep their layout. */
+:root[data-theme='light'] {
+  color: #172b3c;
+  background: #f2f6fa;
+  --text: #172b3c;
+  --bg: #f2f6fa;
+  --sidebar: #eaf1f7;
+  --surface: #fff;
+  --surface-2: #f6f9fc;
+  --surface-3: #eaf2f7;
+  --border: #b8c9d6;
+  --muted: #4a6173;
+  --soft: #435a6c;
+  --accent: #087572;
+  --accent-2: #005d5a;
+  --danger: #9f3340;
+}
+
+:root[data-theme='light'] body,
+:root[data-theme='light'] .main-area { background: #f2f6fa; color: #172b3c; }
+:root[data-theme='light'] .sidebar { background: linear-gradient(180deg,#f3f8fb,#e7f0f5); border-color: #c5d3dd; }
+:root[data-theme='light'] .brand-mark,
+:root[data-theme='light'] .intro-icon { background: #d6efeb; border-color: #4a9b91; color: #005e59; box-shadow: none; }
+:root[data-theme='light'] .brand small,
+:root[data-theme='light'] .eyebrow,
+:root[data-theme='light'] .column-agent,
+:root[data-theme='light'] .workflow-kicker,
+:root[data-theme='light'] .drawer-header small,
+:root[data-theme='light'] .dialog-heading small { color: #006a65; }
+:root[data-theme='light'] .side-section-title,
+:root[data-theme='light'] .navigation-title,
+:root[data-theme='light'] .topbar-title small { color: #4c6475; }
+:root[data-theme='light'] .sidebar-bottom { color: #4e6373; border-color: #c5d3dd; }
+:root[data-theme='light'] .project-select,
+:root[data-theme='light'] input,
+:root[data-theme='light'] textarea,
+:root[data-theme='light'] select { background: #fff; color: #172b3c; border-color: #aebfcd; }
+:root[data-theme='light'] input::placeholder,
+:root[data-theme='light'] textarea::placeholder { color: #5c6e7e; }
+:root[data-theme='light'] .search-input-wrap input,
+:root[data-theme='light'] .search-field input,
+:root[data-theme='light'] .board-search input,
+:root[data-theme='light'] .activity-search input,
+:root[data-theme='light'] .browser-address input,
+:root[data-theme='light'] .terminal-controls form input,
+:root[data-theme='light'] .memory-title { background: transparent; border-color: transparent; }
+:root[data-theme='light'] input:focus,
+:root[data-theme='light'] textarea:focus,
+:root[data-theme='light'] select:focus { border-color: #087572; box-shadow: 0 0 0 3px #08757230; }
+:root[data-theme='light'] .nav-item { color: #30485a; }
+:root[data-theme='light'] .nav-item:hover { background: #dbe9ee; color: #123a40; }
+:root[data-theme='light'] .nav-item.active { background: #ccebe6; border-color: #71ada4; color: #064d4a; box-shadow: inset 3px 0 #087572; }
+:root[data-theme='light'] .sidebar-add,
+:root[data-theme='light'] .text-button { color: #006a65; }
+:root[data-theme='light'] .sidebar-add:hover { color: #004d4a; }
+:root[data-theme='light'] .topbar,
+:root[data-theme='light'] .mobile-workspace { background: #fff; border-color: #c7d4df; }
+:root[data-theme='light'] .topbar-icon { background: #e2f2ef; border-color: #a6cec7; color: #006a65; }
+:root[data-theme='light'] .topbar-meta,
+:root[data-theme='light'] .view-header p { color: #4e6475; }
+:root[data-theme='light'] .icon-button { color: #334e5e; }
+:root[data-theme='light'] .icon-button:hover,
+:root[data-theme='light'] .theme-toggle { background: #e5f0f3; border-color: #abc5cd; color: #075e5b; }
+:root[data-theme='light'] .search-trigger { background: #f1f6f8; border-color: #b6ccd3; color: #274b58; }
+:root[data-theme='light'] .search-trigger:hover { background: #e2f1f1; border-color: #78aaa7; color: #004f4b; }
+:root[data-theme='light'] .search-trigger kbd { border-color: #b4c8d1; color: #506777; }
+:root[data-theme='light'] .primary-button { background: #087572; border-color: #006562; color: #fff; box-shadow: none; }
+:root[data-theme='light'] .primary-button:hover { background: #005b59; }
+:root[data-theme='light'] .secondary-button { background: #fff; border-color: #9eb5c3; color: #17384a; }
+:root[data-theme='light'] .secondary-button:hover { background: #e8f2f5; border-color: #5d8796; }
+:root[data-theme='light'] .danger-button { background: #fff0f1; border-color: #b95d65; color: #852b34; }
+:root[data-theme='light'] .danger-button:hover { background: #ffe1e5; }
+:root[data-theme='light'] .voice-button { background: #e9f5f3; border-color: #80b6ad; color: #075e59; }
+:root[data-theme='light'] .voice-button.recording { background: #ffebed; border-color: #b65360; color: #8d2b39; }
+:root[data-theme='light'] .view-header code { background: #dcefeb; color: #065b57; }
+:root[data-theme='light'] .header-stat { background: #e9f5f2; border-color: #a1cfc4; }
+:root[data-theme='light'] .header-stat strong { color: #006a65; }
+:root[data-theme='light'] .header-stat span { color: #466b67; }
+
+:root[data-theme='light'] .board-column,
+:root[data-theme='light'] .memory-list,
+:root[data-theme='light'] .memory-main,
+:root[data-theme='light'] .graph-panel,
+:root[data-theme='light'] .panel,
+:root[data-theme='light'] .workflow-card,
+:root[data-theme='light'] .activity-item,
+:root[data-theme='light'] .activity-stats > div,
+:root[data-theme='light'] .browser-viewport { background: #fff; border-color: #bfced9; box-shadow: 0 3px 15px #2138490d; }
+:root[data-theme='light'] .column-header,
+:root[data-theme='light'] .column-footer,
+:root[data-theme='light'] .drawer-header,
+:root[data-theme='light'] .drawer-divider,
+:root[data-theme='light'] .form-section,
+:root[data-theme='light'] .backlinks,
+:root[data-theme='light'] .search-field { border-color: #cfdae3; }
+:root[data-theme='light'] .count-pill,
+:root[data-theme='light'] .route-number,
+:root[data-theme='light'] .workflow-list-heading span { background: #eaf1f5; border-color: #bfd0da; color: #344e60; }
+:root[data-theme='light'] .task-card { background: #f8fbfc; border-color: #b6c7d4; color: #182d3e; box-shadow: 0 3px 10px #21384914; }
+:root[data-theme='light'] .task-card:hover { border-color: #2e8b81; }
+:root[data-theme='light'] .task-card-grip,
+:root[data-theme='light'] .task-card-description,
+:root[data-theme='light'] .task-card-footer,
+:root[data-theme='light'] .empty-column,
+:root[data-theme='light'] .run-meta { color: #4e6575; }
+:root[data-theme='light'] .task-card-footer { border-color: #d2dce3; }
+:root[data-theme='light'] .column-footer label,
+:root[data-theme='light'] .new-column-form > span,
+:root[data-theme='light'] .stacked-form label,
+:root[data-theme='light'] .dialog label,
+:root[data-theme='light'] .field-label { color: #314c5c; }
+:root[data-theme='light'] .new-card-form,
+:root[data-theme='light'] .new-column-form,
+:root[data-theme='light'] .card-move-form { background: #edf6f7; border-color: #8cb9bb; }
+:root[data-theme='light'] .card-move-form label { color: #234751; }
+:root[data-theme='light'] .card-move-trigger { color: #075e59; }
+:root[data-theme='light'] .card-move-trigger:hover,
+:root[data-theme='light'] .card-move-trigger[aria-expanded='true'] { background: #d8efeb; border-color: #89bfb5; color: #034e4a; }
+:root[data-theme='light'] .card-move-trigger kbd { color: #426273; border-color: #a9c2c9; }
+:root[data-theme='light'] .board-search,
+:root[data-theme='light'] .activity-filters .activity-search { background: #fff; border-color: #afc4d0; color: #087572; }
+:root[data-theme='light'] .board-filter-count,
+:root[data-theme='light'] .activity-more { color: #4c6575; }
+:root[data-theme='light'] .task-card-archive-label { background: #fff0d8; color: #795124; }
+
+:root[data-theme='light'] .card-drawer,
+:root[data-theme='light'] .dialog,
+:root[data-theme='light'] .search-dialog { background: #fff; border-color: #9fb4c2; box-shadow: 0 20px 60px #1b314633; }
+:root[data-theme='light'] .section-heading,
+:root[data-theme='light'] .section-heading h3,
+:root[data-theme='light'] .panel-heading h3 { color: #183848; }
+:root[data-theme='light'] .section-copy,
+:root[data-theme='light'] .field-help,
+:root[data-theme='light'] .form-section > p,
+:root[data-theme='light'] .panel-subtitle,
+:root[data-theme='light'] .inline-note { color: #496173; }
+:root[data-theme='light'] .inline-note,
+:root[data-theme='light'] .check-option,
+:root[data-theme='light'] .step-form,
+:root[data-theme='light'] .detected-item,
+:root[data-theme='light'] .preset-item { background: #f3f8fa; border-color: #c1d0da; color: #263d50; }
+:root[data-theme='light'] .preset-item:hover { background: #e7f3f5; border-color: #6aaba6; }
+:root[data-theme='light'] .detected-icon,
+:root[data-theme='light'] .preset-avatar,
+:root[data-theme='light'] .activity-icon,
+:root[data-theme='light'] .search-result-icon { background: #d9eeeb; color: #086c67; }
+:root[data-theme='light'] .terminal-empty { color: #4b6273; border-color: #aebfc9; }
+:root[data-theme='light'] .terminal-controls form { background: #fff; border-color: #adbfca; }
+:root[data-theme='light'] .session-state { color: #405b6c; border-color: #aabcca; }
+:root[data-theme='light'] .session-state.running,
+:root[data-theme='light'] .available-badge { color: #0c624b; border-color: #5c9e7b; }
+:root[data-theme='light'] .unavailable-badge { color: #556879; border-color: #9caebb; }
+:root[data-theme='light'] .inline-error { color: #9f3340; }
+:root[data-theme='light'] .error-banner,
+:root[data-theme='light'] .browser-error { background: #fff0f2; border-color: #bd626c; color: #812a34; }
+:root[data-theme='light'] .card-move-warning { background: #fff5e5; border-color: #b68e54; color: #6a4922; }
+
+:root[data-theme='light'] .workflow-planner { background: linear-gradient(135deg,#f1faf8,#eaf3f8); border-color: #a7c8ca; }
+:root[data-theme='light'] .planner-avatar { background: #d3eeea; border-color: #93c4bc; color: #006763; }
+:root[data-theme='light'] .planner-head p,
+:root[data-theme='light'] .planner-request-actions span,
+:root[data-theme='light'] .proposal-footer span,
+:root[data-theme='light'] .workflow-card p,
+:root[data-theme='light'] .activity-item p { color: #4b6374; }
+:root[data-theme='light'] .planner-settings label,
+:root[data-theme='light'] .planner-request label { color: #264c58; }
+:root[data-theme='light'] .planner-hint,
+:root[data-theme='light'] .planner-notice,
+:root[data-theme='light'] .info-strip,
+:root[data-theme='light'] .browser-notice,
+:root[data-theme='light'] .trello-import-result { background: #e5f6ed; border-color: #7ab49b; color: #185b43; }
+:root[data-theme='light'] .planner-request,
+:root[data-theme='light'] .proposal-footer { border-color: #bbd1d4; }
+:root[data-theme='light'] .proposal-preview { background: #f3faf9; border-color: #8abcb4; }
+:root[data-theme='light'] .proposal-preview > p,
+:root[data-theme='light'] .proposal-cards li,
+:root[data-theme='light'] .proposal-route > span { color: #365565; }
+:root[data-theme='light'] .proposal-cards strong { color: #172d3d; }
+:root[data-theme='light'] .proposal-cards span { color: #526b7b; }
+:root[data-theme='light'] .proposal-grid h4 { color: #006b66; }
+:root[data-theme='light'] .workflow-route { background: #f2f7f9; border-color: #c2d2dc; }
+:root[data-theme='light'] .route-step { color: #536979; }
+:root[data-theme='light'] .route-step.current { color: #005b56; }
+:root[data-theme='light'] .state-badge,
+:root[data-theme='light'] .activity-badge { background: #eef3f6; border-color: #b4c5d1; color: #3f596a; }
+:root[data-theme='light'] .state-badge.running,
+:root[data-theme='light'] .activity-badge.running { background: #e4f5ea; border-color: #71ac8b; color: #175f43; }
+:root[data-theme='light'] .state-badge.paused,
+:root[data-theme='light'] .activity-badge.attention { background: #fff2de; border-color: #c39a59; color: #744c19; }
+:root[data-theme='light'] .activity-badge.stopped { background: #fff0f2; border-color: #c28188; color: #892e3c; }
+:root[data-theme='light'] .activity-badge.finished { color: #276362; border-color: #8bb9b7; }
+:root[data-theme='light'] .activity-stats strong { color: #173646; }
+:root[data-theme='light'] .activity-stats span,
+:root[data-theme='light'] .activity-filters label,
+:root[data-theme='light'] .activity-meta { color: #4c6475; }
+
+:root[data-theme='light'] .memory-item { color: #243c4e; }
+:root[data-theme='light'] .memory-item:hover { background: #e9f2f6; }
+:root[data-theme='light'] .memory-item.selected { background: #d9efeb; border-color: #78afa7; }
+:root[data-theme='light'] .memory-item span,
+:root[data-theme='light'] .memory-editor-actions span,
+:root[data-theme='light'] .list-empty,
+:root[data-theme='light'] .graph-header > span,
+:root[data-theme='light'] .graph-empty { color: #4b6374; }
+:root[data-theme='light'] .memory-item small,
+:root[data-theme='light'] .memory-editor-top { color: #006a65; }
+:root[data-theme='light'] .memory-title { border-color: #bcced9; }
+:root[data-theme='light'] .memory-graph { background: radial-gradient(circle at center,#edf6f5,#e3eef3 70%); }
+:root[data-theme='light'] .graph-edge { stroke: #44877f; opacity: .8; }
+:root[data-theme='light'] .graph-node circle { fill: #d3ece8; stroke: #06756d; }
+:root[data-theme='light'] .graph-node.selected circle,
+:root[data-theme='light'] .graph-node:hover circle { fill: #6fc5b6; stroke: #075b55; }
+:root[data-theme='light'] .graph-node text { fill: #1d4b52; }
+:root[data-theme='light'] .backlinks h3,
+:root[data-theme='light'] .backlinks button { color: #075f5a; }
+:root[data-theme='light'] .backlinks button { background: #e4f4f1; border-color: #85b9b1; }
+:root[data-theme='light'] .memory-preview,
+:root[data-theme='light'] .memory-markdown h1,
+:root[data-theme='light'] .memory-markdown h2,
+:root[data-theme='light'] .memory-markdown h3 { color: #203a4a; }
+:root[data-theme='light'] .memory-modebar,
+:root[data-theme='light'] .memory-wikilink { color: #006a65; }
+:root[data-theme='light'] .memory-wikilink.missing,
+:root[data-theme='light'] .memory-preview-empty { color: #5c6676; }
+:root[data-theme='light'] .memory-tag-filter button { background: #f2f7f9; border-color: #a9bdc9; color: #27495a; }
+:root[data-theme='light'] .memory-tag-filter button.active { background: #d8efeb; border-color: #5d9e95; color: #064d49; }
+:root[data-theme='light'] .memory-preview-tags span { background: #e4f4f1; border-color: #85b9b1; color: #075f5a; }
+:root[data-theme='light'] .memory-markdown blockquote { color: #405d68; border-color: #399187; }
+:root[data-theme='light'] .memory-markdown code { background: #e3f0f1; color: #183c48; }
+:root[data-theme='light'] .memory-markdown pre { background: #eaf1f5; border-color: #b6cbd4; color: #233c4b; }
+:root[data-theme='light'] .activity-transcript-meta { color: #455f70; }
+
+:root[data-theme='light'] .search-topline,
+:root[data-theme='light'] .search-input-wrap { color: #08716c; }
+:root[data-theme='light'] .search-topline > span:nth-child(2),
+:root[data-theme='light'] .search-results-title,
+:root[data-theme='light'] .search-result-copy small,
+:root[data-theme='light'] .search-footer,
+:root[data-theme='light'] .search-no-results { color: #4d6677; }
+:root[data-theme='light'] .search-input-wrap,
+:root[data-theme='light'] .search-footer { border-color: #c9d9e1; }
+:root[data-theme='light'] .search-result { color: #192f3f; }
+:root[data-theme='light'] .search-result:hover,
+:root[data-theme='light'] .search-result.active { background: #e4f4f1; border-color: #86bdb3; }
+:root[data-theme='light'] .browser-address,
+:root[data-theme='light'] .browser-tab { background: #f4f8fa; border-color: #b7cbd5; color: #36576a; }
+:root[data-theme='light'] .browser-tab.active { background: #deefeb; border-color: #6ca99f; color: #084e4a; }
+:root[data-theme='light'] .browser-tab-close,
+:root[data-theme='light'] .browser-tab-add { color: #435f70; }
+:root[data-theme='light'] .browser-tab-close:hover,
+:root[data-theme='light'] .browser-tab-add:hover { background: #d7ece9; color: #005d58; }
+:root[data-theme='light'] .browser-empty { color: #08716b; }
+:root[data-theme='light'] .browser-empty h2 { color: #1b3b4a; }
+:root[data-theme='light'] .browser-empty p { color: #4a6373; }
+:root[data-theme='light'] .trello-file-label { background: #edf7f7; border-color: #82b0af; color: #164f56; }
+:root[data-theme='light'] .trello-preview { border-color: #bfd1d9; }
+:root[data-theme='light'] .trello-preview-head p,
+:root[data-theme='light'] .trello-file-name,
+:root[data-theme='light'] .trello-card-row small,
+:root[data-theme='light'] .trello-card-row em { color: #4e6777; }
+:root[data-theme='light'] .trello-card-list { background: #fff; border-color: #b9cad5; }
+:root[data-theme='light'] .trello-card-row { color: #233d4f; border-color: #d1dce4; }
+:root[data-theme='light'] .trello-card-row:hover { background: #ecf7f5; }
+
+:root[data-theme='light'] .theme-toggle { min-width: 36px; min-height: 36px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  .task-card:hover { transform: none; }
+}
+
+@media (prefers-contrast: more) {
+  :root[data-theme='light'] { --border: #5b6f7e; --muted: #243e51; --soft: #243e51; --accent: #005d58; }
+  :root[data-theme='dark'] { --border: #8ca5b9; --muted: #c2d1df; --soft: #d3dfe9; --accent: #9effec; }
+  :root[data-theme='light'] .topbar-meta,
+  :root[data-theme='light'] .view-header p,
+  :root[data-theme='light'] .task-card-description,
+  :root[data-theme='light'] .task-card-footer,
+  :root[data-theme='light'] .activity-item p,
+  :root[data-theme='light'] .activity-meta { color: #243e51; }
+  :root[data-theme='dark'] .topbar-meta,
+  :root[data-theme='dark'] .view-header p,
+  :root[data-theme='dark'] .task-card-description,
+  :root[data-theme='dark'] .task-card-footer,
+  :root[data-theme='dark'] .activity-item p,
+  :root[data-theme='dark'] .activity-meta { color: #d3e0ea; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role='button']:focus-visible { outline-width: 3px !important; outline-offset: 3px; }
+  .board-column, .task-card, .panel, .workflow-card, .activity-item, .dialog, .memory-main, .memory-list { border-width: 2px !important; }
+}
+
+@media (forced-colors: active) {
+  .nav-item.active, .primary-button, .secondary-button, .danger-button, .task-card, .search-result.active { border: 1px solid ButtonText !important; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role='button']:focus-visible { outline: 2px solid Highlight !important; outline-offset: 3px; }
+  .status-dot, .live-dot, .column-indicator { box-shadow: none; border: 1px solid ButtonText; }
+}

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { Menu, session, WebContentsView, type BrowserWindow, type Session } from 'electron';
-import type { BrowserBounds, BrowserState, BrowserTabState } from '../shared/types';
+import { ClipboardItem, clipboard, Menu, session, shell, WebContentsView, type BrowserWindow, type Session } from 'electron';
+import type { BrowserBounds, BrowserCaptureResult, BrowserState, BrowserTabState } from '../shared/types';
 import { clampBrowserBounds, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
 import { BrowserSessionPersistence, MAX_BROWSER_TABS } from './browser-persistence';
 
 const PARTITION = 'persist:jarvis-studio-browser';
+const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 
 interface Tab { id: string; view: WebContentsView; requestedUrl: string; restoredUrl: string | null; error: string | null }
 
@@ -115,6 +116,31 @@ export class StudioBrowser {
   reload(): BrowserState {
     this.activeTab()?.view.webContents.reload();
     return this.state();
+  }
+
+  async captureActive(): Promise<BrowserCaptureResult> {
+    const tab = this.activeTab();
+    if (!tab || !this.visible || this.attachedTabId !== tab.id || this.window.isDestroyed() || !this.window.isVisible()) throw new Error('Nur ein sichtbarer Browser-Tab kann aufgenommen werden.');
+    const url = tab.view.webContents.getURL();
+    if (!isSafeBrowserUrl(url)) throw new Error('Der Browser-Tab enthält noch keine geladene Webseite.');
+    const image = await tab.view.webContents.capturePage();
+    if (this.disposed || !this.visible || this.attachedTabId !== tab.id || this.activeTabId !== tab.id || this.window.isDestroyed() || !this.window.isVisible() || tab.view.webContents.getURL() !== url) throw new Error('Der Browser-Tab hat sich während der Aufnahme geändert.');
+    if (image.isEmpty()) throw new Error('Die Webseite lieferte kein Screenshot-Bild.');
+    const size = image.getSize();
+    const png = image.toPNG();
+    if (png.byteLength === 0 || png.byteLength > MAX_CAPTURE_BYTES) throw new Error('Der Screenshot ist leer oder zu groß.');
+    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })]);
+    return { width: size.width, height: size.height };
+  }
+
+  async openActiveExternally(): Promise<void> {
+    const tab = this.activeTab();
+    if (!tab || !this.visible || this.attachedTabId !== tab.id || this.window.isDestroyed() || !this.window.isVisible()) throw new Error('Nur ein sichtbarer Browser-Tab kann extern geöffnet werden.');
+    // The renderer supplies no URL. Validate the currently loaded page again
+    // immediately before invoking the operating system's URL handler.
+    const current = tab.view.webContents.getURL();
+    if (!isSafeBrowserUrl(current)) throw new Error('Der Browser-Tab enthält noch keine gültige Webseite.');
+    await shell.openExternal(normalizeBrowserAddress(current));
   }
 
   setVisible(visible: boolean): BrowserState {

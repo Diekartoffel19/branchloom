@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Globe2, Plus, RotateCw, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, ExternalLink, Globe2, Plus, RotateCw, X } from 'lucide-react';
 import type { BrowserState } from '../../shared/types';
 
 const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null };
@@ -9,6 +9,7 @@ export function BrowserView({ active }: { active: boolean }) {
   const [state, setState] = useState<BrowserState>(EMPTY);
   const [address, setAddress] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const viewport = useRef<HTMLDivElement>(null);
   const editing = useRef(false);
 
@@ -60,14 +61,34 @@ export function BrowserView({ active }: { active: boolean }) {
   async function navigate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setNotice('');
     try { setState(await window.studio.browserNavigate(address)); }
     catch (reason) { setError(messageOf(reason)); }
   }
 
   async function command(action: () => Promise<BrowserState>) {
     setError('');
+    setNotice('');
     try { setState(await action()); }
     catch (reason) { setError(messageOf(reason)); }
+  }
+
+  async function capture() {
+    setError('');
+    setNotice('');
+    try {
+      const result = await window.studio.browserCapture();
+      setNotice(`Screenshot (${result.width} × ${result.height}) in die Zwischenablage kopiert.`);
+    } catch (reason) { setError(messageOf(reason)); }
+  }
+
+  async function openExternal() {
+    setError('');
+    setNotice('');
+    try {
+      await window.studio.browserOpenExternal();
+      setNotice('Seite im Standardbrowser geöffnet.');
+    } catch (reason) { setError(messageOf(reason)); }
   }
 
   return <section className="browser-page" aria-label="Browser">
@@ -85,6 +106,8 @@ export function BrowserView({ active }: { active: boolean }) {
         <button type="button" className="icon-button" aria-label="Zurück" title="Zurück" disabled={!state.canGoBack} onClick={() => void command(() => window.studio.browserBack())}><ArrowLeft size={17} /></button>
         <button type="button" className="icon-button" aria-label="Vorwärts" title="Vorwärts" disabled={!state.canGoForward} onClick={() => void command(() => window.studio.browserForward())}><ArrowRight size={17} /></button>
         <button type="button" className="icon-button" aria-label="Neu laden" title="Neu laden" disabled={!state.url} onClick={() => void command(() => window.studio.browserReload())}><RotateCw size={17} className={state.loading ? 'spin' : undefined} /></button>
+        <button type="button" className="icon-button" aria-label="Screenshot in Zwischenablage kopieren" title="Sichtbaren Tab als Screenshot kopieren" disabled={!active || !state.url || state.loading} onClick={() => void capture()}><Camera size={17} /></button>
+        <button type="button" className="icon-button" aria-label="Im Standardbrowser öffnen" title="Seite im Standardbrowser öffnen" disabled={!active || !state.url || state.loading} onClick={() => void openExternal()}><ExternalLink size={17} /></button>
       </div>
       <form className="browser-address" onSubmit={(event) => void navigate(event)}>
         <Globe2 size={17} aria-hidden="true" />
@@ -94,6 +117,7 @@ export function BrowserView({ active }: { active: boolean }) {
       </form>
     </div>
     {error || state.error ? <div className="browser-error" role="alert">{error || state.error}</div> : null}
+    {notice ? <div className="browser-notice" role="status">{notice}</div> : null}
     <div className="browser-viewport" ref={viewport}>
       {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Browser</h2><p>Gib oben eine Webadresse ein. Webseiten laufen getrennt von den Rechten der App und der CLI-Agenten.</p></div> : null}
     </div>

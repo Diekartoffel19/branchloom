@@ -1,6 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmdirSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
+import type { WorktreeReview } from '../shared/types';
 import type { CardWorktree, StudioStore } from './store';
 
 function git(cwd: string, args: string[], timeout = 30_000): string {
@@ -16,12 +19,17 @@ function git(cwd: string, args: string[], timeout = 30_000): string {
     const detail = String(result.stderr || result.error?.message || 'Git-Aufruf fehlgeschlagen').trim().slice(0, 500);
     throw new Error(`Git-Worktree: ${detail}`);
   }
-  return result.stdout.trim();
+  return result.stdout.trimEnd();
 }
 
 function within(parent: string, child: string): boolean {
   const part = relative(parent, child);
   return part === '' || (part !== '..' && !part.startsWith(`..\\`) && !part.startsWith('../') && !isAbsolute(part));
+}
+
+function pathPresent(path: string): boolean {
+  try { lstatSync(path); return true; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
 }
 
 function gitRoot(path: string): string {
@@ -46,8 +54,8 @@ function sameDirectory(first: string, second: string): boolean {
 }
 
 function verifyExisting(record: CardWorktree, sourceRoot: string, expectedPath: string): void {
-  if (resolve(record.sourceRoot) !== resolve(sourceRoot) || resolve(record.path) !== resolve(expectedPath)) throw new Error('Der gespeicherte Worktree gehört nicht mehr zu diesem Projekt.');
   if (!existsSync(record.path) || lstatSync(record.path).isSymbolicLink() || !statSync(record.path).isDirectory()) throw new Error('Der gespeicherte Worktree fehlt oder wurde ersetzt. Keine Dateien wurden gelöscht.');
+  if (!sameDirectory(record.sourceRoot, sourceRoot) || !sameDirectory(record.path, expectedPath)) throw new Error('Der gespeicherte Worktree gehört nicht mehr zu diesem Projekt.');
   if (!sameDirectory(gitRoot(record.path), record.path) || !sameDirectory(commonDir(record.path), commonDir(sourceRoot))) throw new Error('Der Worktree gehört zu einem anderen Git-Repository.');
   if (git(record.path, ['rev-parse', '--symbolic-full-name', 'HEAD']) !== `refs/heads/${record.branch}`) throw new Error('Der Worktree steht nicht mehr auf seinem Karten-Branch.');
 }
@@ -84,4 +92,68 @@ export function ensureCardWorktree(store: StudioStore, cardId: string): { path: 
   const cwd = join(path, subdirectory);
   if (!within(path, cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()) throw new Error('Das Projekt-Unterverzeichnis fehlt im Worktree.');
   return { path, cwd, branch };
+}
+
+/** Read only: missing worktrees are not silently created by opening a card. */
+export function reviewCardWorktree(store: StudioStore, cardId: string): WorktreeReview | null {
+  const record = store.cardWorktree(cardId);
+  if (!record) { store.card(cardId); return null; }
+  const project = store.project(record.projectId);
+  const targetPath = gitRoot(project.path);
+  verifyExisting(record, targetPath, join(store.worktreeBase, record.projectId, cardId));
+  const sourceHead = git(record.path, ['rev-parse', 'HEAD']);
+  const targetHead = git(targetPath, ['rev-parse', 'HEAD']);
+  let targetBranch: string | null = null;
+  try { targetBranch = git(targetPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']); } catch { /* Detached target. */ }
+  const sourceStatusText = git(record.path, ['-c', 'core.fsmonitor=false', '-c', 'core.quotePath=true', 'status', '--porcelain=v1', '--untracked-files=all']);
+  const targetStatusText = git(targetPath, ['-c', 'core.fsmonitor=false', '-c', 'core.quotePath=true', 'status', '--porcelain=v1', '--untracked-files=all']);
+  const sourceStatus = sourceStatusText ? sourceStatusText.split(/\r?\n/).slice(0, 100) : [];
+  const targetStatus = targetStatusText ? targetStatusText.split(/\r?\n/).slice(0, 100) : [];
+  const uncommittedStat = git(record.path, ['diff', 'HEAD', '--no-ext-diff', '--no-textconv', '--stat']).slice(0, 6000);
+  const counts = git(targetPath, ['rev-list', '--left-right', '--count', `${targetHead}...${sourceHead}`]).trim().split(/\s+/).map(Number);
+  const behind = counts[0] ?? 0;
+  const ahead = counts[1] ?? 0;
+  let committedStat = '';
+  try { committedStat = git(targetPath, ['diff', '--no-ext-diff', '--no-textconv', '--stat', `${targetHead}...${sourceHead}`]).slice(0, 6000); }
+  catch { /* No common base; merge is blocked below. */ }
+  const blockers: string[] = [];
+  if (!targetBranch) blockers.push('Ziel-Checkout hat keinen aktiven Branch.');
+  if (sourceStatusText) blockers.push('Worktree hat nicht committete Änderungen.');
+  if (targetStatusText) blockers.push('Ziel-Checkout ist nicht sauber.');
+  if (sourceHead === targetHead) blockers.push('Keine neuen Commits im Worktree.');
+  if (behind > 0) blockers.push('Branches sind auseinander gelaufen; nur Fast-Forward ist erlaubt.');
+  if (store.activeSessionForProject(record.projectId)) blockers.push('In diesem Projekt läuft noch ein Agent.');
+  for (const [checkout, label] of [[targetPath, 'Ziel-Checkout'], [record.path, 'Worktree']] as const) {
+    const gitDirectory = git(checkout, ['rev-parse', '--path-format=absolute', '--git-dir']);
+    for (const marker of ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'index.lock']) {
+      if (existsSync(join(gitDirectory, marker))) { blockers.push(`Im ${label} läuft bereits ein Git-Vorgang.`); break; }
+    }
+  }
+  // Git status hides ignored paths. An added committed file must not replace
+  // an ignored local file in the target checkout.
+  const addedPaths = git(targetPath, ['diff', '--name-only', '-z', '--diff-filter=A', `${targetHead}..${sourceHead}`]).split('\0').filter(Boolean);
+  if (addedPaths.some((item) => within(targetPath, join(targetPath, item)) && pathPresent(join(targetPath, item)))) blockers.push('Ein neuer Commit-Pfad würde eine lokale Zieldatei überdecken.');
+  const previewToken = createHash('sha256').update(JSON.stringify([cardId, record.branch, sourceHead, targetBranch, targetHead])).digest('hex');
+  return { cardId, path: record.path, branch: record.branch, targetPath, targetBranch, sourceHead, targetHead, sourceStatus, targetStatus, uncommittedStat, committedStat, ahead, behind, canFastForward: blockers.length === 0 && ahead > 0, blockers, previewToken };
+}
+
+/** The only automatic merge is a reviewed fast-forward. No reset, force, delete or conflict resolution. */
+export function mergeCardWorktree(store: StudioStore, input: { cardId: string; previewToken: string; confirm: boolean }): WorktreeReview {
+  if (input.confirm !== true) throw new Error('Der Merge braucht eine ausdrückliche Bestätigung.');
+  if (typeof input.previewToken !== 'string' || !/^[a-f0-9]{64}$/.test(input.previewToken)) throw new Error('Ungültige Merge-Vorschau.');
+  const review = reviewCardWorktree(store, input.cardId);
+  if (!review) throw new Error('Für diese Karte ist kein Worktree angelegt.');
+  if (review.previewToken !== input.previewToken) throw new Error('Branches haben sich seit der Vorschau geändert. Bitte erneut prüfen.');
+  if (!review.canFastForward) throw new Error(`Fast-Forward nicht möglich: ${review.blockers.join(' ')}`);
+  // An empty temporary hooks directory prevents repository hooks from running
+  // during this app-initiated merge. It is removed only if still empty.
+  const emptyHooks = mkdtempSync(join(tmpdir(), 'jarvis-studio-empty-hooks-'));
+  try {
+    git(review.targetPath, ['-c', `core.hooksPath=${emptyHooks}`, '-c', 'core.fsmonitor=false', 'merge', '--ff-only', review.sourceHead], 120_000);
+  } finally {
+    try { rmdirSync(emptyHooks); } catch { /* No user worktree data is touched. */ }
+  }
+  const after = reviewCardWorktree(store, input.cardId);
+  if (!after || after.targetHead !== review.sourceHead) throw new Error('Git meldete einen Merge, aber der Ziel-Commit weicht ab. Bitte den Checkout prüfen.');
+  return after;
 }

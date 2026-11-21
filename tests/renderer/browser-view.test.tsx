@@ -11,6 +11,8 @@ describe('browser controls', () => {
     expect(html).toContain('aria-label="Zurück"');
     expect(html).toContain('aria-label="Vorwärts"');
     expect(html).toContain('aria-label="Neu laden"');
+    expect(html).toContain('aria-label="Screenshot in Zwischenablage kopieren"');
+    expect(html).toContain('aria-label="Im Standardbrowser öffnen"');
     expect(html).toContain('Öffnen');
     expect(html).toContain('aria-label="Browser-Tabs"');
     expect(html).toContain('aria-label="Neuer Tab"');

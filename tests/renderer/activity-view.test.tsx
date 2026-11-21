@@ -44,6 +44,7 @@ describe('activity data', () => {
     expect(html).toContain('Fehlgeschlagen');
     expect(html).toContain('Zum Workflow');
     expect(html).toContain('Zur Karte');
+    expect(html).toContain('Verlauf ansehen');
     expect(html).toContain('Token: nicht erfasst');
     expect(html).toContain('Kosten: nicht erfasst');
     expect(html).not.toContain('private output');

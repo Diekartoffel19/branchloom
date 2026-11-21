@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, GitBranch, Globe2, Plus, RefreshCw, Search, Settings2, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Activity, Bot, BrainCircuit, Columns3, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun } from 'lucide-react';
 import type { Project, ProjectSnapshot } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
@@ -9,6 +9,8 @@ import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
 import type { ProjectSearchResult, SearchKind } from './project-search';
+import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
+import './theme.css';
 
 type View = 'board' | 'activity' | 'workflows' | 'memory' | 'agents' | 'browser';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
@@ -33,8 +35,15 @@ export function App() {
   const [newProject, setNewProject] = useState({ name: '', path: '' });
   const [searchOpen, setSearchOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
+  const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const focusBeforeSearch = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    persistTheme(theme);
+  }, [theme]);
 
   const loadProjects = useCallback(async () => {
     if (!window.studio) throw new Error('Die Desktop-Verbindung ist nicht verfügbar. Bitte Jarvis Studio als App starten.');
@@ -170,7 +179,7 @@ export function App() {
     <main className="main-area">
       <header className="topbar">
         <div className="topbar-title"><span className="topbar-icon"><ViewIcon size={21} /></span><div><small>{snapshot?.project.name ?? 'JARVIS STUDIO'}</small><h1>{activeView.name}</h1></div></div>
-        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} Karten · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg/⌘ K)" aria-label="Projekt durchsuchen" disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Suche</span><kbd>⌘ K</kbd></button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
+        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} Karten · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg/⌘ K)" aria-label="Projekt durchsuchen" disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Suche</span><kbd>⌘ K</kbd></button><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
       </header>
       <div className="mobile-workspace">
         <label className="sr-only" htmlFor="mobile-project-select">Projekt auswählen</label>

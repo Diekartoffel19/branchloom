@@ -19,9 +19,11 @@ export interface SessionEvent { sessionId: string; cardId: string; type: 'output
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
 export interface BrowserTabState { id: string; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
 export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
+export interface BrowserCaptureResult { width: number; height: number }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
+export interface WorktreeReview { cardId: string; path: string; branch: string; targetPath: string; targetBranch: string | null; sourceHead: string; targetHead: string; sourceStatus: string[]; targetStatus: string[]; uncommittedStat: string; committedStat: string; ahead: number; behind: number; canFastForward: boolean; blockers: string[]; previewToken: string }
 
 export interface StudioAPI {
   projects(): Promise<Project[]>;
@@ -49,6 +51,8 @@ export interface StudioAPI {
   acceptWorkflowProposal(input: { projectId: string; proposal: WorkflowProposal }): Promise<Workflow>;
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
+  reviewCardWorktree(cardId: string): Promise<WorktreeReview | null>;
+  mergeCardWorktree(input: { cardId: string; previewToken: string; confirm: boolean }): Promise<WorktreeReview>;
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
   deleteNote(id: string): Promise<void>;
   transcribe(audio: Uint8Array): Promise<string>;
@@ -58,6 +62,8 @@ export interface StudioAPI {
   browserBack(): Promise<BrowserState>;
   browserForward(): Promise<BrowserState>;
   browserReload(): Promise<BrowserState>;
+  browserCapture(): Promise<BrowserCaptureResult>;
+  browserOpenExternal(): Promise<void>;
   browserNewTab(): Promise<BrowserState>;
   browserSelectTab(id: string): Promise<BrowserState>;
   browserCloseTab(id: string): Promise<BrowserState>;

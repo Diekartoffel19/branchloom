@@ -14,6 +14,8 @@ const mocked = vi.hoisted(() => ({
   downloadHandler: null as null | ((event: { preventDefault(): void }) => void),
   removedDownloadHandler: null as null | ((event: { preventDefault(): void }) => void),
   menus: [] as unknown[],
+  clipboardWrites: [] as unknown[],
+  externalOpens: [] as string[],
 }));
 
 vi.mock('electron', async () => {
@@ -48,6 +50,7 @@ vi.mock('electron', async () => {
       this.emit('did-navigate');
       this.emit('did-stop-loading');
     }
+    async capturePage() { return { isEmpty: () => false, getSize: () => ({ width: 640, height: 360 }), toPNG: () => Buffer.from([137, 80, 78, 71]) }; }
   }
   class FakeView {
     webContents = new FakeContents();
@@ -61,6 +64,9 @@ vi.mock('electron', async () => {
       mocked.menus.push(template);
       return { popup: vi.fn() };
     } },
+    ClipboardItem: class { constructor(public items: Record<string, unknown>) {} },
+    clipboard: { write: async (items: unknown[]) => { mocked.clipboardWrites.push(items); } },
+    shell: { openExternal: async (url: string) => { mocked.externalOpens.push(url); } },
     session: { fromPartition: () => ({
       setPermissionRequestHandler: (handler: typeof mocked.permissionRequestHandler) => { mocked.permissionRequestHandler = handler; },
       setPermissionCheckHandler: (handler: typeof mocked.permissionCheckHandler) => { mocked.permissionCheckHandler = handler; },
@@ -83,6 +89,7 @@ function fakeWindow() {
     attached,
     getContentSize: () => [900, 700],
     isDestroyed: () => false,
+    isVisible: () => true,
   });
 }
 
@@ -230,6 +237,64 @@ describe('isolated embedded browser', () => {
     expect(view.webContents.windowOpenHandler().action).toBe('deny');
     view.webContents.emit('context-menu', {}, { linkURL: 'https://other.test/' });
     expect(mocked.menus).toHaveLength(menuCount + 1);
+    browser.dispose();
+  });
+
+  it('copies only the visible active tab after an explicit screenshot request', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    await expect(browser.captureActive()).rejects.toThrow('sichtbarer Browser-Tab');
+    browser.setBounds({ x: 0, y: 0, width: 700, height: 500 });
+    browser.setVisible(true);
+    await browser.navigate('https://capture.test/page');
+    const before = mocked.clipboardWrites.length;
+    await expect(browser.captureActive()).resolves.toEqual({ width: 640, height: 360 });
+    expect(mocked.clipboardWrites).toHaveLength(before + 1);
+    const [item] = mocked.clipboardWrites.at(-1) as Array<{ items: Record<string, unknown> }>;
+    expect(item?.items['image/png']).toBeInstanceOf(Blob);
+    browser.setVisible(false);
+    await expect(browser.captureActive()).rejects.toThrow('sichtbarer Browser-Tab');
+    expect(mocked.clipboardWrites).toHaveLength(before + 1);
+    browser.dispose();
+  });
+
+  it('does not copy if the user changes tabs while capture is pending', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    browser.setBounds({ x: 0, y: 0, width: 700, height: 500 });
+    browser.setVisible(true);
+    await browser.navigate('https://capture.test/');
+    let complete!: (image: { isEmpty(): boolean; getSize(): { width: number; height: number }; toPNG(): Buffer }) => void;
+    const view = mocked.views.at(-1) as { webContents: { capturePage: () => Promise<unknown> } };
+    view.webContents.capturePage = () => new Promise((resolve) => { complete = resolve; });
+    const pending = browser.captureActive();
+    browser.newTab();
+    const before = mocked.clipboardWrites.length;
+    complete({ isEmpty: () => false, getSize: () => ({ width: 10, height: 10 }), toPNG: () => Buffer.from([1]) });
+    await expect(pending).rejects.toThrow('während der Aufnahme geändert');
+    expect(mocked.clipboardWrites).toHaveLength(before);
+    browser.dispose();
+  });
+
+  it('opens only the loaded active HTTP(S) page in the default browser on request', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    const before = mocked.externalOpens.length;
+    await expect(browser.openActiveExternally()).rejects.toThrow('sichtbarer Browser-Tab');
+    browser.setBounds({ x: 0, y: 0, width: 700, height: 500 });
+    browser.setVisible(true);
+    await browser.navigate('https://example.test/mail');
+    await browser.openActiveExternally();
+    expect(mocked.externalOpens.slice(before)).toEqual(['https://example.test/mail']);
+    const view = mocked.views.at(-1) as { webContents: { url: string; windowOpenHandler: () => { action: string } } };
+    view.webContents.url = 'file:///C:/private.txt';
+    await expect(browser.openActiveExternally()).rejects.toThrow('gültige Webseite');
+    expect(mocked.externalOpens).toHaveLength(before + 1);
+    view.webContents.url = 'javascript:alert(1)';
+    await expect(browser.openActiveExternally()).rejects.toThrow('gültige Webseite');
+    view.webContents.url = `https://example.test/${'x'.repeat(2100)}`;
+    await expect(browser.openActiveExternally()).rejects.toThrow('gültige Webadresse');
+    expect(view.webContents.windowOpenHandler().action).toBe('deny');
+    browser.setVisible(false);
+    await expect(browser.openActiveExternally()).rejects.toThrow('sichtbarer Browser-Tab');
+    expect(mocked.externalOpens).toHaveLength(before + 1);
     browser.dispose();
   });
 });

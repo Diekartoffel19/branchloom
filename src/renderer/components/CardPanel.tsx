@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
-import type { Card, ProjectSnapshot } from '../../shared/types';
+import type { Card, ProjectSnapshot, WorktreeReview } from '../../shared/types';
 import type { Mutate } from './shared';
 
 interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void }
@@ -17,11 +17,14 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const [voiceError, setVoiceError] = useState('');
   const [archiveError, setArchiveError] = useState('');
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [worktreeReview, setWorktreeReview] = useState<WorktreeReview | null | undefined>(undefined);
+  const [worktreeBusy, setWorktreeBusy] = useState(false);
+  const [worktreeError, setWorktreeError] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const outputRef = useRef<HTMLPreElement | null>(null);
 
-  useEffect(() => { setTitle(card.title); setDescription(card.description); setPrompt(''); setMessage(''); setUseWorktree(false); }, [card.id]);
+  useEffect(() => { setTitle(card.title); setDescription(card.description); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); }, [card.id]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
@@ -58,6 +61,24 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
     event.preventDefault();
     if (card.archivedAt) return;
     await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description }));
+  }
+
+  async function reviewWorktree() {
+    setWorktreeBusy(true); setWorktreeError('');
+    try { setWorktreeReview(await window.studio.reviewCardWorktree(card.id)); }
+    catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorktreeBusy(false); }
+  }
+
+  async function mergeWorktree() {
+    if (!worktreeReview?.canFastForward) return;
+    if (!window.confirm(`Die ${worktreeReview.ahead} committeten Änderung(en) aus ${worktreeReview.branch} per Fast-Forward in ${worktreeReview.targetBranch} übernehmen? Der Worktree bleibt erhalten.`)) return;
+    setWorktreeBusy(true); setWorktreeError('');
+    try {
+      const merged = await window.studio.mergeCardWorktree({ cardId: card.id, previewToken: worktreeReview.previewToken, confirm: true });
+      setWorktreeReview(merged);
+    } catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorktreeBusy(false); }
   }
 
   async function changeArchive(archived: boolean) {
@@ -134,6 +155,20 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         <div className="drawer-divider" />
         <div className="section-heading"><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
         {session ? <><pre className="terminal-output" ref={outputRef} role="log" aria-live="polite">{session.output || 'Agent gestartet. Warte auf Ausgabe…'}</pre>{session.state === 'running' ? <div className="terminal-controls"><form onSubmit={(event) => void send(event)}><input aria-label="Nachricht an Agent" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Nachricht an Agent senden…" /><button type="submit" className="icon-button" disabled={!message.trim()} aria-label="Senden"><Send size={17} /></button></form><button type="button" className="danger-button" onClick={() => void mutate(() => window.studio.stopSession(session.id))}><CircleStop size={15} /> Stoppen</button></div> : null}{session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p></> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
+        <div className="drawer-divider" />
+        <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
+        <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
+        <button className="secondary-button" type="button" disabled={worktreeBusy} onClick={() => void reviewWorktree()}>{worktreeBusy ? 'Prüfe…' : 'Git-Stand prüfen'}</button>
+        {worktreeError ? <p className="inline-error" role="alert">{worktreeError}</p> : null}
+        {worktreeReview === null ? <p className="inline-note">Für diese Karte gibt es noch keinen Git-Worktree.</p> : null}
+        {worktreeReview ? <div className="stacked-form"><p className="section-copy"><strong>{worktreeReview.branch}</strong><br />Worktree: <code>{worktreeReview.path}</code><br />Ziel: <code>{worktreeReview.targetPath}</code> ({worktreeReview.targetBranch ?? 'detached'})<br />Commits: {worktreeReview.ahead} voraus, {worktreeReview.behind} zurück.</p>
+          {worktreeReview.sourceStatus.length ? <><strong>Nicht committiert im Worktree</strong><pre className="terminal-output">{worktreeReview.sourceStatus.join('\n')}</pre></> : <p className="section-copy">Worktree-Arbeitsbaum sauber.</p>}
+          {worktreeReview.targetStatus.length ? <><strong>Nicht committiert im Ziel</strong><pre className="terminal-output">{worktreeReview.targetStatus.join('\n')}</pre></> : null}
+          {worktreeReview.uncommittedStat ? <><strong>Uncommitteter Diff-Stat</strong><pre className="terminal-output">{worktreeReview.uncommittedStat}</pre></> : null}
+          {worktreeReview.committedStat ? <><strong>Committeter Diff-Stat</strong><pre className="terminal-output">{worktreeReview.committedStat}</pre></> : null}
+          {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
+          <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
+        </div> : null}
       </div>
     </aside>
   </div>;
