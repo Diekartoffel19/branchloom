@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bot, FileJson2, GripVertical, Plus, Search, Terminal, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bot, Check, FileJson2, GripVertical, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
@@ -197,9 +197,23 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReo
 }) {
   const agent = snapshot.agents.find((item) => item.id === column.agentId);
   const columnIndex = columns.findIndex((item) => item.id === column.id);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(column.name);
+  const [renaming, setRenaming] = useState(false);
+  const renameLocked = column.name.trim().toLocaleLowerCase('de-DE') === 'to do' && (snapshot.queue?.state ?? 'off') !== 'off';
+  useEffect(() => { setDraftName(column.name); }, [column.name]);
+  async function rename(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (renaming || !draftName.trim()) return;
+    setRenaming(true);
+    try {
+      const saved = await mutate(() => window.studio.updateColumn({ id: column.id, name: draftName.trim() }));
+      if (saved) setEditingName(false);
+    } finally { setRenaming(false); }
+  }
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
   return <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
-    <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><div className="column-order-actions"><button className="icon-button" type="button" disabled={columnIndex <= 0} aria-label={`Spalte ${column.name} nach links verschieben`} title={columnIndex > 0 ? `Vor ${columns[columnIndex - 1]?.name}` : 'Erste Spalte'} onClick={() => void onReorderColumn(column, 'left')}><ArrowLeft size={15} /></button><button className="icon-button" type="button" disabled={columnIndex >= columns.length - 1} aria-label={`Spalte ${column.name} nach rechts verschieben`} title={columnIndex < columns.length - 1 ? `Hinter ${columns[columnIndex + 1]?.name}` : 'Letzte Spalte'} onClick={() => void onReorderColumn(column, 'right')}><ArrowRight size={15} /></button>{canCreate ? <button className="icon-button" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /></button> : null}</div></header>
+    <header className="column-header">{editingName ? <form className="column-rename-form" onSubmit={(event) => void rename(event)}><input autoFocus required maxLength={80} aria-label={`Neuer Name für Spalte ${column.name}`} value={draftName} disabled={renaming} onChange={(event) => setDraftName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); setEditingName(false); setDraftName(column.name); } }} /><button className="icon-button" type="submit" disabled={renaming || !draftName.trim()} aria-label="Spaltennamen speichern"><Check size={15} /></button><button className="icon-button" type="button" disabled={renaming} aria-label="Umbenennen abbrechen" onClick={() => { setEditingName(false); setDraftName(column.name); }}><X size={15} /></button></form> : <><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><div className="column-order-actions"><button className="icon-button" type="button" disabled={renameLocked} aria-label={`Spalte ${column.name} umbenennen`} title={renameLocked ? 'To-Do-Spalte erst nach Ausschalten der Warteschlange umbenennen' : 'Spalte umbenennen'} onClick={() => setEditingName(true)}><Pencil size={14} /></button><button className="icon-button" type="button" disabled={columnIndex <= 0} aria-label={`Spalte ${column.name} nach links verschieben`} title={columnIndex > 0 ? `Vor ${columns[columnIndex - 1]?.name}` : 'Erste Spalte'} onClick={() => void onReorderColumn(column, 'left')}><ArrowLeft size={15} /></button><button className="icon-button" type="button" disabled={columnIndex >= columns.length - 1} aria-label={`Spalte ${column.name} nach rechts verschieben`} title={columnIndex < columns.length - 1 ? `Hinter ${columns[columnIndex + 1]?.name}` : 'Letzte Spalte'} onClick={() => void onReorderColumn(column, 'right')}><ArrowRight size={15} /></button>{canCreate ? <button className="icon-button" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /></button> : null}</div></>}</header>
     <div className="column-body">
       {agent ? <div className="column-agent"><Bot size={13} /><span>{column.autoStart ? 'Auto' : 'Manuell'} · {agent.name}{column.model ? ` · ${column.model}` : ''}{column.effort ? ` · ${column.effort}` : ''}</span></div> : null}
       {cards.map((card) => {

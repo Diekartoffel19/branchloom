@@ -23,5 +23,13 @@ describe('board column order controls', () => {
     expect(html).toContain('aria-label="Spalte Später nach rechts verschieben"');
     expect(html).toContain('title="Erste Spalte"');
     expect(html).toContain('title="Letzte Spalte"');
+    expect(html).toContain('aria-label="Spalte Zuerst umbenennen"');
+  });
+
+  it('disables the To-Do rename control while the queue is paused', () => {
+    const todo = { ...snapshot.columns[1]!, name: 'To Do' };
+    const paused = { ...snapshot, columns: [snapshot.columns[0]!, todo], queue: { ...snapshot.queue, state: 'paused' as const } };
+    const html = renderToStaticMarkup(createElement(BoardView, { snapshot: paused, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html).toContain('To-Do-Spalte erst nach Ausschalten der Warteschlange umbenennen');
   });
 });

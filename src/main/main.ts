@@ -290,11 +290,13 @@ function createWindow(): void {
           if (!todo || initial.columns.length < 3) throw new Error('Standardspalten fehlen.');
           const card = await window.studio.createCard({ projectId: project.id, columnId: todo.id, title: 'Smoke-Karte' });
           await window.studio.reorderColumn({ id: initial.columns[1].id, direction: 'right' });
+          await window.studio.updateColumn({ id: initial.columns[2].id, name: 'Smoke-Umbenannt' });
           const saved = await window.studio.snapshot(project.id);
           if (!saved.cards.some((item) => item.id === card.id && item.title === 'Smoke-Karte')) {
             throw new Error('Karte wurde nicht über IPC und SQLite gespeichert.');
           }
           if (saved.columns[2]?.id !== initial.columns[1].id) throw new Error('Spaltenreihenfolge wurde nicht gespeichert.');
+          if (saved.columns[1]?.name !== 'Smoke-Umbenannt') throw new Error('Spaltenname wurde nicht gespeichert.');
           if (${process.platform === 'win32'}) {
             const terminal = await window.studio.startCommandTerminal({ projectId: project.id, shell: 'cmd' });
             await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'set STUDIO_SMOKE_PREFIX=JARVIS_STUDIO_\\r' });
