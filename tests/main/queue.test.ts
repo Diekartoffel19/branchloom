@@ -43,6 +43,18 @@ function fixture() {
 }
 
 describe('explicit durable project queue', () => {
+  it('claims the user-reordered To-Do card first without starting on the reorder itself', () => {
+    const { store, project, template, first, second, started, queue } = fixture();
+    store.reorderCard({ id: second.id, direction: 'up' });
+    expect(store.nextQueueCard(project.id)?.id).toBe(second.id);
+    expect(started).toHaveLength(0);
+    expect(store.projectQueue(project.id).state).toBe('off');
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    expect(started.map((session) => session.cardId)).toEqual([second.id]);
+    expect(store.card(first.id).columnId).toBe(store.snapshot(project.id).columns[0]?.id);
+    store.close();
+  });
+
   it('is off by default, requires a route and processes one free To-Do card at a time', () => {
     const { store, project, template, first, second, started, workflows, queue } = fixture();
     expect(store.projectQueue(project.id).state).toBe('off');

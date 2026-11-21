@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowRight, Bot, FileJson2, GripVertical, Plus, Search, Terminal, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowRight, ArrowUp, Bot, FileJson2, GripVertical, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
@@ -8,6 +8,7 @@ import { CardPanel } from './CardPanel';
 import { TrelloImportPanel } from './TrelloImportPanel';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
+import '../board-order.css';
 import '../column-settings.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number } | null }
@@ -79,6 +80,14 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
     return true;
   }
 
+  async function reorderCard(card: Card, direction: 'up' | 'down'): Promise<void> {
+    if (card.archivedAt) return;
+    const changed = await mutate(() => window.studio.reorderCard({ id: card.id, direction }));
+    setAnnouncement(changed
+      ? `„${card.title}“ wurde in „${columns.find((item) => item.id === card.columnId)?.name ?? 'der Spalte'}“ ${direction === 'up' ? 'nach oben' : 'nach unten'} gesetzt.`
+      : `Die Reihenfolge von „${card.title}“ konnte nicht geändert werden.`);
+  }
+
   function onDrop(event: React.DragEvent<HTMLElement>, columnId: string) {
     event.preventDefault();
     const id = event.dataTransfer.getData('text/card-id');
@@ -95,11 +104,11 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       <label><span className="sr-only">Priorität filtern</span><select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value as CardPriority | '')} aria-label="Priorität filtern"><option value="">Alle Prioritäten</option>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
       <label><span className="sr-only">Label filtern</span><select value={filterLabel} onChange={(event) => setFilterLabel(event.target.value)} aria-label="Label filtern"><option value="">Alle Labels</option>{labels.map((label) => <option key={label} value={label}>{label}</option>)}</select></label>
       <span className="board-filter-count" role="status" aria-live="polite">{visibleCards.length} Treffer</span>
-      <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Archivierte Karten bleiben an ihrem Platz.</span>
+      <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort((a, b) => a.position - b.position)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate}>
+      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -109,18 +118,27 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   </div>;
 }
 
-function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onDrop, onCreate, canCreate, mutate, children }: {
+function compareCardOrder(a: Card, b: Card): number {
+  return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+}
+
+function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReorder, onDrop, onCreate, canCreate, mutate, children }: {
   column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; onSelect: (id: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
+  onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
   onCreate: () => void; canCreate: boolean; mutate: Mutate; children: React.ReactNode;
 }) {
   const agent = snapshot.agents.find((item) => item.id === column.agentId);
+  const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
   return <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
     <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div>{canCreate ? <button className="icon-button" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /></button> : null}</header>
     <div className="column-body">
       {agent ? <div className="column-agent"><Bot size={13} /><span>{column.autoStart ? 'Auto' : 'Manuell'} · {agent.name}{column.model ? ` · ${column.model}` : ''}{column.effort ? ` · ${column.effort}` : ''}</span></div> : null}
-      {cards.map((card) => <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} />)}
+      {cards.map((card) => {
+        const index = activeOrder.findIndex((item) => item.id === card.id);
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} onReorder={onReorder} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+      })}
       {children}
       {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
     </div>
@@ -152,14 +170,17 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, onSelect, onMove }: {
+function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorder, previousTitle, nextTitle }: {
   card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot;
   onSelect: (id: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
+  onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
+  previousTitle?: string; nextTitle?: string;
 }) {
   const destinations = moveDestinations(columns, card);
   const [moveOpen, setMoveOpen] = useState(false);
   const [destinationId, setDestinationId] = useState(destinations[0]?.id ?? '');
   const [moving, setMoving] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const cardButton = useRef<HTMLButtonElement>(null);
   const destinationSelect = useRef<HTMLSelectElement>(null);
   const sessions = snapshot.sessions.filter((session) => session.cardId === card.id);
@@ -185,6 +206,13 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onMove }: {
     if (moved) setMoveOpen(false);
   }
 
+  async function submitReorder(direction: 'up' | 'down') {
+    if (reordering || card.archivedAt) return;
+    setReordering(true);
+    try { await onReorder(card, direction); }
+    finally { setReordering(false); }
+  }
+
   return <div className="board-card-wrap">
     <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={card.archivedAt ? 'task-card archived' : 'task-card'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={card.description ? `board-card-description-${card.id}` : undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
@@ -198,7 +226,11 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onMove }: {
       {card.description ? <span className="task-card-description" id={`board-card-description-${card.id}`}>{card.description}</span> : null}
       <span className="task-card-footer"><span>{active ? <><span className="live-dot" /> Agent läuft</> : sessions.length > 0 ? <><Terminal size={13} /> {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</> : 'Noch kein Lauf'}</span><ArrowRight size={14} aria-hidden="true" /></span>
     </button>
-    {destinations.length ? <button className="card-move-trigger" type="button" aria-expanded={moveOpen} aria-controls={moveOpen ? `board-move-${card.id}` : undefined} onClick={() => setMoveOpen((old) => !old)}>Verschieben <kbd>M</kbd></button> : null}
+    {!card.archivedAt ? <div className="card-order-actions">
+      <button type="button" disabled={!previousTitle || reordering} aria-label={`„${card.title}“ in „${column.name}“ nach oben setzen${previousTitle ? `, vor „${previousTitle}“` : ''}`} title={previousTitle ? `Vor „${previousTitle}“ setzen` : 'Bereits oben'} onClick={() => void submitReorder('up')}><ArrowUp size={14} aria-hidden="true" /></button>
+      <button type="button" disabled={!nextTitle || reordering} aria-label={`„${card.title}“ in „${column.name}“ nach unten setzen${nextTitle ? `, hinter „${nextTitle}“` : ''}`} title={nextTitle ? `Hinter „${nextTitle}“ setzen` : 'Bereits unten'} onClick={() => void submitReorder('down')}><ArrowDown size={14} aria-hidden="true" /></button>
+      {destinations.length ? <button className="card-move-trigger" type="button" aria-expanded={moveOpen} aria-controls={moveOpen ? `board-move-${card.id}` : undefined} onClick={() => setMoveOpen((old) => !old)}>Verschieben <kbd>M</kbd></button> : null}
+    </div> : null}
     {moveOpen && destination ? <form className="card-move-form" id={`board-move-${card.id}`} onSubmit={(event) => void submitMove(event)} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMove(); } }}><label htmlFor={`board-destination-${card.id}`}>Zielspalte für „{card.title}“</label><select ref={destinationSelect} id={`board-destination-${card.id}`} value={destinationId} disabled={moving} onChange={(event) => setDestinationId(event.target.value)}>{destinations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{destination.autoStart && destination.agentId ? <p className="card-move-warning" id={`board-move-warning-${card.id}`}>Beim Verschieben versucht Jarvis, {destinationAgent?.name ?? 'den Spaltenagenten'} automatisch zu starten.</p> : null}<div className="card-move-actions"><button className="primary-button small" type="submit" disabled={moving} aria-describedby={destination.autoStart && destination.agentId ? `board-move-warning-${card.id}` : undefined}>Nach „{destination.name}“ verschieben</button><button className="secondary-button small" type="button" onClick={closeMove} disabled={moving}>Abbrechen</button></div></form> : null}
   </div>;
 }

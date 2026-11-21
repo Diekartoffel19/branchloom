@@ -126,7 +126,7 @@ export class StudioStore {
     return {
       project: this.project(projectId),
       columns: (this.db.prepare('SELECT * FROM columns WHERE project_id = ? ORDER BY position').all(projectId) as ColumnRow[]).map(column),
-      cards: (this.db.prepare('SELECT * FROM cards WHERE project_id = ? ORDER BY position').all(projectId) as CardRow[]).map(card),
+      cards: (this.db.prepare('SELECT * FROM cards WHERE project_id = ? ORDER BY position, created_at, id').all(projectId) as CardRow[]).map(card),
       agents: this.agents(),
       sessions: (this.db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY started_at DESC LIMIT 200').all(projectId) as SessionRow[]).map(session),
       workflows: (this.db.prepare('SELECT * FROM workflows WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as WorkflowRow[]).map((row) => this.hydrateWorkflow(row)),
@@ -160,7 +160,7 @@ export class StudioStore {
     if (!todo) throw new Error('Für die Warteschlange fehlt eine To-Do-Spalte.');
     const linked = new Set(snapshot.workflows.flatMap((item) => item.cardIds));
     const claimed = new Set((this.db.prepare('SELECT card_id FROM queue_runs WHERE project_id = ?').all(projectId) as Array<{ card_id: string }>).map((item) => item.card_id));
-    return snapshot.cards.filter((item) => item.columnId === todo.id && !item.archivedAt && !linked.has(item.id) && !claimed.has(item.id)).sort((a, b) => a.position - b.position)[0] ?? null;
+    return snapshot.cards.filter((item) => item.columnId === todo.id && !item.archivedAt && !linked.has(item.id) && !claimed.has(item.id)).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0] ?? null;
   }
   claimQueueCard(projectId: string, cardId: string, templateWorkflowId: string): Workflow {
     return this.db.transaction(() => {
@@ -221,6 +221,28 @@ export class StudioStore {
     const value = { ...old, columnId: destination.id, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(destination.id) as { next: number }).next, updatedAt: now() };
     this.db.prepare('UPDATE cards SET column_id = ?, position = ?, updated_at = ? WHERE id = ?').run(value.columnId, value.position, value.updatedAt, input.id);
     return value;
+  }
+  reorderCard(input: { id: string; direction: 'up' | 'down' }): Card {
+    if (input.direction !== 'up' && input.direction !== 'down') throw new Error('Ungültige Kartenrichtung.');
+    return this.db.transaction(() => {
+      const current = this.card(input.id);
+      if (current.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+      const rows = this.db.prepare('SELECT id, archived_at FROM cards WHERE column_id = ? ORDER BY position, created_at, id')
+        .all(current.columnId) as Array<{ id: string; archived_at: string | null }>;
+      const active = rows.filter((row) => !row.archived_at);
+      const index = active.findIndex((row) => row.id === current.id);
+      const neighbor = active[index + (input.direction === 'up' ? -1 : 1)];
+      if (!neighbor) throw new Error('Karte ist bereits am Rand der Spalte.');
+
+      // Keep archived cards in their slots while swapping adjacent active cards.
+      // Renumber in one transaction so legacy duplicate positions are repaired too.
+      const from = rows.findIndex((row) => row.id === current.id);
+      const to = rows.findIndex((row) => row.id === neighbor.id);
+      [rows[from], rows[to]] = [rows[to]!, rows[from]!];
+      const update = this.db.prepare('UPDATE cards SET position = ? WHERE id = ?');
+      rows.forEach((row, position) => update.run(position, row.id));
+      return this.card(current.id);
+    })();
   }
   setCardArchived(input: { id: string; archived: boolean }): Card {
     if (typeof input.archived !== 'boolean') throw new Error('Archivstatus muss wahr oder falsch sein.');

@@ -77,6 +77,7 @@ function installIpc(): void {
     queueEngine.onBoardChanged(moved.projectId);
     return moved;
   });
+  bind('reorderCard', (input: Parameters<StudioAPI['reorderCard']>[0]) => db.reorderCard(input));
   bind('agents', () => db.agents());
   bind('detectAgents', () => detectAgents());
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));

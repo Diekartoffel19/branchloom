@@ -38,6 +38,7 @@ export interface StudioAPI {
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;
+  reorderCard(input: { id: string; direction: 'up' | 'down' }): Promise<Card>;
   setCardArchived(input: { id: string; archived: boolean }): Promise<Card>;
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;

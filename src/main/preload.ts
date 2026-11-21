@@ -12,6 +12,7 @@ const studio: StudioAPI = {
   createCard: (input) => invoke('createCard', input),
   updateCard: (input) => invoke('updateCard', input),
   moveCard: (input) => invoke('moveCard', input),
+  reorderCard: (input) => invoke('reorderCard', input),
   setCardArchived: (input) => invoke('setCardArchived', input),
   agents: () => invoke('agents'),
   detectAgents: () => invoke('detectAgents'),
