@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 04:35 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 04:50 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -22,7 +22,7 @@ Stand: 21.11.2026, 04:35 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Projektterminal und Vault-Import `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (143 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und der verstärkte `npm run smoke:source`. Der Smoke prüft ein lokales Terminal-PTY mit Eingabe/Stop, einen lokalen Kartenagenten-PTY mit erfolgreichem Ende und das gespeicherte Board nach Reload; kein Modell wird dabei aufgerufen. Der Codex-Resume-Test benötigte nach dem PTY-Importwechsel einen aktualisierten Mock und schließt nun seine Datenbank auch bei Fehlschlag. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Agentendiagnose, Projektpaket-Dialog, Vault-Import, Terminal-Bedienung, Prioritäts-/Label-Auswahl, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Projektterminal, Vault-Import und Kartenanhängen `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (148 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und der verstärkte `npm run smoke:source`. Der Smoke prüft ein lokales Terminal-PTY mit Eingabe/Stop, einen lokalen Kartenagenten-PTY mit erfolgreichem Ende und das gespeicherte Board nach Reload; kein Modell wird dabei aufgerufen. Der Codex-Resume-Test benötigte nach dem PTY-Importwechsel einen aktualisierten Mock und schließt nun seine Datenbank auch bei Fehlschlag. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Agentendiagnose, Projektpaket-Dialog, Vault-Import, Karten-Dateidialog, Terminal-Bedienung, Prioritäts-/Label-Auswahl, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
 Für das Befehlsterminal und den Codex-Resume-Pfad bestanden im integrierten Zweig zehn gezielte Tests sowie die vollständige kombinierte Suite. Ein verdeckter Electron-Smoke startete ein echtes lokales cmd-PTY, schrieb einen synthetischen Befehl, las dessen Ausgabe über IPC/SQLite und stoppte die Shell. Dabei wurde ein fehlerhafter `node-pty`-Default-Import beim App-Start entdeckt und für Befehlsterminal und vorhandene Agentensitzungen auf den benannten `spawn`-Export korrigiert. Ein sichtbarer Klickpfad steht noch aus.
 
@@ -39,16 +39,16 @@ Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische I
 
 Für das Projektpaket bestanden vier gezielte Datenbank-, Validierungs- und Renderer-Tests sowie die vollständige kombinierte Suite und [Windows-CI 44857862486](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44857862486) inklusive Paket-Smoke. Der Datei-Dialog und Importklick wurden nicht visuell bedient.
 
-Für Kartenanhänge bestanden im isolierten Zweig fünf gezielte Datenbank-, Pfad- und Renderer-Tests, Typprüfung, Produktionsbuild, Public-Scan und `npm audit --audit-level=critical` (0 Funde). Vollständige kombinierte Suite und sichtbarer Datei-Dialog stehen noch aus.
+Für integrierte Kartenanhänge bestanden fünf gezielte Datenbank-, Pfad- und Renderer-Tests, Typprüfung, Produktionsbuild, der verstärkte Quell-Smoke und die vollständige kombinierte Suite. Im isolierten Zweig bestanden Public-Scan und `npm audit --audit-level=critical` (0 Funde). Der sichtbare Datei-Dialog und die Windows-CI für diesen Stand stehen noch aus.
 
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44860243456](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44860243456) für `b1fe075` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und Paket-Smoke mit gerendertem Board nach Reload. Der neue PTY-Import und Terminal-/Agenten-PTY-Smoke sind darin noch nicht enthalten; diese Bestätigung steht für die folgende CI aus. Das ZIP wurde noch nicht sichtbar auf dem Entwicklungslaptop geöffnet; ZIP-Namen eines früheren Pakets enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44862108016](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44862108016) für `56e6fc1` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und Paket-Smoke mit Terminal-PTY, Kartenagenten-PTY und gerendertem Board nach Reload. Die Kartenanhänge sind darin noch nicht enthalten. Das ZIP wurde noch nicht sichtbar auf dem Entwicklungslaptop geöffnet; ZIP-Namen eines früheren Pakets enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Projektterminal und PTY-Fix nach Public-Scan pushen; Windows-CI inklusive echtem Terminal-/Agenten-PTY-Smoke prüfen.
-2. Kartenanhänge integrieren und verifizieren.
+1. Kartenanhänge nach Public-Scan pushen und Windows-CI inklusive Paket-Smoke prüfen.
+2. Board-Sammelaktionen und eine ausdrücklich bestätigte Queue-Recovery getrennt integrieren und verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
 Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.
