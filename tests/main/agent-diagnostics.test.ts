@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
-import { detectAgents, readVersion } from '../../src/main/cli';
+import { detectAgents, readVersion, resolveExecutable } from '../../src/main/cli';
 import type { AgentPreset } from '../../src/shared/types';
 
 describe('local agent diagnostics', () => {
@@ -38,6 +38,18 @@ describe('local agent diagnostics', () => {
       const env = { ...process.env, PATH: `${root}${delimiter}${dirname(process.execPath)}`, Path: '', LOCALAPPDATA: '' };
       const results = await detectAgents([], env);
       expect(results[3]).toMatchObject({ kind: 'antigravity', command: 'agy', status: 'ready', available: true, version: 'agy-fixture 1.0.0' });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform !== 'win32')('finds the official Windows install path when PATH has not refreshed', () => {
+    const root = mkdtempSync(join(tmpdir(), 'jarvis-agy-install-'));
+    try {
+      const binary = join(root, 'agy', 'bin', 'agy.exe');
+      mkdirSync(join(root, 'agy', 'bin'), { recursive: true });
+      writeFileSync(binary, 'synthetic binary placeholder');
+      expect(resolveExecutable('agy', { PATH: '', Path: '', LOCALAPPDATA: root })).toBe(binary);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
