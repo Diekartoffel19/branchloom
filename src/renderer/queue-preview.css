@@ -1,0 +1,5 @@
+.queue-preview{margin:16px 0;padding:13px 15px;border:1px solid #365466;border-radius:10px;background:#132536}
+.queue-preview>strong{display:block;color:#c7e5df;font-size:12px;margin-bottom:9px}
+.queue-preview ol{margin:0 0 12px;padding-left:23px;color:#b5d5d0;font-size:12px;line-height:1.6}
+.queue-preview li{padding:2px 0;overflow-wrap:anywhere}
+.queue-preview .section-copy{margin:0}

@@ -43,6 +43,19 @@ function fixture() {
 }
 
 describe('explicit durable project queue', () => {
+  it('previews exactly the eligible cards in the same order used for the next claim', () => {
+    const { store, project, template, first, second, queue } = fixture();
+    expect(store.queueCandidates(project.id).map((card) => card.id)).toEqual([first.id, second.id]);
+    expect(store.queueCandidates(project.id, 1).map((card) => card.id)).toEqual([first.id]);
+    expect(() => store.queueCandidates(project.id, 21)).toThrow('Vorschaugröße');
+    store.reorderCard({ id: second.id, direction: 'up' });
+    expect(store.queueCandidates(project.id).map((card) => card.id)).toEqual([second.id, first.id]);
+    expect(store.nextQueueCard(project.id)?.id).toBe(second.id);
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    expect(store.queueCandidates(project.id).map((card) => card.id)).toEqual([first.id]);
+    store.close();
+  });
+
   it('claims the user-reordered To-Do card first without starting on the reorder itself', () => {
     const { store, project, template, first, second, started, queue } = fixture();
     store.reorderCard({ id: second.id, direction: 'up' });

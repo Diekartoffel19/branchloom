@@ -208,13 +208,17 @@ export class StudioStore {
     const row = this.db.prepare("SELECT * FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1").get(projectId) as SessionRow | undefined;
     return row ? session(row) : null;
   }
-  nextQueueCard(projectId: string): Card | null {
+  queueCandidates(projectId: string, limit = 10): Card[] {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Ungültige Vorschaugröße für die Warteschlange.');
     const snapshot = this.snapshot(projectId);
     const todo = snapshot.columns.find((item) => item.name.trim().toLowerCase() === 'to do');
     if (!todo) throw new Error('Für die Warteschlange fehlt eine To-Do-Spalte.');
     const linked = new Set(snapshot.workflows.flatMap((item) => item.cardIds));
     const claimed = new Set((this.db.prepare('SELECT card_id FROM queue_runs WHERE project_id = ?').all(projectId) as Array<{ card_id: string }>).map((item) => item.card_id));
-    return snapshot.cards.filter((item) => item.columnId === todo.id && !item.archivedAt && !linked.has(item.id) && !claimed.has(item.id)).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0] ?? null;
+    return snapshot.cards.filter((item) => item.columnId === todo.id && !item.archivedAt && !linked.has(item.id) && !claimed.has(item.id)).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).slice(0, limit);
+  }
+  nextQueueCard(projectId: string): Card | null {
+    return this.queueCandidates(projectId, 1)[0] ?? null;
   }
   claimQueueCard(projectId: string, cardId: string, templateWorkflowId: string): Workflow {
     return this.db.transaction(() => {

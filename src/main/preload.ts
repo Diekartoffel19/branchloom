@@ -48,6 +48,7 @@ const studio: StudioAPI = {
   createWorkflow: (input) => invoke('createWorkflow', input),
   setWorkflowState: (input) => invoke('setWorkflowState', input),
   setProjectQueue: (input) => invoke('setProjectQueue', input),
+  queueCandidates: (projectId) => invoke('queueCandidates', projectId),
   skipQueuedCard: (input) => invoke('skipQueuedCard', input),
   workflowAgentSettings: () => invoke('workflowAgentSettings'),
   saveWorkflowAgentSettings: (input) => invoke('saveWorkflowAgentSettings', input),

@@ -80,6 +80,7 @@ export interface StudioAPI {
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;
+  queueCandidates(projectId: string): Promise<Card[]>;
   skipQueuedCard(input: { projectId: string; workflowId: string; reason: string }): Promise<ProjectQueue>;
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;

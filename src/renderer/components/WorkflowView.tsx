@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, GitBranch, Pause, Play, Plus, ShieldCheck } from 'lucide-react';
-import type { ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
+import type { Card, ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
 import type { Mutate } from './shared';
 import { WorkflowPlanner } from './WorkflowPlanner';
+import '../queue-preview.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null }
 
@@ -11,6 +12,17 @@ export function workflowPauseCopy(reason: Workflow['pauseReason']): { descriptio
   if (reason === 'manual') return { description: 'Der agentenlose Schritt wurde verschoben und wartet auf deine Bestätigung.', action: 'Schritt abschließen' };
   if (reason === 'review') return { description: 'Ein Agentenlauf muss geprüft werden. Öffne die betroffene Karte, bevor du diesen Schritt erneut startest.', action: 'Schritt erneut starten' };
   return { description: 'Der Workflow ist pausiert. Du kannst ihn fortsetzen.', action: 'Fortsetzen' };
+}
+
+export function QueuePreview({ cards, loading, error }: { cards: Card[]; loading: boolean; error: string | null }) {
+  return <div className="queue-preview" aria-label="Nächste freie To-Do-Karten">
+    <strong>Nächste freie To-Do-Karten</strong>
+    {loading ? <p className="section-copy" role="status">Reihenfolge wird geladen …</p>
+      : error ? <p className="inline-note" role="status">{error}</p>
+        : cards.length ? <ol>{cards.map((card) => <li key={card.id}>{card.title}</li>)}</ol>
+          : <p className="section-copy">Keine freie To-Do-Karte vorhanden.</p>}
+    <p className="section-copy">Diese Vorschau startet nichts. Änderungen im Board gelten für die nächste noch freie Karte.</p>
+  </div>;
 }
 
 export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
@@ -24,11 +36,21 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
   const [queueTemplateId, setQueueTemplateId] = useState(snapshot.queue.templateWorkflowId ?? '');
   const [skipWorkflowId, setSkipWorkflowId] = useState<string | null>(null);
   const [skipReason, setSkipReason] = useState('');
+  const [queuePreview, setQueuePreview] = useState<{ projectId: string; cards: Card[]; error: string | null } | null>(null);
   const skipWorkflow = snapshot.workflows.find((item) => item.id === skipWorkflowId);
   const skipCardTitle = snapshot.cards.find((item) => item.id === skipWorkflow?.cardIds[0])?.title ?? skipWorkflow?.name ?? 'Unbekannte Karte';
 
   useEffect(() => { setQueueTemplateId(snapshot.queue.templateWorkflowId ?? ''); }, [snapshot.project.id, snapshot.queue.templateWorkflowId]);
   useEffect(() => { setSkipWorkflowId(null); setSkipReason(''); }, [snapshot.project.id]);
+  useEffect(() => {
+    let active = true;
+    const projectId = snapshot.project.id;
+    void window.studio.queueCandidates(projectId).then(
+      (cards) => { if (active) setQueuePreview({ projectId, cards, error: null }); },
+      (error: unknown) => { if (active) setQueuePreview({ projectId, cards: [], error: error instanceof Error ? error.message : 'Vorschau nicht verfügbar.' }); },
+    );
+    return () => { active = false; };
+  }, [snapshot]);
 
   useEffect(() => { if (openWorkflow) document.getElementById(`workflow-${openWorkflow.id}`)?.scrollIntoView({ block: 'center' }); }, [openWorkflow?.id, openWorkflow?.token, snapshot.project.id]);
 
@@ -64,6 +86,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
       <div className="workflow-card-top"><div><span className="workflow-kicker">WARTESCHLANGE</span><h3>To-Do-Karten nacheinander bearbeiten</h3><p>Eine bestehende Route dient als Vorlage. Pro Projekt läuft höchstens ein Agent.</p></div><span className={`state-badge ${snapshot.queue.state === 'off' ? 'draft' : snapshot.queue.state}`}>{snapshot.queue.state === 'running' ? 'Aktiv' : snapshot.queue.state === 'paused' ? 'Pausiert' : 'Aus'}</span></div>
       <label className="field-label">Workflow-Route<select value={queueTemplateId} disabled={snapshot.queue.state === 'running' || Boolean(snapshot.queue.activeWorkflowId)} onChange={(event) => setQueueTemplateId(event.target.value)}><option value="">Route wählen</option>{snapshot.workflows.filter((workflow) => workflow.id !== snapshot.queue.activeWorkflowId).map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}</select></label>
       <p className="section-copy">{snapshot.queue.completedCount} Karten abgeschlossen. Die Queue startet nur freie, nicht archivierte To-Do-Karten ohne bestehenden Workflow. Beim Pausieren wird der laufende Agent gestoppt; Arbeit und Protokoll bleiben erhalten. CLI-Agenten laufen mit deinen Benutzerrechten im Projektordner; die App selbst pusht keine Git-Änderungen.</p>
+      <QueuePreview cards={queuePreview?.projectId === snapshot.project.id ? queuePreview.cards : []} loading={queuePreview?.projectId !== snapshot.project.id} error={queuePreview?.projectId === snapshot.project.id ? queuePreview.error : null} />
       {snapshot.queue.activeWorkflowId ? <p className="section-copy">Aktiver Ablauf: <a href={`#workflow-${snapshot.queue.activeWorkflowId}`}>{snapshot.workflows.find((workflow) => workflow.id === snapshot.queue.activeWorkflowId)?.name ?? 'Workflow öffnen'}</a>. Nach Unterbrechung den Ablauf prüfen und ausdrücklich fortsetzen.</p> : null}
       {snapshot.queue.pauseReason ? <p className="inline-note" role="status">{snapshot.queue.pauseReason}</p> : null}
       <div className="workflow-actions"><span>{snapshot.queue.state === 'running' ? 'Aktiv oder wartet auf neue To-Do-Karten.' : snapshot.queue.state === 'paused' ? 'Neue Karten starten erst nach Fortsetzung.' : 'Neue Karten starten nicht automatisch.'}</span>

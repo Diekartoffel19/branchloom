@@ -171,6 +171,7 @@ function installIpc(): void {
     return workflow;
   });
   bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
+  bind('queueCandidates', (projectId: string) => db.queueCandidates(projectId, 5));
   bind('skipQueuedCard', (input: Parameters<StudioAPI['skipQueuedCard']>[0]) => db.skipQueuedCard(input));
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));
@@ -301,6 +302,8 @@ function createWindow(): void {
           if (saved.columns[2]?.id !== initial.columns[1].id) throw new Error('Spaltenreihenfolge wurde nicht gespeichert.');
           if (saved.columns[1]?.name !== 'Smoke-Umbenannt') throw new Error('Spaltenname wurde nicht gespeichert.');
           if (saved.columns.some((item) => item.id === removable.id)) throw new Error('Leere Spalte wurde nicht gelöscht.');
+          const candidates = await window.studio.queueCandidates(project.id);
+          if (candidates.length !== 1 || candidates[0].id !== card.id) throw new Error('Queue-Vorschau wich von der freien To-Do-Karte ab.');
           if (${process.platform === 'win32'}) {
             const terminal = await window.studio.startCommandTerminal({ projectId: project.id, shell: 'cmd' });
             await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'set STUDIO_SMOKE_PREFIX=JARVIS_STUDIO_\\r' });
@@ -347,6 +350,16 @@ function createWindow(): void {
               const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);
               const renderedColumns = [...document.querySelectorAll('.board-column .column-title h3')].map((item) => item.textContent);
               if (JSON.stringify(renderedColumns) !== JSON.stringify(storedColumns)) throw new Error('Gespeicherte Spaltenreihenfolge wurde nach Reload nicht gerendert.');
+              const workflowNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Workflows'));
+              if (!workflowNav) throw new Error('Workflow-Navigation fehlt.');
+              workflowNav.click();
+              let previewVisible = false;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                previewVisible = Boolean(document.querySelector('.queue-preview ol')?.textContent?.includes('Smoke-Karte'));
+                if (previewVisible) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!previewVisible) throw new Error('Nächste freie To-Do-Karte wurde im Workflow nicht angezeigt.');
               if (${process.platform === 'win32'}) {
                 const activityNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Aktivität'));
                 if (!activityNav) throw new Error('Aktivitätsnavigation fehlt.');
