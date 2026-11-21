@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 04:50 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 04:57 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -41,13 +41,15 @@ Für das Projektpaket bestanden vier gezielte Datenbank-, Validierungs- und Rend
 
 Für integrierte Kartenanhänge bestanden fünf gezielte Datenbank-, Pfad- und Renderer-Tests, Typprüfung, Produktionsbuild, der verstärkte Quell-Smoke und die vollständige kombinierte Suite. Im isolierten Zweig bestanden Public-Scan und `npm audit --audit-level=critical` (0 Funde). Der sichtbare Datei-Dialog und die Windows-CI für diesen Stand stehen noch aus.
 
+Eine zusätzliche Paketprüfung sperrt lokale Konfigurationen, Datenbanken, Quell-/Testordner und Symlinks im gepackten App-Ordner vor dem CI-Upload. Zwei synthetische Tests bestanden; ein vorhandenes lokales Paket mit 32 App-Dateien bestand den Scan. Die neue CI-Grenze muss nach dem Push noch im frisch gebauten Paket bestehen. Vendordateien unter `node_modules` werden dabei nicht durchsucht.
+
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
 Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44862108016](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44862108016) für `56e6fc1` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und Paket-Smoke mit Terminal-PTY, Kartenagenten-PTY und gerendertem Board nach Reload. Die Kartenanhänge sind darin noch nicht enthalten. Das ZIP wurde noch nicht sichtbar auf dem Entwicklungslaptop geöffnet; ZIP-Namen eines früheren Pakets enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Kartenanhänge nach Public-Scan pushen und Windows-CI inklusive Paket-Smoke prüfen.
+1. Paketprüfung nach Public-Scan pushen und Windows-CI mit frischem ZIP prüfen; Kartenanhang-CI ebenfalls auswerten.
 2. Board-Sammelaktionen und eine ausdrücklich bestätigte Queue-Recovery getrennt integrieren und verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
