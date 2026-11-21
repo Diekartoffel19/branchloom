@@ -103,6 +103,7 @@ export class StudioStore {
         { name: 'Codex CLI', kind: 'codex', command: 'codex' },
         { name: 'Claude Code', kind: 'claude', command: 'claude' },
         { name: 'Gemini CLI', kind: 'gemini', command: 'gemini' },
+        { name: 'Antigravity CLI', kind: 'antigravity', command: 'agy' },
       ] as const) this.saveAgent({ ...preset, args: [], model: null, enabled: true });
     }
     // A process crash cannot leave an old PTY marked live. Restarting an agent
@@ -445,7 +446,7 @@ export class StudioStore {
   agents(): AgentPreset[] { return (this.db.prepare('SELECT * FROM agents ORDER BY name').all() as AgentRow[]).map(agent); }
   agent(id: string): AgentPreset { return agent(required(this.db.prepare('SELECT * FROM agents WHERE id = ?').get(id) as AgentRow | undefined, 'Agent not found')); }
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): AgentPreset {
-    if (!['codex', 'claude', 'gemini', 'custom'].includes(input.kind)) throw new Error('Invalid agent kind');
+    if (!['codex', 'claude', 'gemini', 'antigravity', 'custom'].includes(input.kind)) throw new Error('Invalid agent kind');
     if (!Array.isArray(input.args) || input.args.length > 40 || input.args.some((arg) => typeof arg !== 'string' || arg.length > 1000 || /[\0\r\n]/.test(arg))) throw new Error('Invalid agent arguments');
     const command = trimmed(input.command, 'Agent command', 1000);
     if (/[\r\n]/.test(command)) throw new Error('Invalid agent command');

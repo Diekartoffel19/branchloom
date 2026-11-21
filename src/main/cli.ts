@@ -7,6 +7,7 @@ import type { AgentDetection, AgentPreset, Column, ColumnEffort, Session, Sessio
 import { columnSettings } from '../shared/column-settings';
 import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
+import { buildAntigravityArgs } from './antigravity';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -21,6 +22,15 @@ export function resolveExecutable(command: string, env: NodeJS.ProcessEnv = proc
       const candidate = join(directory, `${command}${suffix}`);
       if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
     }
+  }
+  // The official Windows installer puts agy here. Electron may retain an old PATH.
+  if (process.platform === 'win32' && /^agy(?:\.exe)?$/i.test(command) && env.LOCALAPPDATA) {
+    const installed = join(env.LOCALAPPDATA, 'agy', 'bin', 'agy.exe');
+    if (existsSync(installed) && statSync(installed).isFile()) return installed;
+  }
+  if (process.platform !== 'win32' && command === 'agy' && env.HOME) {
+    const installed = join(env.HOME, '.local', 'bin', 'agy');
+    if (existsSync(installed) && statSync(installed).isFile()) return installed;
   }
   return null;
 }
@@ -86,13 +96,15 @@ async function inspectAgent(kind: AgentPreset['kind'], command: string, env: Nod
   const launcher = resolveAgentLauncher(command, env);
   if (!launcher) return { kind, command, profileId, available: false, version: null, status: 'missing' };
   // Custom programs and renamed executables are only resolved. Running arbitrary user-configured code just to draw this screen would be surprising.
-  if (kind === 'custom' || !new RegExp(`^${kind}(?:\\.(?:exe|cmd))?$`, 'i').test(basename(command))) return { kind, command, profileId, available: true, version: null, status: 'found' };
-  const result = await readVersion(launcher, 8_000, env);
+  const binary = kind === 'antigravity' ? 'agy' : kind;
+  if (kind === 'custom' || !new RegExp(`^${binary}(?:\\.(?:exe|cmd))?$`, 'i').test(basename(command))) return { kind, command, profileId, available: true, version: null, status: 'found' };
+  // On Windows, agy 1.5.13 can take over 12 seconds to answer --version.
+  const result = await readVersion(launcher, kind === 'antigravity' ? 20_000 : 8_000, env);
   return { kind, command, profileId, available: result.status === 'ready', ...result };
 }
 
 export async function detectAgents(profiles: AgentPreset[] = [], env: NodeJS.ProcessEnv = process.env): Promise<AgentDetection[]> {
-  const standard = (['codex', 'claude', 'gemini'] as const).map((kind) => inspectAgent(kind, kind, env));
+  const standard = (['codex', 'claude', 'gemini', 'antigravity'] as const).map((kind) => inspectAgent(kind, kind === 'antigravity' ? 'agy' : kind, env));
   const saved = profiles.map((profile) => inspectAgent(profile.kind, profile.command, env, profile.id));
   return Promise.all([...standard, ...saved]);
 }
@@ -120,6 +132,7 @@ function codexWorkflowProfileArgs(profileArgs: string[]): string[] {
 }
 
 export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string, column?: { model: string | null; effort: ColumnEffort | null }): string[] {
+  if (agent.kind === 'antigravity') return buildAntigravityArgs(agent.args, prompt, mode, column?.model ?? agent.model, column?.effort ?? null);
   const args = mode === 'one-shot' && agent.kind === 'codex'
     ? ['exec', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...codexWorkflowProfileArgs(agent.args)]
     : [...agent.args];
@@ -129,7 +142,7 @@ export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'intera
     else if (agent.kind === 'claude') args.push('--model', model);
   }
   if (column?.effort) {
-    if (agent.kind !== 'codex') throw new Error('Spalten-Effort wird derzeit nur für Codex CLI unterstützt.');
+    if (agent.kind !== 'codex') throw new Error('Spalten-Effort wird derzeit nur für Codex und Antigravity CLI unterstützt.');
     args.push('-c', `model_reasoning_effort=${JSON.stringify(column.effort)}`);
   }
   // These CLIs accept a positional or -p prompt in one-shot mode and exit when
@@ -206,7 +219,7 @@ export class SessionRunner {
       throw error;
     }
     this.attachProcess(row, child);
-    if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && prompt) {
+    if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && agent.kind !== 'antigravity' && prompt) {
       // The CLI may show a login/trust prompt. Delay only the initial turn;
       // users can inspect the terminal and send it manually if it did not land.
       this.pendingFirstTurn.set(row.id, setTimeout(() => {

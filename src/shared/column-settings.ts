@@ -26,6 +26,7 @@ export function columnSettings(
   const effort = rawEffort == null ? null : rawEffort as ColumnEffort;
   if (!kind && (model || effort)) throw new Error('Für Modell oder Effort zuerst einen Spaltenagenten wählen.');
   if (kind === 'custom' && model) throw new Error('Ein eigener CLI-Agent benötigt Modellargumente im Agentenprofil.');
-  if (kind !== 'codex' && effort) throw new Error('Spalten-Effort wird derzeit nur für Codex CLI unterstützt.');
+  if (kind !== 'codex' && kind !== 'antigravity' && effort) throw new Error('Spalten-Effort wird derzeit nur für Codex und Antigravity CLI unterstützt.');
+  if (kind === 'antigravity' && effort === 'ultra') throw new Error('Antigravity CLI unterstützt maximal Effort „max“.');
   return { model, effort };
 }

@@ -9,7 +9,7 @@ export interface Column { id: string; projectId: string; name: string; position:
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
-export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
+export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'antigravity' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
 export type CommandShell = 'powershell' | 'cmd';

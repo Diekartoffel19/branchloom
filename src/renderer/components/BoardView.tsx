@@ -210,7 +210,7 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   useEffect(() => { setAgentId(column.agentId ?? ''); setModel(column.model ?? ''); setEffort(column.effort ?? ''); }, [column.id, column.agentId, column.model, column.effort]);
   const selectedAgent = agents.find((item) => item.id === agentId);
   const modelSupported = selectedAgent && selectedAgent.kind !== 'custom';
-  const effortSupported = selectedAgent?.kind === 'codex';
+  const effortSupported = selectedAgent?.kind === 'codex' || selectedAgent?.kind === 'antigravity';
   const changed = agentId !== (column.agentId ?? '') || (modelSupported ? model : '') !== (column.model ?? '') || (effortSupported ? effort : '') !== (column.effort ?? '');
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -221,8 +221,8 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   return <form className="column-settings" onSubmit={(event) => void save(event)}>
     <label>Agent<select aria-label={`Agent für ${column.name}`} value={agentId} onChange={(event) => { setAgentId(event.target.value); setModel(''); setEffort(''); }}><option value="">Manueller Schritt</option>{agents.filter((item) => item.enabled || item.id === agentId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
     <label>Modell<input aria-label={`Modell für ${column.name}`} value={model} maxLength={200} disabled={!modelSupported} onChange={(event) => setModel(event.target.value)} placeholder={selectedAgent?.model || 'CLI-/Profilstandard'} /></label>
-    <label>Effort<select aria-label={`Effort für ${column.name}`} value={effort} disabled={!effortSupported} onChange={(event) => setEffort(event.target.value as ColumnEffort | '')}><option value="">Modellstandard</option>{COLUMN_EFFORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-    <small>{!selectedAgent ? 'Wähle einen Agenten. Modell und Effort bleiben sonst leer.' : selectedAgent.kind === 'custom' ? 'Eigene CLI: Modellargumente im Agentenprofil setzen.' : selectedAgent.kind !== 'codex' ? 'Effort ist derzeit nur für Codex CLI verfügbar.' : 'Verfügbare Effort-Stufen hängen vom gewählten Codex-Modell ab.'} Ein Workflow-Schritt mit einem anderen Agenten nutzt dessen Profilwerte.</small>
+    <label>Effort<select aria-label={`Effort für ${column.name}`} value={effort} disabled={!effortSupported} onChange={(event) => setEffort(event.target.value as ColumnEffort | '')}><option value="">Modellstandard</option>{COLUMN_EFFORTS.filter((item) => selectedAgent?.kind !== 'antigravity' || item.value !== 'ultra').map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+    <small>{!selectedAgent ? 'Wähle einen Agenten. Modell und Effort bleiben sonst leer.' : selectedAgent.kind === 'custom' ? 'Eigene CLI: Modellargumente im Agentenprofil setzen.' : !effortSupported ? 'Effort ist für diesen CLI-Typ nicht verfügbar.' : `Verfügbare Effort-Stufen hängen vom gewählten ${selectedAgent.kind === 'antigravity' ? 'Antigravity' : 'Codex'}-Modell ab.`} Ein Workflow-Schritt mit einem anderen Agenten nutzt dessen Profilwerte.</small>
     <button className="secondary-button small" type="submit" disabled={!changed}>Agent-Einstellungen speichern</button>
   </form>;
 }

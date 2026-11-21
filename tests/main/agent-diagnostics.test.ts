@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, dirname, join } from 'node:path';
 import { detectAgents, readVersion } from '../../src/main/cli';
 import type { AgentPreset } from '../../src/shared/types';
 
@@ -18,11 +21,25 @@ describe('local agent diagnostics', () => {
 
   it('checks saved custom commands by path without running them', async () => {
     const profile: AgentPreset = { id: 'custom-id', name: 'Fixture', kind: 'custom', command: process.execPath, args: ['-e', 'process.exit(42)'], model: null, enabled: true };
-    const results = await detectAgents([profile], { ...process.env, PATH: '', Path: '' });
-    expect(results).toHaveLength(4);
-    expect(results.slice(0, 3).map((item) => item.status)).toEqual(['missing', 'missing', 'missing']);
-    expect(results[3]).toMatchObject({ profileId: 'custom-id', status: 'found', available: true, version: null });
-    const renamed = await detectAgents([{ ...profile, id: 'renamed', kind: 'codex' }], { ...process.env, PATH: '', Path: '' });
-    expect(renamed[3]).toMatchObject({ profileId: 'renamed', status: 'found', available: true, version: null });
+    const env = { ...process.env, PATH: '', Path: '', LOCALAPPDATA: '', HOME: '' };
+    const results = await detectAgents([profile], env);
+    expect(results).toHaveLength(5);
+    expect(results.slice(0, 4).map((item) => item.status)).toEqual(['missing', 'missing', 'missing', 'missing']);
+    expect(results[4]).toMatchObject({ profileId: 'custom-id', status: 'found', available: true, version: null });
+    const renamed = await detectAgents([{ ...profile, id: 'renamed', kind: 'codex' }], env);
+    expect(renamed[4]).toMatchObject({ profileId: 'renamed', status: 'found', available: true, version: null });
+  });
+
+  it.skipIf(process.platform !== 'win32')('detects an agy-shaped Node shim and probes its version without a model call', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jarvis-agy-fixture-'));
+    try {
+      writeFileSync(join(root, 'agy.cjs'), 'if (process.argv[2] === "--version") console.log("agy-fixture 1.0.0"); else process.exit(7);');
+      writeFileSync(join(root, 'agy.cmd'), '@echo off\r\n"%~dp0\\node.exe" "%~dp0\\agy.cjs" %*\r\n');
+      const env = { ...process.env, PATH: `${root}${delimiter}${dirname(process.execPath)}`, Path: '', LOCALAPPDATA: '' };
+      const results = await detectAgents([], env);
+      expect(results[3]).toMatchObject({ kind: 'antigravity', command: 'agy', status: 'ready', available: true, version: 'agy-fixture 1.0.0' });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

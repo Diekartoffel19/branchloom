@@ -8,7 +8,8 @@ const base: AgentDetection = { kind: 'codex', command: 'codex', available: false
 describe('agent diagnostic messages', () => {
   it('distinguishes missing CLI, timeout and verified version from login', () => {
     expect(diagnosticHint(base)).toContain('nicht gefunden');
-    expect(diagnosticHint({ ...base, status: 'timeout' })).toContain('acht Sekunden');
+    expect(diagnosticHint({ ...base, status: 'timeout' })).toContain('8 Sekunden');
+    expect(diagnosticHint({ ...base, kind: 'antigravity', status: 'timeout' })).toContain('20 Sekunden');
     expect(diagnosticHint({ ...base, status: 'ready', available: true })).toContain('Anmeldung');
     expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, status: 'timeout' }} />)).toContain('Zeitlimit');
     expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, status: 'found', available: true }} />)).toContain('Gefunden');

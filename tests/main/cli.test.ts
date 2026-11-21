@@ -47,6 +47,30 @@ describe('real CLI PTY', () => {
     store.close();
   }, 15_000);
 
+  it('runs a synthetic Antigravity-shaped CLI through the real PTY with column flags', async () => {
+    const { store, card } = fixture();
+    const root = mkdtempSync(join(tmpdir(), 'jarvis-studio-agy-'));
+    roots.push(root);
+    const script = join(root, 'agy-fixture.cjs');
+    writeFileSync(script, 'console.log("AGY_ARGS=" + JSON.stringify(process.argv.slice(2)))');
+    const agent = store.saveAgent({ name: 'Antigravity fixture', kind: 'antigravity', command: process.execPath, args: [script], model: null, enabled: true });
+    store.updateColumn({ id: card.columnId, agentId: agent.id, model: 'synthetic-model', effort: 'high' });
+    let finish!: (id: string) => void;
+    const ended = new Promise<string>((resolve) => { finish = resolve; });
+    const runner = new SessionRunner(store, () => undefined, (session) => finish(session.id));
+    try {
+      const session = runner.start({ cardId: card.id, mode: 'one-shot', prompt: 'Synthetic task' });
+      await Promise.race([ended, new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Fake agy did not exit')), 10_000))]);
+      const saved = store.session(session.id);
+      expect(saved.state).toBe('exited');
+      expect(saved.output).toContain('AGY_ARGS=');
+      expect(saved.output).toContain('"--model","synthetic-model","--effort","high","-p","Synthetic task"');
+    } finally {
+      runner.dispose();
+      store.close();
+    }
+  }, 15_000);
+
   it('stops an explicitly launched long-running process', async () => {
     const { store, card } = fixture();
     const agent = store.saveAgent({ name: 'Waiting fixture', kind: 'custom', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], model: null, enabled: true });

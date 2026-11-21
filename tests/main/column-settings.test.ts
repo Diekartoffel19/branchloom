@@ -85,4 +85,23 @@ describe('column agent settings', () => {
     expect(columnLaunchOverrides(column, other)).toEqual({ model: null, effort: null });
     expect(buildAgentArgs(other, 'Step', 'one-shot', undefined, columnLaunchOverrides(column, other))).toContain('profile-model');
   });
+
+  it('builds Antigravity CLI commands with native prompt, model and effort flags', () => {
+    const agent: AgentPreset = { id: 'agy', name: 'Antigravity', kind: 'antigravity', command: 'agy', args: ['--agent', 'reviewer'], model: 'profile-model', enabled: true };
+    const column = { model: 'column-model', effort: 'high' as const };
+    expect(buildAgentArgs(agent, 'First turn', 'interactive', undefined, column)).toEqual(['--agent', 'reviewer', '--model', 'column-model', '--effort', 'high', '-i', 'First turn']);
+    expect(buildAgentArgs(agent, 'Review changes', 'one-shot', undefined, column)).toEqual(['--agent', 'reviewer', '--model', 'column-model', '--effort', 'high', '-p', 'Review changes']);
+    expect(buildAgentArgs(agent, 'Other turn', 'one-shot', undefined, { model: null, effort: null })).toEqual(['--agent', 'reviewer', '--model', 'profile-model', '-p', 'Other turn']);
+    expect(() => buildAgentArgs({ ...agent, args: ['--dangerously-skip-permissions'] }, 'Task', 'one-shot')).toThrow('Permission-Bypass');
+    expect(() => buildAgentArgs(agent, '', 'one-shot')).toThrow('Prompt');
+  });
+
+  it('stores Antigravity column settings and excludes its unsupported ultra effort', () => {
+    const { store, project } = fixture();
+    const agent = store.agents().find((item) => item.kind === 'antigravity')!;
+    const column = store.createColumn({ projectId: project.id, name: 'Review', agentId: agent.id, model: 'gemini-3.8-flash-medium', effort: 'medium' });
+    expect(columnLaunchOverrides(column, agent)).toEqual({ model: 'gemini-3.8-flash-medium', effort: 'medium' });
+    expect(() => store.updateColumn({ id: column.id, effort: 'ultra' })).toThrow('max');
+    store.close();
+  });
 });
