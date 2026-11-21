@@ -120,4 +120,46 @@ describe('local Trello board import', () => {
     expect(store.snapshot(project.id).cards).toHaveLength(0);
     store.close();
   });
+
+  it('previews and persists named board and inline labels without importing color-only labels', () => {
+    const { store, path, project, column } = fixture();
+    const namedId = '111111111111111111111111';
+    const colorId = '222222222222222222222222';
+    const missingId = '333333333333333333333333';
+    const inlineId = '444444444444444444444444';
+    const source = JSON.parse(board()) as { labels?: Array<{ id: string; name: string }>; cards: Array<{ idLabels?: string[]; labels?: Array<{ id: string; name: string }> }> };
+    source.labels = [{ id: namedId, name: 'Planung' }, { id: colorId, name: '' }];
+    source.cards[0]!.idLabels = [namedId, colorId, missingId];
+    source.cards[0]!.labels = [{ id: namedId, name: 'Veralteter Name' }, { id: inlineId, name: 'Bug' }, { id: '555555555555555555555555', name: 'bug' }];
+    const json = JSON.stringify(source);
+    const preview = store.previewTrelloImport({ projectId: project.id, json });
+    expect(preview.cards[0]?.labels).toEqual(['Planung', 'Bug']);
+    expect(preview.cards[0]?.labelNote).toContain('2 Trello-Labels');
+    expect(preview.cards[0]?.eligible).toBe(true);
+    expect(store.snapshot(project.id).cards).toHaveLength(0);
+    const imported = store.acceptTrelloImport({ projectId: project.id, columnId: column.id, json, fingerprint: preview.fingerprint, sourceIds: [ids.first] });
+    expect(imported.created[0]).toMatchObject({ labels: ['Planung', 'Bug'], priority: 'none' });
+    store.close();
+    const reopened = new StudioStore(path);
+    expect(reopened.card(imported.created[0]!.id).labels).toEqual(['Planung', 'Bug']);
+    reopened.close();
+  });
+
+  it('blocks cards with too many or invalid named labels without partially importing them', () => {
+    const { store, project, column } = fixture();
+    const source = JSON.parse(board()) as { cards: Array<{ labels?: Array<{ name: string }> }> };
+    source.cards[0]!.labels = Array.from({ length: 13 }, (_, index) => ({ name: `Label ${index}` }));
+    source.cards[1]!.labels = [{ name: 'x'.repeat(33) }];
+    source.cards[2]!.labels = [{ name: '' }];
+    const json = JSON.stringify(source);
+    const preview = store.previewTrelloImport({ projectId: project.id, json });
+    expect(preview.cards[0]).toMatchObject({ eligible: false, labels: [] });
+    expect(preview.cards[0]?.reason).toContain('12 Labels');
+    expect(preview.cards[1]?.reason).toContain('1–32 Zeichen');
+    expect(preview.cards[2]).toMatchObject({ eligible: true, labels: [] });
+    expect(preview.cards[2]?.labelNote).toContain('wird ausgelassen');
+    expect(() => store.acceptTrelloImport({ projectId: project.id, columnId: column.id, json, fingerprint: preview.fingerprint, sourceIds: [ids.archived, ids.first] })).toThrow('nicht importiert');
+    expect(store.snapshot(project.id).cards).toHaveLength(0);
+    store.close();
+  });
 });

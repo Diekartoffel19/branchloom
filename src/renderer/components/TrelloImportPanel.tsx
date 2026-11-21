@@ -22,6 +22,10 @@ export function trelloCardStatus(card: TrelloImportCard): string {
 
 function messageOf(reason: unknown): string { return reason instanceof Error ? reason.message : String(reason); }
 
+export function TrelloCardRow({ card, checked, disabled, onToggle }: { card: TrelloImportCard; checked: boolean; disabled: boolean; onToggle: () => void }) {
+  return <label className={importable(card) ? 'trello-card-row' : 'trello-card-row unavailable'}><input type="checkbox" checked={checked} disabled={!importable(card) || disabled} onChange={onToggle} /><span><strong>{card.title || '(Ohne Titel)'}</strong><small>{card.listName ?? 'Ohne Liste'} · {trelloCardStatus(card)}</small>{card.labels.length ? <small>Labels: {card.labels.join(', ')}</small> : null}{card.labelNote ? <small>{card.labelNote}</small> : null}{card.description ? <em>{card.description.slice(0, 140)}</em> : null}</span></label>;
+}
+
 export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   projectId: string; columns: Column[]; mutate: Mutate; onClose: () => void;
 }) {
@@ -35,7 +39,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   const [busy, setBusy] = useState<'read' | 'preview' | 'accept' | null>(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState<TrelloImportResult | null>(null);
-  const matching = useMemo(() => preview?.cards.filter((card) => `${card.title} ${card.listName ?? ''}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [preview, filter]);
+  const matching = useMemo(() => preview?.cards.filter((card) => `${card.title} ${card.listName ?? ''} ${card.labels.join(' ')}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [preview, filter]);
   const shown = matching.slice(0, DISPLAY_LIMIT);
   const matchingCount = matching.length;
 
@@ -86,7 +90,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && busy === null) onClose(); }}>
     <section className="dialog wide trello-import-dialog" role="dialog" aria-modal="true" aria-labelledby="trello-import-title">
       <div className="dialog-heading"><div><small>LOKALER BOARD-IMPORT</small><h2 id="trello-import-title">Trello-JSON importieren</h2></div><button className="icon-button" type="button" aria-label="Schließen" disabled={busy !== null} onClick={onClose}><X size={18} /></button></div>
-      <p className="field-help">Wähle einen einzelnen Trello-Board-Export als JSON. Die Datei wird nur im Arbeitsspeicher gelesen. Anhänge, Kommentare und Mitglieder werden nicht importiert.</p>
+      <p className="field-help">Wähle einen einzelnen Trello-Board-Export als JSON. Die Datei wird nur im Arbeitsspeicher gelesen. Benannte Labels werden übernommen; Anhänge, Kommentare und Mitglieder werden nicht importiert.</p>
       <label className="trello-file-label"><FileJson2 size={19} /> JSON-Datei auswählen<input autoFocus type="file" accept=".json,application/json" onChange={(event) => void readFile(event)} disabled={busy === 'preview' || busy === 'accept'} /></label>
       {fileName ? <p className="trello-file-name">{fileName} · maximal 8 MiB und 5.000 Karten</p> : null}
       <button className="secondary-button" type="button" disabled={!json || busy !== null} onClick={() => void inspect()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Upload size={15} />} Datei prüfen</button>
@@ -96,8 +100,8 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
         <label>Zielspalte<select value={columnId} onChange={(event) => setColumnId(event.target.value)} disabled={busy !== null}>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
         <p className="field-help">Alle gewählten Karten kommen in diese Spalte. Archivierte Trello-Karten sind zunächst abgewählt und bleiben beim Import archiviert. Ein Import startet keine Agenten automatisch.</p>
         <div className="trello-selection-row"><span>{selectedIds.length} ausgewählt</span><button className="text-button" type="button" onClick={() => setSelectedIds([])} disabled={busy !== null || selectedIds.length === 0}>Auswahl leeren</button><button className="text-button" type="button" onClick={() => setSelectedIds((old) => [...new Set([...old, ...shown.filter(importable).map((card) => card.sourceId)])])} disabled={busy !== null || shown.length === 0}>Angezeigte auswählen</button></div>
-        <label className="sr-only" htmlFor="trello-filter">Karten filtern</label><input id="trello-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Karten oder Trello-Liste filtern…" />
-        <div className="trello-card-list" aria-label="Trello-Karten in der Vorschau">{shown.map((card) => <label className={importable(card) ? 'trello-card-row' : 'trello-card-row unavailable'} key={card.sourceId}><input type="checkbox" checked={selectedIds.includes(card.sourceId)} disabled={!importable(card) || busy !== null} onChange={() => toggle(card.sourceId)} /><span><strong>{card.title || '(Ohne Titel)'}</strong><small>{card.listName ?? 'Ohne Liste'} · {trelloCardStatus(card)}</small>{card.description ? <em>{card.description.slice(0, 140)}</em> : null}</span></label>)}{matchingCount === 0 ? <p className="list-empty">Keine Karten für diesen Filter.</p> : null}</div>
+        <label className="sr-only" htmlFor="trello-filter">Karten filtern</label><input id="trello-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Karten, Liste oder Label filtern…" />
+        <div className="trello-card-list" aria-label="Trello-Karten in der Vorschau">{shown.map((card) => <TrelloCardRow key={card.sourceId} card={card} checked={selectedIds.includes(card.sourceId)} disabled={busy !== null} onToggle={() => toggle(card.sourceId)} />)}{matchingCount === 0 ? <p className="list-empty">Keine Karten für diesen Filter.</p> : null}</div>
         {matchingCount > shown.length ? <p className="field-help">{matchingCount - shown.length} weitere Karten. Filtere nach Titel oder Liste, um sie einzeln zu prüfen.</p> : null}
         <div className="dialog-actions"><button className="secondary-button" type="button" disabled={busy !== null} onClick={onClose}>Abbrechen</button><button className="primary-button" type="button" disabled={busy !== null || !columnId || selectedIds.length === 0} onClick={() => void accept()}>{busy === 'accept' ? <LoaderCircle size={15} className="spin" /> : null} {selectedIds.length} Karten importieren</button></div>
       </div> : null}

@@ -2,10 +2,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Column, TrelloImportCard, TrelloImportPreview } from '../../src/shared/types';
-import { defaultTrelloSelection, importable, trelloCardStatus, TrelloImportPanel } from '../../src/renderer/components/TrelloImportPanel';
+import { defaultTrelloSelection, importable, trelloCardStatus, TrelloCardRow, TrelloImportPanel } from '../../src/renderer/components/TrelloImportPanel';
 
 function card(sourceId: string, overrides: Partial<TrelloImportCard> = {}): TrelloImportCard {
-  return { sourceId, title: `Testkarte ${sourceId}`, description: '', listName: 'Ideen', archived: false, eligible: true, reason: null, importedCardId: null, ...overrides };
+  return { sourceId, title: `Testkarte ${sourceId}`, description: '', labels: [], labelNote: null, listName: 'Ideen', archived: false, eligible: true, reason: null, importedCardId: null, ...overrides };
 }
 
 const preview: TrelloImportPreview = {
@@ -36,5 +36,14 @@ describe('Trello import UI', () => {
     expect(html).toContain('Datei prüfen');
     expect(html).not.toContain('Karten importieren');
     expect(html).toContain('Arbeitsspeicher');
+    expect(html).toContain('Benannte Labels werden übernommen');
+  });
+
+  it('shows imported names and omitted color-only labels in the preview row', () => {
+    const row = card('with-labels', { labels: ['Planung', 'Bug'], labelNote: '1 Trello-Label ohne auslesbaren Namen wird ausgelassen.' });
+    const html = renderToStaticMarkup(createElement(TrelloCardRow, { card: row, checked: true, disabled: false, onToggle: () => undefined }));
+    expect(html).toContain('Labels: Planung, Bug');
+    expect(html).toContain('wird ausgelassen');
+    expect(html).toContain('checked=""');
   });
 });

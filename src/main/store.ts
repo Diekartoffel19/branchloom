@@ -263,7 +263,7 @@ export class StudioStore {
         }
         const item = sourceCards.get(sourceId)!;
         // Direct store insertion intentionally bypasses the IPC move-to-column auto-start path.
-        const added = this.createCard({ projectId: input.projectId, columnId: input.columnId, title: item.title, description: item.description });
+        const added = this.createCard({ projectId: input.projectId, columnId: input.columnId, title: item.title, description: item.description, labels: item.labels });
         const newCard = item.archived ? this.setCardArchived({ id: added.id, archived: true }) : added;
         insert.run(input.projectId, sourceId, newCard.id, now());
         created.push(newCard);
