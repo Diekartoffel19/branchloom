@@ -7,8 +7,7 @@ import { StudioStore } from '../../src/main/store';
 
 const mock = vi.hoisted(() => ({ launches: [] as Array<{ executable: string; args: string[]; cwd: string; writes: string[]; data: (value: string) => void }> }));
 vi.mock('node-pty', () => ({
-  default: {
-    spawn: vi.fn((executable: string, args: string[], options: { cwd: string }) => {
+  spawn: vi.fn((executable: string, args: string[], options: { cwd: string }) => {
       const launch = { executable, args, cwd: options.cwd, writes: [] as string[], data: (_value: string) => undefined };
       mock.launches.push(launch);
       return {
@@ -18,8 +17,7 @@ vi.mock('node-pty', () => ({
         write(value: string) { launch.writes.push(value); },
         resize() {}, kill() {},
       };
-    }),
-  },
+  }),
 }));
 
 const roots: string[] = [];
@@ -44,21 +42,25 @@ describe('explicit Codex conversation picker', () => {
   it('starts a fresh Studio session in the same directory without replaying a prompt or choosing --last', () => {
     const { root, store, previous } = fixture();
     const runner = new SessionRunner(store, () => undefined, () => undefined);
-    const next = runner.resumeCodex({ sessionId: previous.id });
-    expect(next.id).not.toBe(previous.id);
-    expect(next.state).toBe('running');
-    expect(mock.launches).toHaveLength(1);
-    expect(mock.launches[0]).toMatchObject({ executable: process.execPath, args: ['resume', '--include-non-interactive'], cwd: root });
-    expect(mock.launches[0]!.args).not.toContain('--last');
-    expect(mock.launches[0]!.args).not.toContain('--search');
-    expect(store.session(previous.id).state).toBe('failed');
-    mock.launches[0]!.data('Picker ready');
-    expect(store.session(next.id).output).toContain('Picker ready');
-    runner.writeRaw({ sessionId: next.id, data: '\x1b[A' });
-    expect(mock.launches[0]!.writes).toEqual(['\x1b[A']);
-    runner.stop(next.id);
-    expect(store.session(next.id).state).toBe('stopped');
-    store.close();
+    try {
+      const next = runner.resumeCodex({ sessionId: previous.id });
+      expect(next.id).not.toBe(previous.id);
+      expect(next.state).toBe('running');
+      expect(mock.launches).toHaveLength(1);
+      expect(mock.launches[0]).toMatchObject({ executable: process.execPath, args: ['resume', '--include-non-interactive'], cwd: root });
+      expect(mock.launches[0]!.args).not.toContain('--last');
+      expect(mock.launches[0]!.args).not.toContain('--search');
+      expect(store.session(previous.id).state).toBe('failed');
+      mock.launches[0]!.data('Picker ready');
+      expect(store.session(next.id).output).toContain('Picker ready');
+      runner.writeRaw({ sessionId: next.id, data: '\x1b[A' });
+      expect(mock.launches[0]!.writes).toEqual(['\x1b[A']);
+      runner.stop(next.id);
+      expect(store.session(next.id).state).toBe('stopped');
+    } finally {
+      runner.dispose();
+      store.close();
+    }
   });
 
   it('rejects running, archived, and non-Codex source sessions without spawning', () => {

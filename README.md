@@ -7,11 +7,14 @@ Eigenständige lokale Windows-App für Projekte, Kanban-Boards, CLI-Agenten, Wor
 Voraussetzungen: Windows 11, Node.js 24, Git. Für Agenten muss die jeweilige CLI separat installiert und angemeldet sein; **Codex CLI** ist auf dem Entwicklungslaptop geprüft. Spracheingabe ist optional und benötigt Python 3.13 und ein lokales Whisper-Modell.
 
 ```powershell
+git clone https://github.com/mschr703CODEX/jarvis-studio.git
+Set-Location jarvis-studio
 npm ci
+npm run doctor
 npm run dev
 ```
 
-`npm run dev` kompiliert den Electron-Hauptprozess, startet Vite nur auf `127.0.0.1:5181` und öffnet die Desktop-App. Zum Beenden im Startterminal `Ctrl+C` drücken. Ein Produktionsbuild aus dem Quellcode lässt sich mit `npm run build` erstellen und anschließend mit `npm start` öffnen. Über die Sonne/Mond-Schaltfläche in der Kopfzeile wird das lokal gespeicherte helle oder dunkle Design gewählt. Ein portables Windows-ZIP wird mit `npm run make:win` gebaut; Voraussetzungen und Grenzen stehen in [RELEASE.md](docs/RELEASE.md). Ein Installer ist noch nicht vorhanden.
+`npm run doctor` meldet fehlende Pflichtkomponenten; nicht installierte Agenten-CLIs und Spracheingabe sind optional. `npm run dev` kompiliert den Electron-Hauptprozess, startet Vite nur auf `127.0.0.1:5181` und öffnet die Desktop-App. Zum Beenden im Startterminal `Ctrl+C` drücken. Ein Produktionsbuild aus dem Quellcode lässt sich mit `npm run build` erstellen und anschließend mit `npm start` öffnen. Über die Sonne/Mond-Schaltfläche in der Kopfzeile wird das lokal gespeicherte helle oder dunkle Design gewählt. Ein portables Windows-ZIP wird mit `npm run make:win` gebaut; Voraussetzungen und Grenzen stehen in [RELEASE.md](docs/RELEASE.md). Ein Installer ist noch nicht vorhanden.
 
 ## Erste Arbeitsschritte
 

@@ -291,6 +291,19 @@ function createWindow(): void {
             }
             await window.studio.stopCommandTerminal(terminal.id);
             if (!echoed) throw new Error('cmd-PTY gab keine Ausgabe zurück: ' + lastOutput.slice(-400));
+            const agent = await window.studio.saveAgent({
+              name: 'Smoke-Agent', kind: 'custom', command: ${JSON.stringify(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'))},
+              args: ['/C', 'echo JARVIS_STUDIO_AGENT_OK'], model: null, enabled: true,
+            });
+            const session = await window.studio.startSession({ cardId: card.id, agentId: agent.id, prompt: '' });
+            let agentFinished = false;
+            for (let attempt = 0; attempt < 600; attempt++) {
+              const row = (await window.studio.snapshot(project.id)).sessions.find((item) => item.id === session.id);
+              if (row?.state === 'exited' && row.output.includes('JARVIS_STUDIO_AGENT_OK')) { agentFinished = true; break; }
+              if (row?.state === 'failed') throw new Error('Lokaler Smoke-Agent ist fehlgeschlagen: ' + row.output.slice(-400));
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+            if (!agentFinished) throw new Error('Lokaler Smoke-Agent beendete seinen PTY-Lauf nicht.');
           }
           return true;
         })()
