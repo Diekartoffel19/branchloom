@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 03:32 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 03:38 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -19,7 +19,7 @@ Stand: 21.11.2026, 03:32 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume, Transkriptsuche und Spalteneinstellungen `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (119 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Die neuen Spalteneinstellungen bestanden zusätzlich 18 gezielte Tests in vier Dateien. Im isolierten Diagnosezweig bestanden vier gezielte Tests für echte lokale Versionsausgabe, Timeout, Fehler und UI-Status, dazu Typprüfung, Build, Public-Scan und `npm audit --audit-level=critical` (0 Funde); der kombinierte Gesamtlauf steht für diesen Zweig noch aus. Ein früherer lokaler Smoke überschritt unter paralleler Last 120 Sekunden ohne Startsignal; ohne diese Last startete derselbe integrierte Quellstand. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Agentendiagnose, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Kartenreihenfolge `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (126 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Nach Integration der Agentendiagnose bestanden zusätzlich zehn gezielte Tests in drei Dateien, Typprüfung, Build und der verstärkte Quell-Smoke. Der vollständige kombinierte Lauf mit Diagnose steht in der folgenden CI noch aus. Im isolierten Diagnosezweig bestanden Public-Scan und `npm audit --audit-level=critical` (0 Funde). Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Agentendiagnose, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
 Für die explizite Kartenreihenfolge bestanden 12 gezielte Tests im integrierten Hauptzweig und die vollständige kombinierte Suite (126 bestanden, 2 optionale Live-Tests übersprungen). Im isolierten Zweig bestanden außerdem Typprüfung, Produktionsbuild und 16 gezielte Tests in vier Dateien. Geprüft wurden Queue-Auswahl nach Umordnung, Persistenz nach Neustart, Archivplätze, Board-Reihenfolge und beschriftete Nachbarn, Rand- und Eingabefehler sowie Transaktions-Rollback nach einem künstlichen SQLite-Fehler. Ein sichtbarer Klickpfad im Electron-Fenster wurde nicht durchgeführt.
 
@@ -35,8 +35,8 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Kartenreihenfolge nach integriertem Build, Smoke und Public-Scan pushen und Windows-CI prüfen.
-2. Sicheres Projektpaket für Export/Import und Agenten-Diagnose integrieren und getrennt verifizieren.
+1. Agentendiagnose nach Public-Scan pushen und Windows-CI mit Gesamttests und Paket-Smoke prüfen.
+2. Sicheres Projektpaket für Export/Import integrieren und getrennt verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
 Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.
