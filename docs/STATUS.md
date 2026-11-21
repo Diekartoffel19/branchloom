@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 03:08 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 03:24 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -27,11 +27,11 @@ Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische I
 
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44853051581](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44853051581) für `7d07c65` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Start des gepackten Programms. Die Spalteneinstellungen sind darin noch nicht enthalten. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44854204664](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44854204664) für `07edfaa` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Paketstart. Ein stärkerer Smoke-Test deckte danach einen echten Fehler auf: der bisherige Paketstart prüfte den React-Mount nicht, und absolute Vite-Asset-Pfade ließen die Oberfläche unter `file://` leer. Relative Pfade sind jetzt gesetzt; ein lokaler Quell-Smoke bestätigte den gerenderten App-Mount sowie ein Projekt-/Karten-Speichern über Preload, IPC und SQLite. Der Paket-Smoke mit derselben Prüfung muss in der folgenden CI noch bestehen. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Spalteneinstellungen nach Public-Scan pushen und Windows-CI mit Paket-Smoke prüfen.
+1. Korrigierten `file://`-Renderer und den strengeren Paket-Smoke nach Public-Scan pushen; Windows-CI prüfen.
 2. Reihenfolge von Karten innerhalb einer Spalte direkt im Board bearbeiten und in der Queue respektieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 

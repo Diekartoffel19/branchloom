@@ -171,8 +171,35 @@ function createWindow(): void {
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
   if (smoke) {
     window.webContents.once('did-finish-load', () => {
-      process.stdout.write('STUDIO_SMOKE_OK\n');
-      app.quit();
+      const script = `
+        (async () => {
+          for (let attempt = 0; attempt < 600 && !document.querySelector('.app-shell'); attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          if (!document.querySelector('.app-shell') || !document.body.textContent?.includes('JARVIS')) {
+            throw new Error('Renderer hat die Oberfläche nicht aufgebaut: ' + document.body.textContent?.slice(0, 200));
+          }
+          if (!window.studio) throw new Error('Preload-API fehlt.');
+          if ((await window.studio.projects()).length !== 0) throw new Error('Smoke-Datenordner ist nicht leer.');
+          const project = await window.studio.createProject({ name: 'Smoke-Projekt', path: ${JSON.stringify(smokeDataDirectory)} });
+          const initial = await window.studio.snapshot(project.id);
+          const todo = initial.columns.find((column) => column.name === 'To Do');
+          if (!todo || initial.columns.length < 2) throw new Error('Standardspalten fehlen.');
+          const card = await window.studio.createCard({ projectId: project.id, columnId: todo.id, title: 'Smoke-Karte' });
+          const saved = await window.studio.snapshot(project.id);
+          if (!saved.cards.some((item) => item.id === card.id && item.title === 'Smoke-Karte')) {
+            throw new Error('Karte wurde nicht über IPC und SQLite gespeichert.');
+          }
+          return true;
+        })()
+      `;
+      void window!.webContents.executeJavaScript(script).then(() => {
+        process.stdout.write('STUDIO_SMOKE_OK\n');
+        app.quit();
+      }).catch((error: unknown) => {
+        console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite round trip', error);
+        app.exit(1);
+      });
     });
     window.webContents.once('did-fail-load', (_event, code, description) => {
       console.error(`STUDIO_SMOKE_FAILED (${code}): ${description}`);
