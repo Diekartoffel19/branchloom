@@ -33,6 +33,7 @@ const studio: StudioAPI = {
   mergeCardWorktree: (input) => invoke('mergeCardWorktree', input),
   saveNote: (input) => invoke('saveNote', input),
   deleteNote: (id) => invoke('deleteNote', id),
+  exportMemoryVault: (projectId) => invoke('exportMemoryVault', projectId),
   transcribe: (audio) => invoke('transcribe', audio),
   onSessionEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: SessionEvent): void => callback(payload);

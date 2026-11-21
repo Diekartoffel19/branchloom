@@ -18,6 +18,8 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const [newNote, setNewNote] = useState(false);
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
   const [importError, setImportError] = useState('');
+  const [exportMessage, setExportMessage] = useState('');
+  const [exportPending, setExportPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const notes = useMemo(() => [...snapshot.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snapshot.notes]);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
@@ -30,6 +32,8 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     setNavigation(emptyNoteNavigation());
     setActiveTag('');
     setQuery('');
+    setImportError('');
+    setExportMessage('');
   }, [snapshot.project.id]);
 
   useEffect(() => {
@@ -102,16 +106,33 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
+  async function exportVault() {
+    if (exportPending || notes.length === 0) return;
+    setExportPending(true);
+    setImportError('');
+    setExportMessage('');
+    try {
+      const result = await window.studio.exportMemoryVault(snapshot.project.id);
+      if (result) setExportMessage(`${result.count} Notizen exportiert: ${result.directory}`);
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setExportPending(false);
+    }
+  }
+
   return <div className="standard-page memory-page">
     <div className="view-header">
       <div><div className="eyebrow">VERKNÜPFTES WISSEN</div><h2>Dein Memory</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
       <div className="memory-header-actions">
         <input ref={fileInputRef} className="sr-only" type="file" accept=".md,text/markdown" aria-label="Markdown-Datei auswählen" onChange={(event) => void importMarkdown(event)} />
         <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} /> Markdown importieren</button>
+        <button className="secondary-button" type="button" disabled={!notes.length || exportPending} onClick={() => void exportVault()}><Download size={16} /> {exportPending ? 'Export läuft…' : 'Alle Notizen exportieren'}</button>
         <button className="primary-button" type="button" onClick={beginNew}><Plus size={17} /> Neue Notiz</button>
       </div>
     </div>
     {importError ? <p className="inline-error" role="alert">{importError}</p> : null}
+    {exportMessage ? <p className="memory-vault-feedback" role="status">{exportMessage}</p> : null}
     {tags.length ? <div className="memory-tag-filter" aria-label="Notizen nach Tag filtern"><button className={activeTag ? '' : 'active'} type="button" aria-pressed={!activeTag} onClick={() => setActiveTag('')}>Alle</button>{tags.map((tag) => <button className={activeTag === tag ? 'active' : ''} key={tag} type="button" aria-pressed={activeTag === tag} onClick={() => setActiveTag(tag)}>#{tag}</button>)}</div> : null}
     <div className="memory-layout">
       <aside className="memory-list">

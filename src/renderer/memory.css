@@ -25,3 +25,4 @@
 .memory-preview-empty{color:#849aad;font-size:12px}
 .memory-preview-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:18px}
 .memory-preview-tags span{border:1px solid #37646a;background:#214148;color:#afede6;border-radius:6px;font-size:11px;padding:4px 8px}
+.memory-vault-feedback { overflow-wrap: anywhere; color: var(--accent); margin: 0 0 14px; }

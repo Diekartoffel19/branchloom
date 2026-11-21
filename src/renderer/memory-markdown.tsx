@@ -1,44 +1,12 @@
 import type { ReactNode } from 'react';
 import type { MemoryNote } from '../shared/types';
+export { memoryMarkdownFileName, parseMemoryMarkdownFile, serializeMemoryNote } from '../shared/memory-file';
 
 export type MemoryBlock =
   | { kind: 'heading'; level: 1 | 2 | 3; text: string }
   | { kind: 'paragraph' | 'quote'; text: string }
   | { kind: 'list'; items: string[] }
   | { kind: 'code'; text: string };
-
-export function memoryMarkdownFileName(title: string): string {
-  const safe = title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').trim().slice(0, 100);
-  const base = safe && !/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(safe) ? safe : 'Notiz';
-  return `${base}.md`;
-}
-
-export function serializeMemoryNote(note: MemoryNote): string {
-  const tags = note.tags.length ? `---\ntags: ${JSON.stringify(note.tags)}\n---\n` : '';
-  return `${tags}# ${note.title}\n\n${note.body.trimEnd()}\n`;
-}
-
-export function parseMemoryMarkdownFile(name: string, source: string): { title: string; body: string; tags: string[] } {
-  const normalized = source.replace(/\r\n?/g, '\n').replace(/^\uFEFF/, '');
-  let text = normalized;
-  let tags: string[] = [];
-  const frontmatter = text.match(/^---\n(tags: (\[[^\n]*\]))\n---\n/);
-  if (frontmatter) {
-    try {
-      const parsed: unknown = JSON.parse(frontmatter[2]!);
-      if (Array.isArray(parsed) && parsed.length <= 50 && parsed.every((tag) => typeof tag === 'string' && tag.length <= 80)) {
-        tags = parsed;
-        text = text.slice(frontmatter[0].length);
-      }
-    } catch { /* Other frontmatter stays in the editable body. */ }
-  }
-  const heading = text.match(/^# ([^\n]+)(?:\n\n?|$)/);
-  const fallback = name.replace(/\.md$/i, '').trim() || 'Importierte Notiz';
-  const title = (heading?.[1]?.trim() || fallback).slice(0, 120);
-  const body = heading ? text.slice(heading[0].length).replace(/\n$/, '') : text;
-  if (body.length > 200_000) throw new Error('Die Markdown-Datei ist für eine Memory-Notiz zu groß.');
-  return { title, body, tags };
-}
 
 /** A deliberately small Markdown subset. Raw HTML is always rendered as text. */
 export function parseMemoryBlocks(body: string): MemoryBlock[] {

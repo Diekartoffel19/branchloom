@@ -13,6 +13,9 @@ Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. De
 
 - **Markdown importieren** öffnet eine einzelne `.md`-Datei bis 500 KB als neuen, noch ungespeicherten Entwurf. Titel und Tags aus einem von Jarvis Studio erzeugten Export werden erkannt. Der Import überschreibt keine vorhandene Notiz; erst **Notiz speichern** schreibt in die Datenbank.
 - **.md** bei einer gespeicherten Notiz lädt sie als Markdown-Datei herunter. Der Dateiname wird für Windows bereinigt. Tags stehen als YAML-Frontmatter; der Titel ist die erste Überschrift. Die Datei kann in einem Markdown-Vault geöffnet werden.
-- Links auf Notiztitel bleiben im Markdown als `[[Titel]]` erhalten. Das erste Import-/Export-Format überträgt eine Notiz pro Datei, keinen gesamten Vault oder Anhänge.
+- **Alle Notizen exportieren** öffnet eine Ordnerauswahl und legt darin einen neuen Unterordner `Jarvis-Memory-<Projekt>-<Zufall>` an. Jede gespeicherte Notiz des aktiven Projekts wird dort als `.md` geschrieben. Vorhandene Dateien im gewählten Ordner werden nicht angerührt; ein wiederholter Export erzeugt einen weiteren Unterordner. Gleichnamige oder unter Windows unzulässige Titel erhalten sichere Dateinamen. Nach Abschluss zeigt Memory den tatsächlichen Zielpfad an.
+- Links auf Notiztitel bleiben im Markdown als `[[Titel]]` erhalten. Bei gleichnamigen Notizen kann ein Vault diese Links nicht eindeutig auflösen. Der Ordnerexport enthält nur Notizen, keine Anhänge, Agentenverläufe oder automatischen Live-Abgleich. Ein Abbruch der Ordnerauswahl schreibt nichts. Falls ein Dateisystemfehler einen Export unterbricht, bleibt der neu angelegte Teilordner zur manuellen Prüfung erhalten.
+
+Wähle für persönliche Notizen einen privaten Ordner außerhalb öffentlich geteilter Git-Repositories. Der Export erfolgt nur nach Klick und Ordnerwahl; Jarvis Studio greift nicht automatisch auf andere Vaults zu. Der Import bleibt auf eine einzelne, bewusst ausgewählte Datei begrenzt.
 
 Das Modell indexiert Agentengespräche und Repository-Dateien derzeit nicht automatisch. Die semantische Suche und Quellenbelege stehen auf der [Paritätsliste](PARITY.md).

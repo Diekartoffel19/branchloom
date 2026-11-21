@@ -15,6 +15,7 @@ export interface ProjectQueue { projectId: string; state: QueueState; templateWo
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
 export interface MemoryNote { id: string; projectId: string; title: string; body: string; tags: string[]; links: string[]; createdAt: string; updatedAt: string }
+export interface MemoryVaultExportResult { count: number; directory: string }
 export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
@@ -56,6 +57,7 @@ export interface StudioAPI {
   mergeCardWorktree(input: { cardId: string; previewToken: string; confirm: boolean }): Promise<WorktreeReview>;
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
   deleteNote(id: string): Promise<void>;
+  exportMemoryVault(projectId: string): Promise<MemoryVaultExportResult | null>;
   transcribe(audio: Uint8Array): Promise<string>;
   onSessionEvent(callback: (event: SessionEvent) => void): () => void;
   browserState(): Promise<BrowserState>;

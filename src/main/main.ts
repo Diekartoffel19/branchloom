@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import { StudioBrowser } from './browser';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
+import { exportMemoryVaultToDirectory } from './memory-vault';
 import { StudioStore } from './store';
 import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
@@ -105,6 +106,19 @@ function installIpc(): void {
   bind('mergeCardWorktree', (input: { cardId: string; previewToken: string; confirm: boolean }) => mergeCardWorktree(db, input));
   bind('saveNote', (input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }) => db.saveNote(input));
   bind('deleteNote', (id: string) => db.deleteNote(id));
+  bind('exportMemoryVault', async (projectId: string) => {
+    const snapshot = db.snapshot(projectId);
+    if (!snapshot.notes.length) throw new Error('Dieses Projekt hat noch keine Memory-Notizen.');
+    if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
+    const selection = await dialog.showOpenDialog(window, {
+      title: 'Ordner für Memory-Export auswählen',
+      buttonLabel: 'Neuen Exportordner hier anlegen',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (selection.canceled || !selection.filePaths[0]) return null;
+    const current = db.snapshot(projectId);
+    return exportMemoryVaultToDirectory(current.notes, selection.filePaths[0], current.project.name);
+  });
   bind('transcribe', (audio: Uint8Array) => {
     if (!(audio instanceof Uint8Array) || audio.byteLength === 0 || audio.byteLength > 8 * 1024 * 1024) throw new Error('Die Audioaufnahme muss zwischen 1 Byte und 8 MiB groß sein.');
     return transcribeAudio(audio);
