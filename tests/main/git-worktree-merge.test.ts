@@ -94,7 +94,7 @@ describe('reviewed worktree fast-forward', () => {
     store.close();
   });
 
-  it('blocks dirty target, active session, and detached target without discarding data', () => {
+  it('blocks dirty targets, ignored path collisions, active sessions, and detached targets', () => {
     const { store, card, repository } = fixture();
     const worktree = ensureCardWorktree(store, card.id);
     commit(worktree.path, 'source.txt', 'source');
@@ -114,6 +114,14 @@ describe('reviewed worktree fast-forward', () => {
     expect(ignoredCollision.targetStatus).toEqual([]);
     expect(ignoredCollision.blockers.join(' ')).toContain('überdecken');
     unlinkSync(join(repository, 'source.txt'));
+    git(worktree.path, ['mv', 'tracked.txt', 'renamed.txt']);
+    git(worktree.path, ['-c', 'user.name=Studio Test', '-c', 'user.email=studio-test@example.invalid', 'commit', '-qm', 'Rename tracked file']);
+    appendFileSync(isAbsolute(exclude) ? exclude : join(repository, exclude), '\nrenamed.txt\n');
+    writeFileSync(join(repository, 'renamed.txt'), 'ignored target content');
+    const renamedCollision = reviewCardWorktree(store, card.id)!;
+    expect(renamedCollision.targetStatus).toEqual([]);
+    expect(renamedCollision.blockers.join(' ')).toContain('überdecken');
+    unlinkSync(join(repository, 'renamed.txt'));
     const agent = store.agents()[0]!;
     const active = store.createSession({ cardId: card.id, agentId: agent.id });
     expect(reviewCardWorktree(store, card.id)?.blockers.join(' ')).toContain('läuft noch');
@@ -121,5 +129,5 @@ describe('reviewed worktree fast-forward', () => {
     git(repository, ['checkout', '--detach']);
     expect(reviewCardWorktree(store, card.id)?.blockers.join(' ')).toContain('keinen aktiven Branch');
     store.close();
-  });
+  }, 240_000);
 });

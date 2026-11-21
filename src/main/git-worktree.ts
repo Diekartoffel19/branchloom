@@ -131,7 +131,9 @@ export function reviewCardWorktree(store: StudioStore, cardId: string): Worktree
   }
   // Git status hides ignored paths. An added committed file must not replace
   // an ignored local file in the target checkout.
-  const addedPaths = git(targetPath, ['diff', '--name-only', '-z', '--diff-filter=A', `${targetHead}..${sourceHead}`]).split('\0').filter(Boolean);
+  // Treat renames as delete+add so an ignored target file at the new name is
+  // checked exactly like any other newly committed path.
+  const addedPaths = git(targetPath, ['diff', '--no-renames', '--name-only', '-z', '--diff-filter=A', `${targetHead}..${sourceHead}`]).split('\0').filter(Boolean);
   if (addedPaths.some((item) => within(targetPath, join(targetPath, item)) && pathPresent(join(targetPath, item)))) blockers.push('Ein neuer Commit-Pfad würde eine lokale Zieldatei überdecken.');
   const previewToken = createHash('sha256').update(JSON.stringify([cardId, record.branch, sourceHead, targetBranch, targetHead])).digest('hex');
   return { cardId, path: record.path, branch: record.branch, targetPath, targetBranch, sourceHead, targetHead, sourceStatus, targetStatus, uncommittedStat, committedStat, ahead, behind, canFastForward: blockers.length === 0 && ahead > 0, blockers, previewToken };

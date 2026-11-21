@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 01:16 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 01:30 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -17,13 +17,13 @@ Stand: 21.11.2026, 01:16 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden `npm run typecheck`, `npm test` (93 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Der erste Gesamtlauf hatte bei 92 bestandenen Tests einen reinen 20-Sekunden-Timeout des bestehenden Worktree-/PTY-Tests; isoliert bestand er in 16 Sekunden, danach wurde sein Limit auf 60 Sekunden gesetzt und der vollständige Lauf bestand. `npm audit --audit-level=critical` fand zuletzt vor diesen Änderungen ohne Dependency-Wechsel 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht weiter visuell geprüft.
+Auf dem Entwicklungslaptop bestanden `npm run typecheck`, `npm test` (93 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source` für `e4b96a6`. Der erste Gesamtlauf hatte bei 92 bestandenen Tests einen reinen 20-Sekunden-Timeout des bestehenden Worktree-/PTY-Tests; isoliert bestand er in 16 Sekunden, danach wurde sein Limit auf 60 Sekunden gesetzt und der vollständige Lauf bestand. Der danach ergänzte Test auf ignorierte Pfadkollision bei einer Git-Umbenennung bestand gezielt (1 Test; auf diesem Laptop 186 Sekunden unter paralleler Last). `npm audit --audit-level=critical` fand in der Windows-CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht weiter visuell geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44838924545](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44838924545) für den vorherigen Commit bestand vollständig und baute native Module sowie ein portables ZIP. Ein früheres CI-ZIP startete im verdeckten Electron-Smoke-Test auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Der neue integrierte Stand wartet auf Push und CI. Noch kein Installer oder signiertes Release. Zwei zuvor entdeckte Windows-Kurzpfadfehler in Worktree-Tests sind in der grünen CI behoben.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44842782495](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44842782495) für `e4b96a6` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan und ein portables ZIP mit nativen Modulen. Ein früheres CI-ZIP startete im verdeckten Electron-Smoke-Test auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release. Zwei zuvor entdeckte Windows-Kurzpfadfehler in Worktree-Tests sind in der grünen CI behoben.
 
 ## Nächster Schritt
 
-1. Worktree-Review/Merge, Sitzungsverlauf, Browser-Aktionen und Theme nach Public-Scan committen und pushen; Windows-CI mit portablem Paket bis zum Ergebnis prüfen.
+1. Die zusätzliche Kollisionsprüfung für umbenannte Git-Dateien abschließen, danach getrennte Arbeiten zu Board-Metadaten, Memory-Ordnerexport und ausdrücklicher Codex-Wiederaufnahme integrieren.
 2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 3. Danach weitere Paritätsbausteine: Board-Prioritäten/Labels, zusätzliche CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
