@@ -97,7 +97,7 @@ export class WorkflowEngine {
         }
         const card = this.store.card(next.cardId);
         if (card.columnId !== step.columnId) this.store.moveCard({ id: card.id, columnId: step.columnId });
-        const agentId = step.agentId ?? this.store.column(step.columnId).agentId;
+        const agentId = step.agentId;
         if (!agentId) {
           this.store.markManualWait(id, workflow.currentStep, card.id);
           this.store.setWorkflowState(id, 'paused');

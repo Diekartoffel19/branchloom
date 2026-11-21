@@ -112,8 +112,9 @@ describe('durable store and workflow gate', () => {
   });
 
   it('does not auto-complete an agentless step before manual confirmation', () => {
-    const { store, project, columns, card } = fixture();
-    const { runner } = fakeRunner(store);
+    const { store, project, columns, card, agent } = fixture();
+    store.updateColumn({ id: columns[1]!.id, agentId: agent.id });
+    const { runner, started } = fakeRunner(store);
     const engine = new WorkflowEngine(store, runner);
     const flow = store.createWorkflow({ projectId: project.id, name: 'Manual route', cardIds: [card.id], steps: [
       { id: 'manual', columnId: columns[1]!.id, agentId: null, requireApproval: false },
@@ -124,6 +125,7 @@ describe('durable store and workflow gate', () => {
     expect(store.workflow(flow.id).pauseReason).toBe('manual');
     expect(store.workflow(flow.id).currentStep).toBe(0);
     expect(store.workflowProgress(flow.id, 0)[0]?.state).toBe('manual_wait');
+    expect(started).toHaveLength(0);
     expect(store.card(card.id).columnId).toBe(columns[1]!.id);
     engine.setState({ id: flow.id, state: 'running' });
     expect(store.workflow(flow.id).currentStep).toBe(1);
