@@ -213,6 +213,10 @@ function createWindow(): void {
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
   if (smoke) {
+    const failSmoke = (error: unknown) => {
+      console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite/Board', error);
+      app.exit(1);
+    };
     window.webContents.once('did-finish-load', () => {
       const script = `
         (async () => {
@@ -237,12 +241,26 @@ function createWindow(): void {
         })()
       `;
       void window!.webContents.executeJavaScript(script).then(() => {
-        process.stdout.write('STUDIO_SMOKE_OK\n');
-        app.quit();
-      }).catch((error: unknown) => {
-        console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite round trip', error);
-        app.exit(1);
-      });
+        const smokeWindow = window!;
+        smokeWindow.webContents.once('did-finish-load', () => {
+          const boardScript = `
+            (async () => {
+              for (let attempt = 0; attempt < 600 && ![...document.querySelectorAll('.task-card')].some((item) => item.textContent?.includes('Smoke-Karte')); attempt++) {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (![...document.querySelectorAll('.task-card')].some((item) => item.textContent?.includes('Smoke-Karte'))) {
+                throw new Error('Gespeicherte Karte wurde nach Reload nicht im Board gerendert.');
+              }
+              return true;
+            })()
+          `;
+          void smokeWindow.webContents.executeJavaScript(boardScript).then(() => {
+            process.stdout.write('STUDIO_SMOKE_OK\n');
+            app.quit();
+          }).catch(failSmoke);
+        });
+        smokeWindow.webContents.reload();
+      }).catch(failSmoke);
     });
     window.webContents.once('did-fail-load', (_event, code, description) => {
       console.error(`STUDIO_SMOKE_FAILED (${code}): ${description}`);
