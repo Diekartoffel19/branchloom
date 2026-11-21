@@ -14,7 +14,11 @@ export function buildAntigravityArgs(
       throw new Error('Unbeaufsichtigte Antigravity-Workflows erlauben keinen Permission-Bypass.');
     }
   }
+  if (model && (model.length > 200 || !/^[^\s\x00-\x1f\x7f-][^\s\x00-\x1f\x7f]*$/.test(model))) {
+    throw new Error('Antigravity-Modell muss eine einzelne Modellkennung ohne Leer-/Steuerzeichen sein und darf nicht mit - beginnen.');
+  }
   if (effort === 'ultra') throw new Error('Antigravity CLI unterstützt maximal Effort „max“.');
+  if (effort && !['low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) throw new Error('Ungültiger Antigravity-Effort.');
   const args = [...profileArgs];
   if (model) args.push('--model', model);
   if (effort) args.push('--effort', effort);

@@ -23,6 +23,9 @@ describe('Antigravity CLI argument contract', () => {
     expect(() => buildAntigravityArgs(['--dangerously-skip-permissions'], 'Task', 'one-shot', null, null)).toThrow('Permission-Bypass');
     expect(() => buildAntigravityArgs([], '', 'one-shot', null, null)).toThrow('Prompt');
     expect(() => buildAntigravityArgs([], 'Task', 'one-shot', null, 'ultra')).toThrow('max');
+    expect(() => buildAntigravityArgs([], 'Task', 'one-shot', '--dangerously-skip-permissions', null)).toThrow('Modell');
+    expect(() => buildAntigravityArgs([], 'Task', 'one-shot', 'two words', null)).toThrow('Modell');
+    expect(() => buildAntigravityArgs([], 'Task', 'one-shot', null, 'invalid' as never)).toThrow('Effort');
     expect(columnSettings('antigravity', 'synthetic-model', 'max')).toEqual({ model: 'synthetic-model', effort: 'max' });
     expect(() => columnSettings('antigravity', null, 'ultra')).toThrow('max');
   });
