@@ -9,6 +9,7 @@ import { TrelloImportPanel } from './TrelloImportPanel';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
+import '../board-bulk.css';
 import '../column-settings.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number } | null }
@@ -33,6 +34,10 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const [filterPriority, setFilterPriority] = useState<CardPriority | ''>('');
   const [filterLabel, setFilterLabel] = useState('');
   const [announcement, setAnnouncement] = useState('');
+  const [bulkIds, setBulkIds] = useState<Set<string>>(() => new Set());
+  const [bulkDestinationId, setBulkDestinationId] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
   const [focusMoved, setFocusMoved] = useState<{ cardId: string; columnId: string } | null>(null);
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const visibleCards = useMemo(() => filterBoardCards(snapshot.cards, { query, columnId: filterColumnId, visibility, priority: filterPriority, label: filterLabel }), [snapshot.cards, query, filterColumnId, visibility, filterPriority, filterLabel]);
@@ -47,8 +52,16 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const visibleColumns = filterColumnId ? columns.filter((column) => column.id === filterColumnId) : columns;
   const archivedCount = snapshot.cards.filter((card) => card.archivedAt).length;
   const selected = snapshot.cards.find((card) => card.id === selectedId) ?? null;
+  const columnOrder = new Map(columns.map((column, index) => [column.id, index]));
+  const selectableCards = visibleCards.filter((card) => !card.archivedAt).sort((a, b) => (columnOrder.get(a.columnId) ?? 0) - (columnOrder.get(b.columnId) ?? 0) || compareCardOrder(a, b));
+  const selectedBulkCards = selectableCards.filter((card) => bulkIds.has(card.id));
+  const bulkDestination = columns.find((column) => column.id === bulkDestinationId);
+  const bulkMoveCount = selectedBulkCards.filter((card) => card.columnId !== bulkDestinationId).length;
 
   useEffect(() => { if (filterLabel && !labels.some((label) => label.toLocaleLowerCase('de-DE') === filterLabel.toLocaleLowerCase('de-DE'))) setFilterLabel(''); }, [labels, filterLabel]);
+  useEffect(() => { setBulkIds(new Set()); setConfirmBulkArchive(false); }, [snapshot.project.id, query, filterColumnId, visibility, filterPriority, filterLabel]);
+  useEffect(() => { setBulkIds((previous) => new Set([...previous].filter((id) => selectableCards.some((card) => card.id === id)))); }, [snapshot.cards]);
+  useEffect(() => { if (!columns.some((column) => column.id === bulkDestinationId)) setBulkDestinationId(columns[0]?.id ?? ''); }, [columns, bulkDestinationId]);
   useEffect(() => { if (openCard && snapshot.cards.some((card) => card.id === openCard.id)) setSelectedId(openCard.id); }, [openCard?.id, openCard?.token, snapshot.project.id]);
   useEffect(() => {
     if (!focusMoved || snapshot.cards.find((card) => card.id === focusMoved.cardId)?.columnId !== focusMoved.columnId) return;
@@ -95,6 +108,33 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
     if (card && !card.archivedAt && card.columnId !== columnId) void moveCard(card, columnId);
   }
 
+  function toggleBulk(id: string) {
+    setConfirmBulkArchive(false);
+    setBulkIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else if (next.size < 100) next.add(id);
+      return next;
+    });
+  }
+
+  async function applyBulk(action: 'move' | 'archive') {
+    if (!selectedBulkCards.length || bulkBusy || snapshot.queue?.state === 'running') return;
+    if (action === 'move' && (!bulkDestination || !bulkMoveCount)) return;
+    const cardIds = selectedBulkCards.map((card) => card.id);
+    setBulkBusy(true);
+    try {
+      const changed = await mutate(() => window.studio.bulkUpdateCards(action === 'move'
+        ? { projectId: snapshot.project.id, cardIds, action, columnId: bulkDestinationId }
+        : { projectId: snapshot.project.id, cardIds, action }));
+      if (!changed) return;
+      setBulkIds(new Set());
+      setConfirmBulkArchive(false);
+      setAnnouncement(action === 'move'
+        ? `${bulkMoveCount} Karten wurden nach „${bulkDestination?.name}“ verschoben. Spaltenagenten wurden nicht gestartet.`
+        : `${changed.length} Karten wurden archiviert.`);
+    } finally { setBulkBusy(false); }
+  }
+
   return <div className="board-page">
     <div className="view-header"><div><div className="eyebrow">DEIN ARBEITSFLUSS</div><h2>Alle Aufgaben auf einen Blick</h2><p>Ziehe Karten zwischen Spalten oder öffne eine Karte für Agenten und Details.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello-JSON importieren</button><div className="header-stat"><strong>{snapshot.cards.length - archivedCount}</strong><span>Aktive Karten</span></div></div></div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
@@ -106,9 +146,22 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       <span className="board-filter-count" role="status" aria-live="polite">{visibleCards.length} Treffer</span>
       <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
+    <div className="board-bulk-actions" aria-label="Sammelaktionen">
+      <label className="board-bulk-all"><input type="checkbox" checked={selectableCards.length > 0 && selectedBulkCards.length === selectableCards.length} disabled={selectableCards.length === 0 || selectableCards.length > 100 || bulkBusy} onChange={(event) => { setConfirmBulkArchive(false); setBulkIds(event.target.checked ? new Set(selectableCards.map((card) => card.id)) : new Set()); }} /> Sichtbare aktive Karten auswählen</label>
+      <strong>{selectedBulkCards.length} ausgewählt</strong>
+      {selectedBulkCards.length ? <><button className="secondary-button small" type="button" onClick={() => { setBulkIds(new Set()); setConfirmBulkArchive(false); }}>Auswahl aufheben</button>
+        <label>Zielspalte <select aria-label="Zielspalte für ausgewählte Karten" value={bulkDestinationId} disabled={bulkBusy || snapshot.queue?.state === 'running'} onChange={(event) => setBulkDestinationId(event.target.value)}>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
+        <button className="secondary-button small" type="button" disabled={!bulkDestination || !bulkMoveCount || bulkBusy || snapshot.queue?.state === 'running'} onClick={() => void applyBulk('move')}>Ausgewählte verschieben</button>
+        <button className="secondary-button small" type="button" disabled={bulkBusy || snapshot.queue?.state === 'running'} onClick={() => setConfirmBulkArchive(true)}>Ausgewählte archivieren</button>
+      </> : null}
+      <span className="board-bulk-note">Sammelverschieben startet keine Spaltenagenten.</span>
+      {selectableCards.length > 100 ? <span role="status">Maximal 100 Karten pro Sammelaktion; bitte zuerst filtern.</span> : null}
+      {snapshot.queue?.state === 'running' ? <span role="status">Warteschlange vor Sammelaktionen pausieren.</span> : null}
+    </div>
+    {confirmBulkArchive && selectedBulkCards.length ? <BulkArchiveConfirmation count={selectedBulkCards.length} busy={bulkBusy} onConfirm={() => void applyBulk('archive')} onCancel={() => setConfirmBulkArchive(false)} /> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate}>
+      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -118,16 +171,20 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   </div>;
 }
 
+export function BulkArchiveConfirmation({ count, busy, onConfirm, onCancel }: { count: number; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
+  return <div className="board-bulk-confirm" role="group" aria-label="Archivierung bestätigen"><strong>{count} Karten archivieren?</strong><span>Die Karten bleiben im Archiv wiederherstellbar.</span><button className="primary-button small" type="button" disabled={busy} onClick={onConfirm}>Archivierung bestätigen</button><button className="secondary-button small" type="button" disabled={busy} onClick={onCancel}>Abbrechen</button></div>;
+}
+
 function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReorder, onDrop, onCreate, canCreate, mutate, children }: {
+function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReorder, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
   column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; onSelect: (id: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
-  onCreate: () => void; canCreate: boolean; mutate: Mutate; children: React.ReactNode;
+  onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
 }) {
   const agent = snapshot.agents.find((item) => item.id === column.agentId);
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
@@ -137,7 +194,7 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReo
       {agent ? <div className="column-agent"><Bot size={13} /><span>{column.autoStart ? 'Auto' : 'Manuell'} · {agent.name}{column.model ? ` · ${column.model}` : ''}{column.effort ? ` · ${column.effort}` : ''}</span></div> : null}
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
-        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} onReorder={onReorder} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
       {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
@@ -170,10 +227,11 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorder, previousTitle, nextTitle }: {
+function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorder, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
   card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot;
   onSelect: (id: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
+  bulkSelected: boolean; onToggleBulk: (id: string) => void;
   previousTitle?: string; nextTitle?: string;
 }) {
   const destinations = moveDestinations(columns, card);
@@ -214,6 +272,7 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorde
   }
 
   return <div className="board-card-wrap">
+    {!card.archivedAt ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /> Auswählen</label> : null}
     <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={card.archivedAt ? 'task-card archived' : 'task-card'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={card.description ? `board-card-description-${card.id}` : undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       <strong>{card.title}</strong>

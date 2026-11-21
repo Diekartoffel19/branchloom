@@ -139,6 +139,7 @@ function installIpc(): void {
     queueEngine.onBoardChanged(moved.projectId);
     return moved;
   });
+  bind('bulkUpdateCards', (input: Parameters<StudioAPI['bulkUpdateCards']>[0]) => db.bulkUpdateCards(input));
   bind('reorderCard', (input: Parameters<StudioAPI['reorderCard']>[0]) => db.reorderCard(input));
   bind('agents', () => db.agents());
   bind('detectAgents', () => detectAgents(db.agents()));

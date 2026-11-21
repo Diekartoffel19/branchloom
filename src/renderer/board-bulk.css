@@ -1,0 +1,9 @@
+.board-bulk-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0; padding:10px 12px; border:1px solid #36545d; border-radius:10px; background:#192b36; }
+.board-bulk-actions label { display:inline-flex; align-items:center; gap:7px; }
+.board-bulk-actions select { max-width:220px; }
+.board-bulk-note { color:#a3c8c7; font-size:.82rem; }
+.board-bulk-confirm { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; margin-bottom:12px; border:1px solid #c7a26b; border-radius:10px; background:#342d29; }
+.board-bulk-card-select { display:inline-flex; align-items:center; gap:5px; padding:3px 6px; color:#b8d5d4; font-size:.76rem; cursor:pointer; }
+:root[data-theme='light'] .board-bulk-actions { background:#e9f3f2; border-color:#9bbfc1; }
+:root[data-theme='light'] .board-bulk-confirm { background:#fff5e9; }
+:root[data-theme='light'] .board-bulk-card-select, :root[data-theme='light'] .board-bulk-note { color:#315d60; }

@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { validateWorkflowProposal } from './workflow-proposal';
@@ -273,6 +273,35 @@ export class StudioStore {
     const value = { ...old, columnId: destination.id, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(destination.id) as { next: number }).next, updatedAt: now() };
     this.db.prepare('UPDATE cards SET column_id = ?, position = ?, updated_at = ? WHERE id = ?').run(value.columnId, value.position, value.updatedAt, input.id);
     return value;
+  }
+  bulkUpdateCards(input: BulkCardAction): Card[] {
+    if (!input || !Array.isArray(input.cardIds) || input.cardIds.length < 1 || input.cardIds.length > 100 || input.cardIds.some((id) => typeof id !== 'string' || !id.trim()) || new Set(input.cardIds).size !== input.cardIds.length) throw new Error('Wähle 1 bis 100 unterschiedliche Karten.');
+    if (input.action !== 'move' && input.action !== 'archive') throw new Error('Ungültige Sammelaktion.');
+    return this.db.transaction(() => {
+      this.project(input.projectId);
+      // A running queue may claim or launch cards when the board changes. Require an explicit pause first.
+      if (this.projectQueue(input.projectId).state === 'running') throw new Error('Warteschlange vor einer Sammelaktion pausieren.');
+      const destination = input.action === 'move' ? this.column(input.columnId) : null;
+      if (destination && destination.projectId !== input.projectId) throw new Error('Zielspalte gehört zu einem anderen Projekt.');
+      const cards = input.cardIds.map((id) => this.card(id));
+      if (cards.some((item) => item.projectId !== input.projectId)) throw new Error('Karte gehört zu einem anderen Projekt.');
+      if (cards.some((item) => item.archivedAt)) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+      const selected = new Set(input.cardIds);
+      const runningSessions = this.db.prepare("SELECT card_id FROM sessions WHERE project_id = ? AND state = 'running'").all(input.projectId) as Array<{ card_id: string }>;
+      if (runningSessions.some((row) => selected.has(row.card_id))) throw new Error('Laufende Agentensitzung zuerst stoppen.');
+      const workflows = this.db.prepare("SELECT card_ids_json FROM workflows WHERE project_id = ? AND state IN ('running', 'paused')").all(input.projectId) as Array<{ card_ids_json: string }>;
+      if (workflows.some((row) => parseArray<string>(row.card_ids_json).some((id) => selected.has(id)))) throw new Error('Aktiven Workflow mit ausgewählter Karte zuerst beenden.');
+      const stamp = now();
+      if (input.action === 'archive') {
+        const update = this.db.prepare('UPDATE cards SET archived_at = ?, updated_at = ? WHERE id = ?');
+        for (const item of cards) update.run(stamp, stamp, item.id);
+      } else {
+        const update = this.db.prepare('UPDATE cards SET column_id = ?, position = ?, updated_at = ? WHERE id = ?');
+        let position = (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(destination!.id) as { next: number }).next;
+        for (const item of cards) if (item.columnId !== destination!.id) update.run(destination!.id, position++, stamp, item.id);
+      }
+      return cards.map((item) => this.card(item.id));
+    })();
   }
   reorderCard(input: { id: string; direction: 'up' | 'down' }): Card {
     if (input.direction !== 'up' && input.direction !== 'down') throw new Error('Ungültige Kartenrichtung.');
