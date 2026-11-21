@@ -41,7 +41,9 @@ export interface StudioAPI {
   detectAgents(): Promise<AgentDetection[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
+  resumeCodexSession(input: { sessionId: string }): Promise<Session>;
   sendSession(input: { sessionId: string; text: string }): Promise<void>;
+  writeSessionInput(input: { sessionId: string; data: string }): Promise<void>;
   resizeSession(input: { sessionId: string; cols: number; rows: number }): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;

@@ -81,7 +81,9 @@ function installIpc(): void {
   bind('detectAgents', () => detectAgents());
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
+  bind('resumeCodexSession', (input: { sessionId: string }) => runner?.resumeCodex(input));
   bind('sendSession', (input: { sessionId: string; text: string }) => runner?.send(input));
+  bind('writeSessionInput', (input: { sessionId: string; data: string }) => runner?.writeRaw(input));
   bind('resizeSession', (input: { sessionId: string; cols: number; rows: number }) => runner?.resize(input));
   bind('stopSession', (sessionId: string) => {
     runner?.stop(sessionId);

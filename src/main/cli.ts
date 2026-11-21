@@ -138,6 +138,55 @@ export class SessionRunner {
       this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: String(error), state: failed.state });
       throw error;
     }
+    this.attachProcess(row, child);
+    if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && prompt) {
+      // The CLI may show a login/trust prompt. Delay only the initial turn;
+      // users can inspect the terminal and send it manually if it did not land.
+      this.pendingFirstTurn.set(row.id, setTimeout(() => {
+        if (this.processes.has(row.id)) child.write(`${prompt}\r`);
+        this.pendingFirstTurn.delete(row.id);
+      }, 1_500));
+    }
+    return row;
+  }
+
+  /** Open Codex's own cwd-scoped session picker. A human chooses the chat; no prior prompt is replayed. */
+  resumeCodex(input: { sessionId: string }): Session {
+    const previous = this.store.session(input.sessionId);
+    if (previous.state === 'running') throw new Error('Laufende Sitzung kann nicht erneut geöffnet werden.');
+    const card = this.store.card(previous.cardId);
+    if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    const project = this.store.project(card.projectId);
+    const agent = this.store.agent(previous.agentId);
+    if (agent.kind !== 'codex' || !agent.enabled) throw new Error('Fortsetzen wird derzeit nur für einen aktivierten Codex-Agenten unterstützt.');
+    if (this.store.latestSession(card.id)?.state === 'running') throw new Error('Auf dieser Karte läuft bereits ein Agent.');
+    if (this.store.projectQueue(project.id).state === 'running') throw new Error('Die Projektwarteschlange zuerst pausieren, bevor ein Codex-Gespräch manuell fortgesetzt wird.');
+    const launcher = resolveAgentLauncher(agent.command);
+    if (!launcher) throw new Error(`Codex executable or supported Node shim not found: ${agent.command}`);
+    if (previous.worktreePath && this.store.cardWorktree(card.id)?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree ist nicht mehr verknüpft.');
+    const worktree = previous.worktreePath ? ensureCardWorktree(this.store, card.id) : null;
+    if (previous.worktreePath && worktree?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree stimmt nicht mehr überein.');
+    const row = this.store.createSession({ cardId: card.id, agentId: agent.id, worktreePath: worktree?.path });
+    let child: IPty;
+    try {
+      // The picker is intentionally interactive: --last could silently select
+      // a different task, and passing a prompt could repeat side effects.
+      child = pty.spawn(launcher.executable, [...launcher.prefixArgs, 'resume', '--include-non-interactive'], {
+        cwd: worktree?.cwd ?? project.path,
+        env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+        cols: 100, rows: 30,
+        name: 'xterm-256color',
+      });
+    } catch (error) {
+      const failed = this.store.finishSession(row.id, 'failed', null);
+      this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: String(error), state: failed.state });
+      throw error;
+    }
+    this.attachProcess(row, child);
+    return row;
+  }
+
+  private attachProcess(row: Session, child: IPty): void {
     this.processes.set(row.id, child);
     this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: 'Agent started', state: 'running' });
     child.onData((data) => {
@@ -159,15 +208,13 @@ export class SessionRunner {
       this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: `Agent exited (${exitCode})`, state });
       this.onFinished(finished, finalMessage);
     });
-    if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && prompt) {
-      // The CLI may show a login/trust prompt. Delay only the initial turn;
-      // users can inspect the terminal and send it manually if it did not land.
-      this.pendingFirstTurn.set(row.id, setTimeout(() => {
-        if (this.processes.has(row.id)) child.write(`${prompt}\r`);
-        this.pendingFirstTurn.delete(row.id);
-      }, 1_500));
-    }
-    return row;
+  }
+
+  writeRaw(input: { sessionId: string; data: string }): void {
+    const child = this.processes.get(input.sessionId);
+    if (!child || this.store.session(input.sessionId).state !== 'running') throw new Error('Sitzung läuft nicht mehr.');
+    if (typeof input.data !== 'string' || !input.data || input.data.length > 4096) throw new Error('Terminaleingabe muss zwischen 1 und 4096 Zeichen lang sein.');
+    child.write(input.data);
   }
 
   send(input: { sessionId: string; text: string }): void {

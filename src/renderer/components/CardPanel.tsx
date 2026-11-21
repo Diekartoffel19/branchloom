@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
+
+const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 
 interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void }
 
@@ -25,40 +27,17 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const [worktreeError, setWorktreeError] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const outputRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); }, [card.id]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
   const session = sessions[0] ?? null;
+  const sessionAgent = session ? snapshot.agents.find((item) => item.id === session.agentId) : null;
   const enabledAgents = snapshot.agents.filter((item) => item.enabled);
   const defaultAgentId = snapshot.columns.find((column) => column.id === card.columnId)?.agentId ?? enabledAgents[0]?.id ?? '';
   const chosenAgentId = agentId || defaultAgentId;
 
-  useEffect(() => { if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight; }, [session?.output]);
-  useEffect(() => {
-    const element = outputRef.current;
-    if (!element || !session || session.state !== 'running' || typeof ResizeObserver === 'undefined') return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const update = (): void => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const style = getComputedStyle(element);
-        const size = Number.parseFloat(style.fontSize) || 11;
-        const lineHeight = Number.parseFloat(style.lineHeight) || size * 1.5;
-        const width = element.clientWidth - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0);
-        const height = element.clientHeight - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0);
-        const cols = Math.max(20, Math.min(300, Math.floor(width / (size * 0.62))));
-        const rows = Math.max(5, Math.min(100, Math.floor(height / lineHeight)));
-        void window.studio.resizeSession({ sessionId: session.id, cols, rows }).catch(() => { /* Session may finish during resize. */ });
-      }, 100);
-    };
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    update();
-    return () => { observer.disconnect(); if (timer) clearTimeout(timer); };
-  }, [session?.id, session?.state]);
 
   async function saveCard(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -165,7 +144,12 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}
         <div className="drawer-divider" />
         <div className="section-heading"><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
-        {session ? <><pre className="terminal-output" ref={outputRef} role="log" aria-live="polite">{session.output || 'Agent gestartet. Warte auf Ausgabe…'}</pre>{session.state === 'running' ? <div className="terminal-controls"><form onSubmit={(event) => void send(event)}><input aria-label="Nachricht an Agent" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Nachricht an Agent senden…" /><button type="submit" className="icon-button" disabled={!message.trim()} aria-label="Senden"><Send size={17} /></button></form><button type="button" className="danger-button" onClick={() => void mutate(() => window.studio.stopSession(session.id))}><CircleStop size={15} /> Stoppen</button></div> : null}{session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p></> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
+        {session ? <>
+          <Suspense fallback={<div className="terminal-empty">Terminal wird geladen…</div>}><SessionTerminal key={session.id} session={session} /></Suspense>
+          {session.state === 'running' ? <div className="terminal-controls"><form onSubmit={(event) => void send(event)}><input aria-label="Nachricht an Agent" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Nachricht an Agent senden…" /><button type="submit" className="icon-button" disabled={!message.trim()} aria-label="Senden"><Send size={17} /></button></form><button type="button" className="danger-button" onClick={() => void mutate(() => window.studio.stopSession(session.id))}><CircleStop size={15} /> Stoppen</button></div> : null}
+          {sessionAgent?.kind === 'codex' && session.state !== 'running' && !card.archivedAt ? <div className="resume-controls"><p className="section-copy">Codex zeigt gespeicherte Gespräche aus diesem Ordner. Wähle das richtige Gespräch im Terminal aus; Studio wiederholt den alten Auftrag nicht automatisch.</p><button className="secondary-button" type="button" disabled={snapshot.queue.state === 'running'} onClick={() => void mutate(() => window.studio.resumeCodexSession({ sessionId: session.id }))}><RotateCcw size={15} /> Codex-Gespräch auswählen</button>{snapshot.queue.state === 'running' ? <p className="inline-note">Projektwarteschlange zuerst pausieren.</p> : null}</div> : null}
+          {session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p>
+        </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
