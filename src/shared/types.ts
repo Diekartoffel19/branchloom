@@ -8,7 +8,7 @@ export interface Project { id: string; name: string; path: string; createdAt: st
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
-export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null }
+export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
 export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle: string; agentName: string; startedAt: string; snippet: string }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean }

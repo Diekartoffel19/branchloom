@@ -79,7 +79,7 @@ function installIpc(): void {
   });
   bind('reorderCard', (input: Parameters<StudioAPI['reorderCard']>[0]) => db.reorderCard(input));
   bind('agents', () => db.agents());
-  bind('detectAgents', () => detectAgents());
+  bind('detectAgents', () => detectAgents(db.agents()));
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string }) => runner?.resumeCodex(input));

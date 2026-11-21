@@ -1,7 +1,7 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import pty, { type IPty } from 'node-pty';
 import type { AgentDetection, AgentPreset, Column, ColumnEffort, Session, SessionEvent } from '../shared/types';
 import { columnSettings } from '../shared/column-settings';
@@ -52,16 +52,49 @@ export function resolveAgentLauncher(command: string, env: NodeJS.ProcessEnv = p
   return node && /\.exe$/i.test(node) ? { executable: node, prefixArgs: [script] } : null;
 }
 
-export function detectAgents(env: NodeJS.ProcessEnv = process.env): AgentDetection[] {
-  return (['codex', 'claude', 'gemini'] as const).map((kind) => {
-    const launcher = resolveAgentLauncher(kind, env);
-    let version: string | null = null;
-    if (launcher) {
-      const result = spawnSync(launcher.executable, [...launcher.prefixArgs, '--version'], { timeout: 3_000, encoding: 'utf8', windowsHide: true, env });
-      if (!result.error && result.status === 0) version = String(result.stdout || result.stderr).trim().split(/\r?\n/)[0] ?? null;
+/** Never pass a command through a shell. Timeout and output bounds keep a broken CLI from blocking Electron. */
+export function readVersion(launcher: AgentLauncher, timeoutMs = 3_000, env: NodeJS.ProcessEnv = process.env, args = ['--version']): Promise<{ status: 'ready' | 'timeout' | 'error'; version: string | null }> {
+  return new Promise((resolveResult) => {
+    let settled = false;
+    let output = '';
+    let child: ReturnType<typeof spawn>;
+    const settle = (status: 'ready' | 'timeout' | 'error', version: string | null = null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveResult({ status, version });
+    };
+    try {
+      child = spawn(launcher.executable, [...launcher.prefixArgs, ...args], { shell: false, windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      resolveResult({ status: 'error', version: null });
+      return;
     }
-    return { kind, command: launcher ? resolveExecutable(kind, env)! : kind, available: launcher !== null, version };
+    const timer = setTimeout(() => { child.kill(); settle('timeout'); }, timeoutMs);
+    const collect = (chunk: Buffer) => { if (output.length < 4_096) output += chunk.toString('utf8').slice(0, 4_096 - output.length); };
+    child.stdout?.on('data', collect);
+    child.stderr?.on('data', collect);
+    child.on('error', () => settle('error'));
+    child.on('close', (code) => {
+      const firstLine = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
+      settle(code === 0 ? 'ready' : 'error', code === 0 ? firstLine.slice(0, 160) || null : null);
+    });
   });
+}
+
+async function inspectAgent(kind: AgentPreset['kind'], command: string, env: NodeJS.ProcessEnv, profileId?: string): Promise<AgentDetection> {
+  const launcher = resolveAgentLauncher(command, env);
+  if (!launcher) return { kind, command, profileId, available: false, version: null, status: 'missing' };
+  // Custom programs and renamed executables are only resolved. Running arbitrary user-configured code just to draw this screen would be surprising.
+  if (kind === 'custom' || !new RegExp(`^${kind}(?:\\.(?:exe|cmd))?$`, 'i').test(basename(command))) return { kind, command, profileId, available: true, version: null, status: 'found' };
+  const result = await readVersion(launcher, 3_000, env);
+  return { kind, command, profileId, available: result.status === 'ready', ...result };
+}
+
+export async function detectAgents(profiles: AgentPreset[] = [], env: NodeJS.ProcessEnv = process.env): Promise<AgentDetection[]> {
+  const standard = (['codex', 'claude', 'gemini'] as const).map((kind) => inspectAgent(kind, kind, env));
+  const saved = profiles.map((profile) => inspectAgent(profile.kind, profile.command, env, profile.id));
+  return Promise.all([...standard, ...saved]);
 }
 
 export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string, column?: { model: string | null; effort: ColumnEffort | null }): string[] {
