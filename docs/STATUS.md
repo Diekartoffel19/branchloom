@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 04:10 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 04:15 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -28,7 +28,7 @@ Ein direkter lokaler Codex-Aufruf mit `--approve-for-me`, `-m gpt-6.1-sol` und `
 
 Für den Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Der echte Ordnerdialog wurde noch nicht visuell bedient.
 
-Für den Vault-Ordnerimport bestanden vier gezielte synthetische Scan-, Datenbank- und UI-Tests. Die vollständige kombinierte Suite, der echte Ordnerdialog und der Importklick sind nach Integration erneut zu prüfen.
+Für den integrierten Vault-Ordnerimport bestanden vier gezielte synthetische Scan-, Datenbank- und UI-Tests, Typprüfung, Produktionsbuild und der verstärkte Quell-Smoke. Die vollständige kombinierte Suite und Windows-CI folgen nach dem Push; der echte Ordnerdialog und der Importklick wurden nicht sichtbar bedient.
 
 Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische Import- und UI-Tests, Typprüfung, Produktionsbuild und die vollständige kombinierte Suite (104 bestanden, 2 optionale Live-Tests übersprungen). Ein echter Trello-Export wurde noch nicht in der UI importiert.
 
@@ -40,8 +40,8 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Codex-Workflow-Argumentfix nach Public-Scan pushen; anschließend den PTY-Import samt echtem Start-/Stop-Smoke integrieren und in Windows-CI prüfen.
-2. Bewusst startbares Projekt-Terminal, Markdown-Vault-Import und Kartenanhänge getrennt integrieren und verifizieren.
+1. Vault-Ordnerimport nach Public-Scan pushen und Windows-CI prüfen; anschließend den PTY-Import samt echtem Start-/Stop-Smoke integrieren.
+2. Bewusst startbares Projekt-Terminal und Kartenanhänge getrennt integrieren und verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
 Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.
