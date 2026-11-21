@@ -18,6 +18,8 @@ export interface WorkflowAgentSettings { agentId: string | null; model: string |
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
 export interface MemoryNote { id: string; projectId: string; title: string; body: string; tags: string[]; links: string[]; createdAt: string; updatedAt: string }
 export interface MemoryVaultExportResult { count: number; directory: string }
+export interface ProjectPackagePreview { fingerprint: string; name: string; columns: number; cards: number; notes: number; workflows: number }
+export interface ProjectPackageExportResult { file: string; columns: number; cards: number; notes: number; workflows: number }
 export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
@@ -32,6 +34,9 @@ export interface WorktreeReview { cardId: string; path: string; branch: string; 
 export interface StudioAPI {
   projects(): Promise<Project[]>;
   createProject(input: { name: string; path: string }): Promise<Project>;
+  exportProjectPackage(projectId: string): Promise<ProjectPackageExportResult | null>;
+  previewProjectPackage(): Promise<ProjectPackagePreview | null>;
+  importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;

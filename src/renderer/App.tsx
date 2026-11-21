@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun } from 'lucide-react';
-import type { Project, ProjectSnapshot } from '../shared/types';
+import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun, Upload } from 'lucide-react';
+import type { Project, ProjectPackagePreview, ProjectSnapshot } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
 import { MemoryView } from './components/MemoryView';
@@ -8,6 +8,7 @@ import { AgentView } from './components/AgentView';
 import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
+import { ProjectPackageDialog } from './components/ProjectPackageDialog';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
 import './theme.css';
@@ -33,6 +34,9 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', path: '' });
+  const [importPreview, setImportPreview] = useState<ProjectPackagePreview | null>(null);
+  const [importTarget, setImportTarget] = useState({ name: '', path: '' });
+  const [notice, setNotice] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
@@ -156,6 +160,36 @@ export function App() {
     setNewProject({ name: '', path: '' });
   }
 
+  async function exportProjectPackage() {
+    if (!projectId) return;
+    try {
+      setError('');
+      const result = await window.studio.exportProjectPackage(projectId);
+      if (result) setNotice(`Projektpaket gespeichert: ${result.file}`);
+    } catch (reason) { setError(messageOf(reason)); }
+  }
+
+  async function previewProjectPackage() {
+    try {
+      setError('');
+      const preview = await window.studio.previewProjectPackage();
+      if (!preview) return;
+      setImportPreview(preview);
+      setImportTarget({ name: `${preview.name} (Import)`, path: '' });
+    } catch (reason) { setError(messageOf(reason)); }
+  }
+
+  async function importProjectPackage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!importPreview) return;
+    const created = await mutate(() => window.studio.importProjectPackage({ fingerprint: importPreview.fingerprint, ...importTarget }));
+    if (!created) return;
+    await loadProjects();
+    setProjectId(created.id);
+    setImportPreview(null);
+    setNotice(`Projekt „${created.name}“ wurde importiert. Agenten und Warteschlange bleiben ausgeschaltet.`);
+  }
+
   const activeView = views.find((item) => item.id === view)!;
   const ViewIcon = activeView.icon;
 
@@ -169,6 +203,8 @@ export function App() {
         {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
       </select>
       <button className="sidebar-add" type="button" onClick={() => setCreatingProject(true)}><Plus size={15} /> Projekt hinzufügen</button>
+      <button className="sidebar-add sidebar-package" type="button" onClick={() => void previewProjectPackage()}><Upload size={15} /> Projekt importieren</button>
+      <button className="sidebar-add sidebar-package" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()}><Download size={15} /> Projekt sichern</button>
       <div className="side-section-title navigation-title">BEREICHE</div>
       <nav className="side-nav" aria-label="Hauptnavigation">
         {views.map(({ id, name, icon: Icon }) => <button key={id} type="button" className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => setView(id)} aria-current={view === id ? 'page' : undefined}><Icon size={18} /> {name}</button>)}
@@ -188,9 +224,12 @@ export function App() {
           {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
         <button className="icon-button" type="button" onClick={() => setCreatingProject(true)} aria-label="Projekt hinzufügen" title="Projekt hinzufügen"><Plus size={18} /></button>
+        <button className="icon-button" type="button" onClick={() => void previewProjectPackage()} aria-label="Projekt importieren" title="Projekt importieren"><Upload size={18} /></button>
+        <button className="icon-button" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()} aria-label="Projekt sichern" title="Projekt sichern"><Download size={18} /></button>
       </div>
 
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
+      {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><Sparkles size={30} /></div><h2>Dein Agenten-Workspace beginnt hier.</h2><p>Lege ein Projekt mit dem Ordner an, in dem deine Agenten arbeiten sollen. Danach kannst du Aufgaben auf dem Board planen, CLI-Agenten starten und Wissen verknüpfen.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Erstes Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} /> : null}
@@ -201,6 +240,7 @@ export function App() {
     </main>
 
     {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>WORKSPACE</small><h2>Projekt hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><label>Absoluter Projektordner<input required value={newProject.path} onChange={(event) => setNewProject((old) => ({ ...old, path: event.target.value }))} placeholder="C:\\Projekte\\mein-projekt" /></label><p className="field-help">CLI-Agenten laufen in diesem Ordner und können Dateien verändern.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Projekt anlegen</button></div></form></div> : null}
+    {importPreview ? <ProjectPackageDialog preview={importPreview} target={importTarget} onTarget={setImportTarget} onClose={() => setImportPreview(null)} onImport={(event) => void importProjectPackage(event)} /> : null}
     {searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}
   </div>;
 }

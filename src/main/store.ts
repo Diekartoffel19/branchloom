@@ -8,6 +8,7 @@ import { columnSettings } from '../shared/column-settings';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
+import { parseProjectPackage, type ProjectPackageV1 } from './project-package';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -120,6 +121,47 @@ export class StudioStore {
       }
     })();
     return result;
+  }
+
+  exportProjectPackage(projectId: string): ProjectPackageV1 {
+    const snapshot = this.snapshot(projectId);
+    return {
+      format: 'jarvis-studio-project', version: 1, name: snapshot.project.name,
+      columns: snapshot.columns.map((item) => ({ id: item.id, name: item.name, position: item.position })),
+      cards: snapshot.cards.map((item) => ({ id: item.id, columnId: item.columnId, title: item.title, description: item.description, priority: item.priority, labels: item.labels, position: item.position, archived: item.archivedAt !== null })),
+      notes: snapshot.notes.map((item) => ({ title: item.title, body: item.body, tags: item.tags, links: item.links })),
+      workflows: snapshot.workflows.map((item) => ({ name: item.name, cardIds: item.cardIds, steps: item.steps.map((step) => ({ columnId: step.columnId, requireApproval: step.requireApproval })) })),
+    };
+  }
+
+  importProjectPackage(input: { name: string; path: string; json: string }): Project {
+    const data = parseProjectPackage(input.json);
+    return this.db.transaction(() => {
+      const created = this.createProject({ name: input.name, path: input.path });
+      this.db.prepare('DELETE FROM columns WHERE project_id = ?').run(created.id);
+      const columnIds = new Map<string, string>();
+      const cardIds = new Map<string, string>();
+      const stamp = now();
+      const insertColumn = this.db.prepare('INSERT INTO columns (id, project_id, name, position, auto_start, agent_id, model, effort) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL)');
+      for (const item of data.columns) {
+        const id = randomUUID();
+        columnIds.set(item.id, id);
+        insertColumn.run(id, created.id, item.name, item.position);
+      }
+      const insertCard = this.db.prepare('INSERT INTO cards (id, project_id, column_id, title, description, position, created_at, updated_at, archived_at, priority, labels_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      for (const item of data.cards) {
+        const id = randomUUID();
+        cardIds.set(item.id, id);
+        insertCard.run(id, created.id, columnIds.get(item.columnId)!, item.title, item.description, item.position, stamp, stamp, item.archived ? stamp : null, item.priority, json(item.labels));
+      }
+      for (const item of data.notes) this.saveNote({ projectId: created.id, title: item.title, body: item.body, tags: item.tags, links: item.links });
+      const insertWorkflow = this.db.prepare('INSERT INTO workflows (id, project_id, name, card_ids_json, steps_json, state, current_step, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)');
+      for (const item of data.workflows) {
+        const steps: WorkflowStep[] = item.steps.map((step) => ({ id: randomUUID(), columnId: columnIds.get(step.columnId)!, agentId: null, requireApproval: true }));
+        insertWorkflow.run(randomUUID(), created.id, item.name, json(item.cardIds.map((id) => cardIds.get(id)!)), json(steps), 'draft', stamp, stamp);
+      }
+      return created;
+    })();
   }
 
   snapshot(projectId: string): ProjectSnapshot {

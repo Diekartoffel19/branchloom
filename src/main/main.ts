@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentPreset, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
@@ -9,6 +10,7 @@ import { detectAgents, SessionRunner } from './cli';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { StudioStore } from './store';
+import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
 import { proposeWorkflow } from './workflow-planner';
@@ -31,6 +33,13 @@ function installIpc(): void {
   const db = mustStore();
   let workflowEngine: WorkflowEngine;
   let queueEngine: ProjectQueueEngine;
+  let previewedPackage: { file: string; fingerprint: string } | null = null;
+  const packageContent = (file: string): { json: string; fingerprint: string } => {
+    if (statSync(file).size > PROJECT_PACKAGE_LIMIT) throw new Error('Projektpaket ist größer als 8 MiB.');
+    const json = readFileSync(file, 'utf8');
+    parseProjectPackage(json);
+    return { json, fingerprint: createHash('sha256').update(json).digest('hex') };
+  };
   runner = new SessionRunner(db, (event: SessionEvent) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:session-event', event);
   }, (session, finalMessage) => {
@@ -48,6 +57,39 @@ function installIpc(): void {
   };
   bind('projects', () => db.projects());
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
+  bind('exportProjectPackage', async (projectId: string) => {
+    if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
+    const data = db.exportProjectPackage(projectId);
+    const content = JSON.stringify(data, null, 2) + '\n';
+    if (Buffer.byteLength(content, 'utf8') > PROJECT_PACKAGE_LIMIT) throw new Error('Projektpaket ist größer als 8 MiB.');
+    const choice = await dialog.showSaveDialog(window, { title: 'Projektpaket speichern', defaultPath: 'jarvis-studio-project.json', filters: [{ name: 'Jarvis Studio Projektpaket', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePath) return null;
+    try { writeFileSync(choice.filePath, content, { encoding: 'utf8', flag: 'wx' }); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('Die Datei existiert bereits. Wähle einen neuen Dateinamen.');
+      throw error;
+    }
+    return { file: choice.filePath, columns: data.columns.length, cards: data.cards.length, notes: data.notes.length, workflows: data.workflows.length };
+  });
+  bind('previewProjectPackage', async () => {
+    if (!window || window.isDestroyed()) throw new Error('Das Importfenster ist nicht verfügbar.');
+    previewedPackage = null;
+    const choice = await dialog.showOpenDialog(window, { title: 'Projektpaket auswählen', properties: ['openFile'], filters: [{ name: 'Jarvis Studio Projektpaket', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePaths[0]) return null;
+    const file = choice.filePaths[0];
+    const { json, fingerprint } = packageContent(file);
+    const data = parseProjectPackage(json);
+    previewedPackage = { file, fingerprint };
+    return { fingerprint, name: data.name, columns: data.columns.length, cards: data.cards.length, notes: data.notes.length, workflows: data.workflows.length };
+  });
+  bind('importProjectPackage', (input: { fingerprint: string; name: string; path: string }) => {
+    if (!previewedPackage || input.fingerprint !== previewedPackage.fingerprint) throw new Error('Projektpaket erneut auswählen.');
+    const { json, fingerprint } = packageContent(previewedPackage.file);
+    if (fingerprint !== previewedPackage.fingerprint) throw new Error('Projektpaket wurde nach der Vorschau verändert. Bitte erneut auswählen.');
+    const created = db.importProjectPackage({ name: input.name, path: input.path, json });
+    previewedPackage = null;
+    return created;
+  });
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
   bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));
   bind('updateColumn', (input: Parameters<StudioAPI['updateColumn']>[0]) => db.updateColumn(input));
