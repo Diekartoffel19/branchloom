@@ -593,6 +593,29 @@ export class StudioStore {
     this.db.prepare('INSERT INTO workflows VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.name, json(value.cardIds), json(value.steps), value.state, value.currentStep, value.createdAt, value.updatedAt);
     return value;
   }
+  updateDraftWorkflow(input: { id: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Workflow {
+    return this.db.transaction(() => {
+      const old = this.workflow(input.id);
+      if (old.state !== 'draft' || old.currentStep !== 0) throw new Error('Nur ungestartete Workflow-Entwürfe können bearbeitet werden.');
+      if (this.db.prepare('SELECT 1 FROM workflow_progress WHERE workflow_id = ? LIMIT 1').get(old.id) || this.db.prepare('SELECT 1 FROM workflow_step_approvals WHERE workflow_id = ? LIMIT 1').get(old.id)) throw new Error('Workflow hat bereits Fortschritt und bleibt unverändert.');
+      if (this.db.prepare('SELECT 1 FROM queue_runs WHERE workflow_id = ? LIMIT 1').get(old.id)) throw new Error('Beanspruchte Queue-Workflows bleiben unverändert.');
+      const queue = this.projectQueue(old.projectId);
+      if (queue.activeWorkflowId === old.id || (queue.templateWorkflowId === old.id && queue.state !== 'off')) throw new Error('Workflow wird von der Warteschlange verwendet. Zuerst die Queue ausschalten.');
+      if (!Array.isArray(input.cardIds) || !Array.isArray(input.steps) || input.cardIds.length === 0 || input.steps.length === 0 || input.steps.length > 30) throw new Error('Workflow braucht Karten und 1 bis 30 Schritte.');
+      if (new Set(input.cardIds).size !== input.cardIds.length) throw new Error('Workflow enthält doppelte Karten.');
+      for (const cardId of input.cardIds) {
+        const card = this.card(cardId);
+        if (card.projectId !== old.projectId) throw new Error('Workflow-Karte gehört zu einem anderen Projekt.');
+        if (card.archivedAt) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
+      }
+      for (const step of input.steps) {
+        if (this.column(step.columnId).projectId !== old.projectId) throw new Error('Workflow-Spalte gehört zu einem anderen Projekt.');
+        if (step.agentId) this.agent(step.agentId);
+      }
+      this.db.prepare('UPDATE workflows SET name = ?, card_ids_json = ?, steps_json = ?, updated_at = ? WHERE id = ?').run(trimmed(input.name, 'Workflow name'), json(input.cardIds), json(input.steps), now(), old.id);
+      return this.workflow(old.id);
+    })();
+  }
   deleteDraftWorkflow(id: string): string {
     return this.db.transaction(() => {
       const workflow = this.workflow(id);

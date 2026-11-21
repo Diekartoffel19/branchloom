@@ -165,6 +165,11 @@ function installIpc(): void {
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
+  bind('updateDraftWorkflow', (input: Parameters<StudioAPI['updateDraftWorkflow']>[0]) => {
+    const result = db.updateDraftWorkflow(input);
+    queueEngine.onBoardChanged(result.projectId);
+    return result;
+  });
   bind('deleteDraftWorkflow', (id: string) => {
     const projectId = db.deleteDraftWorkflow(id);
     queueEngine.onBoardChanged(projectId);
@@ -311,6 +316,8 @@ function createWindow(): void {
           if (candidates.length !== 1 || candidates[0].id !== card.id) throw new Error('Queue-Vorschau wich von der freien To-Do-Karte ab.');
           const draft = await window.studio.createWorkflow({ projectId: project.id, name: 'Smoke-Entwurf', cardIds: [card.id], steps: [{ id: 'smoke-step', columnId: saved.columns[2].id, agentId: null, requireApproval: false }] });
           if ((await window.studio.queueCandidates(project.id)).length !== 0) throw new Error('Karte mit Workflow-Entwurf blieb in der Queue.');
+          const edited = await window.studio.updateDraftWorkflow({ id: draft.id, name: 'Smoke-Entwurf bearbeitet', cardIds: [card.id], steps: [{ id: 'smoke-step-edited', columnId: saved.columns[2].id, agentId: null, requireApproval: true }] });
+          if (edited.name !== 'Smoke-Entwurf bearbeitet' || !edited.steps[0]?.requireApproval) throw new Error('Workflow-Entwurf wurde nicht bearbeitet.');
           await window.studio.deleteDraftWorkflow(draft.id);
           if ((await window.studio.queueCandidates(project.id))[0]?.id !== card.id) throw new Error('Gelöschter Entwurf gab die Karte nicht frei.');
           if (${process.platform === 'win32'}) {
@@ -383,6 +390,18 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!deleteButton) throw new Error('Entwurf-Löschknopf fehlt.');
+              const editButton = [...document.querySelectorAll('.workflow-list .workflow-card button')].find((item) => item.textContent?.includes('Entwurf bearbeiten'));
+              if (!editButton) throw new Error('Entwurf-Bearbeitenknopf fehlt.');
+              editButton.click();
+              let editDialog;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                editDialog = [...document.querySelectorAll('.dialog.wide')].find((item) => item.textContent?.includes('Workflow-Entwurf bearbeiten'));
+                if (editDialog) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!editDialog || editDialog.querySelector('input[placeholder="Zum Beispiel: Implementieren und prüfen"]')?.value !== 'Zu löschender Entwurf') throw new Error('Entwurf-Bearbeitenformular wurde nicht vorausgefüllt.');
+              editDialog.querySelector('button[aria-label="Schließen"]')?.click();
+              for (let attempt = 0; attempt < 300 && document.querySelector('.dialog.wide'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               deleteButton.click();
               let confirmDelete;
               for (let attempt = 0; attempt < 300; attempt++) {
