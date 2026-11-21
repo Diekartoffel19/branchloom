@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun, Upload } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun, TerminalSquare, Upload } from 'lucide-react';
 import type { Project, ProjectPackagePreview, ProjectSnapshot } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
 import { MemoryView } from './components/MemoryView';
 import { AgentView } from './components/AgentView';
+import { CommandTerminalView } from './components/CommandTerminalView';
 import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
@@ -13,7 +14,7 @@ import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
 import './theme.css';
 
-type View = 'board' | 'activity' | 'workflows' | 'memory' | 'agents' | 'browser';
+type View = 'board' | 'activity' | 'workflows' | 'memory' | 'agents' | 'terminal' | 'browser';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
 
 const views: { id: View; name: string; icon: typeof Columns3 }[] = [
@@ -22,6 +23,7 @@ const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
   { id: 'agents', name: 'Agenten', icon: Bot },
+  { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
   { id: 'browser', name: 'Browser', icon: Globe2 },
 ];
 
@@ -236,6 +238,7 @@ export function App() {
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
+        {view === 'terminal' ? <CommandTerminalView projectId={snapshot.project.id} /> : null}
       </div>}
     </main>
 

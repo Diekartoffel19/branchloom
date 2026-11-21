@@ -3,10 +3,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import type { AgentPreset, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
+import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
+import { CommandTerminalRunner } from './command-terminal';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
@@ -20,6 +21,7 @@ import { transcribeAudio } from './voice/transcribe';
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
+let commandRunner: CommandTerminalRunner | null = null;
 let browser: StudioBrowser | null = null;
 const smoke = process.argv.includes('--studio-smoke');
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'jarvis-studio-smoke-')) : null;
@@ -50,6 +52,9 @@ function installIpc(): void {
   });
   workflowEngine = new WorkflowEngine(db, runner);
   queueEngine = new ProjectQueueEngine(db, workflowEngine);
+  commandRunner = new CommandTerminalRunner(db, (event: CommandTerminalEvent) => {
+    if (window && !window.isDestroyed()) window.webContents.send('studio:command-terminal-event', event);
+  });
 
   const bind = <K extends keyof StudioAPI>(name: K, handler: (...args: never[]) => unknown): void => {
     ipcMain.handle(`studio:${String(name)}`, (event, ...args: unknown[]) => {
@@ -136,6 +141,11 @@ function installIpc(): void {
     workflowEngine.onSessionFinished(stopped);
     queueEngine.onSessionFinished(stopped);
   });
+  bind('commandTerminals', (projectId: string) => db.commandTerminals(projectId));
+  bind('startCommandTerminal', (input: Parameters<StudioAPI['startCommandTerminal']>[0]) => commandRunner?.start(input));
+  bind('writeCommandTerminal', (input: Parameters<StudioAPI['writeCommandTerminal']>[0]) => commandRunner?.write(input));
+  bind('resizeCommandTerminal', (input: Parameters<StudioAPI['resizeCommandTerminal']>[0]) => commandRunner?.resize(input));
+  bind('stopCommandTerminal', (terminalId: string) => commandRunner?.stop(terminalId));
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
@@ -267,6 +277,21 @@ function createWindow(): void {
           if (!saved.cards.some((item) => item.id === card.id && item.title === 'Smoke-Karte')) {
             throw new Error('Karte wurde nicht über IPC und SQLite gespeichert.');
           }
+          if (${process.platform === 'win32'}) {
+            const terminal = await window.studio.startCommandTerminal({ projectId: project.id, shell: 'cmd' });
+            await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'set STUDIO_SMOKE_PREFIX=JARVIS_STUDIO_\\r' });
+            await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'echo %STUDIO_SMOKE_PREFIX%TERMINAL_OK\\r' });
+            let echoed = false;
+            let lastOutput = '';
+            for (let attempt = 0; attempt < 600; attempt++) {
+              const row = (await window.studio.commandTerminals(project.id)).find((item) => item.id === terminal.id);
+              lastOutput = row?.output ?? '';
+              if (row?.output.includes('JARVIS_STUDIO_TERMINAL_OK')) { echoed = true; break; }
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+            await window.studio.stopCommandTerminal(terminal.id);
+            if (!echoed) throw new Error('cmd-PTY gab keine Ausgabe zurück: ' + lastOutput.slice(-400));
+          }
           return true;
         })()
       `;
@@ -317,6 +342,8 @@ app.on('before-quit', () => {
   browser = null;
   runner?.dispose();
   runner = null;
+  commandRunner?.dispose();
+  commandRunner = null;
   store?.close();
   store = null;
 });

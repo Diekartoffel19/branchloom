@@ -10,6 +10,9 @@ export interface Card { id: string; projectId: string; columnId: string; title: 
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
+export type CommandShell = 'powershell' | 'cmd';
+export interface CommandTerminal { id: string; projectId: string; shell: CommandShell; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string }
+export interface CommandTerminalEvent { terminalId: string; projectId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle: string; agentName: string; startedAt: string; snippet: string }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean }
 export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; createdAt: string; updatedAt: string }
@@ -57,6 +60,12 @@ export interface StudioAPI {
   writeSessionInput(input: { sessionId: string; data: string }): Promise<void>;
   resizeSession(input: { sessionId: string; cols: number; rows: number }): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
+  commandTerminals(projectId: string): Promise<CommandTerminal[]>;
+  startCommandTerminal(input: { projectId: string; shell: CommandShell }): Promise<CommandTerminal>;
+  writeCommandTerminal(input: { terminalId: string; data: string }): Promise<void>;
+  resizeCommandTerminal(input: { terminalId: string; cols: number; rows: number }): Promise<void>;
+  stopCommandTerminal(terminalId: string): Promise<void>;
+  onCommandTerminalEvent(callback: (event: CommandTerminalEvent) => void): () => void;
   searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
   sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;

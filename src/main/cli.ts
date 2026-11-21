@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import pty, { type IPty } from 'node-pty';
+import { spawn as spawnPty, type IPty } from 'node-pty';
 import type { AgentDetection, AgentPreset, Column, ColumnEffort, Session, SessionEvent } from '../shared/types';
 import { columnSettings } from '../shared/column-settings';
 import { StudioStore } from './store';
@@ -193,7 +193,7 @@ export class SessionRunner {
     if (finalFile) this.finalMessageFiles.set(row.id, finalFile);
     let child: IPty;
     try {
-      child = pty.spawn(launcher.executable, [...launcher.prefixArgs, ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, columnOverrides)], {
+      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, columnOverrides)], {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
@@ -238,7 +238,7 @@ export class SessionRunner {
     try {
       // The picker is intentionally interactive: --last could silently select
       // a different task, and passing a prompt could repeat side effects.
-      child = pty.spawn(launcher.executable, [...launcher.prefixArgs, 'resume', '--include-non-interactive'], {
+      child = spawnPty(launcher.executable, [...launcher.prefixArgs, 'resume', '--include-non-interactive'], {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,

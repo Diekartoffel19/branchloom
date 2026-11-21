@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { StudioAPI, SessionEvent, BrowserState } from '../shared/types';
+import type { StudioAPI, SessionEvent, CommandTerminalEvent, BrowserState } from '../shared/types';
 
 const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(`studio:${String(name)}`, ...args) as Promise<T>;
 
@@ -26,6 +26,16 @@ const studio: StudioAPI = {
   writeSessionInput: (input) => invoke('writeSessionInput', input),
   resizeSession: (input) => invoke('resizeSession', input),
   stopSession: (id) => invoke('stopSession', id),
+  commandTerminals: (projectId) => invoke('commandTerminals', projectId),
+  startCommandTerminal: (input) => invoke('startCommandTerminal', input),
+  writeCommandTerminal: (input) => invoke('writeCommandTerminal', input),
+  resizeCommandTerminal: (input) => invoke('resizeCommandTerminal', input),
+  stopCommandTerminal: (id) => invoke('stopCommandTerminal', id),
+  onCommandTerminalEvent: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: CommandTerminalEvent): void => callback(payload);
+    ipcRenderer.on('studio:command-terminal-event', listener);
+    return () => ipcRenderer.removeListener('studio:command-terminal-event', listener);
+  },
   searchSessionTranscripts: (input) => invoke('searchSessionTranscripts', input),
   sessionForProject: (input) => invoke('sessionForProject', input),
   createWorkflow: (input) => invoke('createWorkflow', input),

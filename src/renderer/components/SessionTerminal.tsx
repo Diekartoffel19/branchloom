@@ -5,17 +5,26 @@ import type { Session } from '../../shared/types';
 import '@xterm/xterm/css/xterm.css';
 import '../session-terminal.css';
 
-interface Props { session: Session }
+interface Props {
+  session: Pick<Session, 'id' | 'state' | 'output'>;
+  ariaLabel?: string;
+  onInput?: (id: string, data: string) => Promise<void>;
+  onResize?: (id: string, cols: number, rows: number) => Promise<void>;
+}
 
 /** A real VT terminal is needed for interactive CLIs and Codex's resume picker. */
-export function SessionTerminal({ session }: Props) {
+export function SessionTerminal({ session, ariaLabel = 'Interaktives Agententerminal', onInput, onResize }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const writtenRef = useRef('');
   const runningRef = useRef(session.state === 'running');
+  const inputRef = useRef(onInput ?? ((id: string, data: string) => window.studio.writeSessionInput({ sessionId: id, data })));
+  const resizeRef = useRef(onResize ?? ((id: string, cols: number, rows: number) => window.studio.resizeSession({ sessionId: id, cols, rows })));
   const [inputError, setInputError] = useState('');
 
   useEffect(() => { runningRef.current = session.state === 'running'; }, [session.state]);
+  inputRef.current = onInput ?? ((id, data) => window.studio.writeSessionInput({ sessionId: id, data }));
+  resizeRef.current = onResize ?? ((id, cols, rows) => window.studio.resizeSession({ sessionId: id, cols, rows }));
 
   useEffect(() => {
     const container = containerRef.current;
@@ -45,14 +54,14 @@ export function SessionTerminal({ session }: Props) {
       const cols = Math.max(20, Math.min(300, terminal.cols));
       const rows = Math.max(5, Math.min(100, terminal.rows));
       if (cols !== terminal.cols || rows !== terminal.rows) terminal.resize(cols, rows);
-      if (runningRef.current) void window.studio.resizeSession({ sessionId: session.id, cols: terminal.cols, rows: terminal.rows }).catch(() => { /* The process may have exited. */ });
+      if (runningRef.current) void resizeRef.current(session.id, terminal.cols, terminal.rows).catch(() => { /* The process may have exited. */ });
     };
     const observer = new ResizeObserver(fitAndResize);
     observer.observe(container);
     fitAndResize();
     const input = terminal.onData((data) => {
       if (!runningRef.current) return;
-      void window.studio.writeSessionInput({ sessionId: session.id, data }).catch((reason: unknown) => setInputError(reason instanceof Error ? reason.message : String(reason)));
+      void inputRef.current(session.id, data).catch((reason: unknown) => setInputError(reason instanceof Error ? reason.message : String(reason)));
     });
     return () => {
       input.dispose();
@@ -72,7 +81,7 @@ export function SessionTerminal({ session }: Props) {
   }, [session.id, session.output]);
 
   return <>
-    <div className="session-terminal" ref={containerRef} aria-label="Interaktives Agententerminal" />
+    <div className="session-terminal" ref={containerRef} aria-label={ariaLabel} />
     {inputError ? <p className="inline-error" role="alert">Terminaleingabe fehlgeschlagen: {inputError}</p> : null}
   </>;
 }

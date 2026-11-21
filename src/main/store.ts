@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, Card, CardPriority, Column, ColumnEffort, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentPreset, Card, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { validateWorkflowProposal } from './workflow-proposal';
@@ -33,6 +33,7 @@ interface ColumnRow { id: string; project_id: string; name: string; position: nu
 interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; priority: CardPriority; labels_json: string; position: number; created_at: string; updated_at: string; archived_at: string | null }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
 interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null }
+interface CommandTerminalRow { id: string; project_id: string; shell: CommandShell; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string }
 export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
 interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
@@ -44,6 +45,7 @@ const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project
 const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, priority: row.priority, labels: parseArray<string>(row.labels_json), position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
 const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path });
+const commandTerminal = (row: CommandTerminalRow): CommandTerminal => ({ id: row.id, projectId: row.project_id, shell: row.shell, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output });
 const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
 const note = (row: NoteRow): MemoryNote => ({ id: row.id, projectId: row.project_id, title: row.title, body: row.body, tags: parseArray<string>(row.tags_json), links: parseArray<string>(row.links_json), createdAt: row.created_at, updatedAt: row.updated_at });
 
@@ -63,6 +65,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id), model TEXT, effort TEXT);
       CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, priority TEXT NOT NULL DEFAULT 'none', labels_json TEXT NOT NULL DEFAULT '[]');
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, agent_id TEXT NOT NULL REFERENCES agents(id), state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
+      CREATE TABLE IF NOT EXISTS command_terminals (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, shell TEXT NOT NULL, state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS workflows (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, card_ids_json TEXT NOT NULL, steps_json TEXT NOT NULL, state TEXT NOT NULL, current_step INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_progress (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, session_id TEXT REFERENCES sessions(id), state TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index, card_id));
       CREATE TABLE IF NOT EXISTS workflow_step_approvals (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, approved_at TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index));
@@ -75,6 +78,7 @@ export class StudioStore {
       CREATE INDEX IF NOT EXISTS idx_columns_project ON columns(project_id, position);
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
       CREATE INDEX IF NOT EXISTS idx_sessions_card ON sessions(card_id, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_command_terminals_project ON command_terminals(project_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows(project_id, state);
       CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id, updated_at DESC);
     `);
@@ -100,6 +104,8 @@ export class StudioStore {
     // is a deliberate action; a possibly completed external write is never replayed.
     this.db.prepare("UPDATE sessions SET state = 'failed', ended_at = ?, output = substr(output || ?, -200000) WHERE state = 'running'")
       .run(now(), '\n[Jarvis Studio restarted; this session was not replayed.]\n');
+    this.db.prepare("UPDATE command_terminals SET state = 'failed', ended_at = ?, output = substr(output || ?, -100000) WHERE state = 'running'")
+      .run(now(), '\n[Jarvis Studio restarted; this terminal was not replayed.]\n');
     this.db.prepare("UPDATE workflows SET state = 'paused', updated_at = ? WHERE state = 'running'").run(now());
     this.db.prepare("UPDATE workflow_progress SET state = 'needs_review' WHERE state = 'running'").run();
     this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.', updated_at = ? WHERE state = 'running'").run(now());
@@ -365,6 +371,29 @@ export class StudioStore {
     const row = this.db.prepare('SELECT * FROM sessions WHERE id = ? AND project_id = ?').get(sessionId, projectId) as SessionRow | undefined;
     if (!row) throw new Error('Sitzung gehört zu einem anderen Projekt oder wurde entfernt.');
     return session(row);
+  }
+  commandTerminals(projectId: string): CommandTerminal[] {
+    this.project(projectId);
+    return (this.db.prepare('SELECT * FROM command_terminals WHERE project_id = ? ORDER BY started_at DESC, id DESC LIMIT 30').all(projectId) as CommandTerminalRow[]).map(commandTerminal);
+  }
+  commandTerminal(id: string): CommandTerminal {
+    return commandTerminal(required(this.db.prepare('SELECT * FROM command_terminals WHERE id = ?').get(id) as CommandTerminalRow | undefined, 'Terminal nicht gefunden.'));
+  }
+  createCommandTerminal(input: { projectId: string; shell: CommandShell }): CommandTerminal {
+    this.project(input.projectId);
+    if (input.shell !== 'powershell' && input.shell !== 'cmd') throw new Error('Ungültige Shell.');
+    if (this.db.prepare("SELECT 1 FROM command_terminals WHERE project_id = ? AND state = 'running' LIMIT 1").get(input.projectId)) throw new Error('Im Projekt läuft bereits ein Befehlsterminal.');
+    const value: CommandTerminal = { id: randomUUID(), projectId: input.projectId, shell: input.shell, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '' };
+    this.db.prepare('INSERT INTO command_terminals (id, project_id, shell, state, started_at, ended_at, exit_code, output) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)').run(value.id, value.projectId, value.shell, value.state, value.startedAt, value.output);
+    return value;
+  }
+  appendCommandOutput(id: string, text: string): void {
+    if (!text) return;
+    this.db.prepare('UPDATE command_terminals SET output = substr(output || ?, -100000) WHERE id = ? AND state = ?').run(text.slice(-100000), id, 'running');
+  }
+  finishCommandTerminal(id: string, state: Exclude<SessionState, 'running'>, exitCode: number | null): CommandTerminal {
+    this.db.prepare("UPDATE command_terminals SET state = ?, ended_at = ?, exit_code = ? WHERE id = ? AND state = 'running'").run(state, now(), exitCode, id);
+    return this.commandTerminal(id);
   }
   searchSessionTranscripts(projectId: string, query: string): SessionSearchHit[] {
     this.project(projectId);
