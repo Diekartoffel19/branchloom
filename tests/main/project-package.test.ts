@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
@@ -26,6 +26,9 @@ describe('project package', () => {
     const codex = store.agents().find((item) => item.kind === 'codex')!;
     store.updateColumn({ id: columns[1]!.id, autoStart: true, agentId: codex.id, model: 'gpt-6.1', effort: 'high' });
     const card = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Synthetic task', description: 'Keep details', priority: 'urgent', labels: ['release'] });
+    const privateFile = join(project.path, 'private-attachment-sentinel.txt');
+    writeFileSync(privateFile, 'private fixture content');
+    store.addCardAttachments(card.id, [privateFile]);
     const second = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Archive me' });
     store.setCardArchived({ id: second.id, archived: true });
     store.saveNote({ projectId: project.id, title: 'Decision', body: 'Keep this note', tags: ['design'], links: ['Later'] });
@@ -35,6 +38,8 @@ describe('project package', () => {
     const parsed = parseProjectPackage(json);
     expect(parsed).toMatchObject({ name: 'Synthetic', columns: expect.any(Array), cards: expect.any(Array), notes: expect.any(Array), workflows: expect.any(Array) });
     expect(json).not.toContain(sourcePath(original.project.path));
+    expect(json).not.toContain('private-attachment-sentinel');
+    expect(json).not.toContain('private fixture content');
     expect(json).not.toContain('gpt-6.1');
     const imported = store.importProjectPackage({ name: 'Imported', path: target, json });
     expect(imported.id).not.toBe(project.id);

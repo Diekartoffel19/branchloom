@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Session } from '../../src/shared/types';
-import { readableSessionOutput, serializeSessionTranscript, sessionTranscriptFileName } from '../../src/renderer/activity-transcript';
+import { readableSessionOutput, serializeSessionTranscript, sessionMemoryDraft, sessionTranscriptFileName } from '../../src/renderer/activity-transcript';
 
 const session: Session = {
   id: 'abc-123', projectId: 'p', cardId: 'c', agentId: 'a', state: 'exited',
@@ -20,5 +20,16 @@ describe('historical activity transcripts', () => {
 
   it('uses a safe file name even for an invalid stored identifier', () => {
     expect(sessionTranscriptFileName('../abc-123')).toBe('jarvis-lauf-abc-123.txt');
+  });
+
+  it('marks a shortened Memory copy and preserves the exact session source', () => {
+    const draft = sessionMemoryDraft({ ...session, output: '\x1b[32m' + 'x'.repeat(200_000) + 'END' }, 'Aufgabe', 'Codex');
+    expect(draft.title).toBe('Agentenlauf: Aufgabe');
+    expect(draft.tags).toEqual(['agentenlauf']);
+    expect(draft.body.length).toBeLessThanOrEqual(200_000);
+    expect(draft.body).toContain('Sitzung: abc-123');
+    expect(draft.body).toContain('Zeichen am Anfang ausgelassen');
+    expect(draft.body).toContain('END');
+    expect(draft.body).not.toContain('\x1b');
   });
 });

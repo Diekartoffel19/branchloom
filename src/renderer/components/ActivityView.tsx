@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Bot, CircleAlert, CircleStop, Clock3, Columns3, Download, GitBranch, Search, X } from 'lucide-react';
+import { ArrowUpRight, Bot, BrainCircuit, CircleAlert, CircleStop, Clock3, Columns3, Download, GitBranch, Search, X } from 'lucide-react';
 import type { ProjectSnapshot, Session } from '../../shared/types';
 import { activityItems, formatDuration, sessionDuration, type ActivityKindFilter, type ActivityStatusFilter } from '../activity-data';
 import { readableSessionOutput, serializeSessionTranscript, sessionTranscriptFileName } from '../activity-transcript';
 import '../activity.css';
 
-interface Props { snapshot: ProjectSnapshot; openSession?: { id: string; token: number } | null; onSessionClosed?: () => void; onOpenCard: (id: string) => void; onOpenWorkflow: (id: string) => void }
+interface Props { snapshot: ProjectSnapshot; openSession?: { id: string; token: number } | null; onSessionClosed?: () => void; onOpenCard: (id: string) => void; onOpenWorkflow: (id: string) => void; onSaveSessionAsNote?: (session: Session) => Promise<void> }
 
 function dateTime(value: string): string {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : 'nicht erfasst';
 }
 
-export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCard, onOpenWorkflow }: Props) {
+export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCard, onOpenWorkflow, onSaveSessionAsNote }: Props) {
   const [kind, setKind] = useState<ActivityKindFilter>('all');
   const [status, setStatus] = useState<ActivityStatusFilter>('all');
   const [query, setQuery] = useState('');
@@ -20,6 +20,7 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
   const [externalSession, setExternalSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const selectedInSnapshot = Boolean(selectedSessionId && snapshot.sessions.some((item) => item.id === selectedSessionId));
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
@@ -68,6 +69,13 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
+  async function saveAsNote(session: Session) {
+    if (!onSaveSessionAsNote || savingNote || session.state === 'running') return;
+    setSavingNote(true);
+    try { await onSaveSessionAsNote(session); }
+    finally { setSavingNote(false); }
+  }
+
   return <div className="standard-page activity-page">
     <div className="view-header"><div><div className="eyebrow">PROJEKTAKTIVITÄT</div><h2>Was gerade passiert</h2><p>Gespeicherte Agentenläufe, Workflows und Karten ohne Lauf. Zeiten stammen aus dem lokalen Projektstand.</p></div></div>
     <div className="activity-stats" aria-label="Aktivitätsübersicht"><div><Bot size={17} /><strong>{runningCount}</strong><span>Läuft</span></div><div><CircleAlert size={17} /><strong>{attentionCount}</strong><span>Handlungsbedarf</span></div><div><CircleStop size={17} /><strong>{stoppedCount}</strong><span>Gestoppt</span></div><div><Columns3 size={17} /><strong>{untouchedCount}</strong><span>Karten ohne Lauf</span></div></div>
@@ -97,7 +105,7 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
         <div className="dialog-heading"><div><small>GESPEICHERTER AGENTENLAUF</small><h2 id="activity-transcript-title">{selectedSession ? snapshot.cards.find((card) => card.id === selectedSession.cardId)?.title ?? 'Entfernte Karte' : 'Agentenverlauf'}</h2></div><button className="icon-button" type="button" autoFocus aria-label="Verlauf schließen" onClick={closeTranscript}><X size={18} /></button></div>
         {selectedSession ? <div className="activity-transcript-meta"><span>Beginn: {dateTime(selectedSession.startedAt)}</span><span>Ende: {selectedSession.endedAt ? dateTime(selectedSession.endedAt) : 'läuft'}</span><span>Dauer: {formatDuration(sessionDuration(selectedSession, now))}</span><span>Status: {selectedSession.state}</span><span>Exit-Code: {selectedSession.exitCode ?? 'nicht erfasst'}</span></div> : null}
         <pre className="activity-transcript-output" role="log">{selectedSession ? readableSessionOutput(selectedSession.output) || 'Noch keine Ausgabe gespeichert.' : sessionLoading ? 'Verlauf wird geladen…' : sessionError || 'Verlauf nicht gefunden.'}</pre>
-        <div className="dialog-actions">{selectedSession ? <button className="secondary-button" type="button" onClick={() => exportTranscript(selectedSession)}><Download size={15} /> Als Text speichern</button> : null}<button className="primary-button" type="button" onClick={closeTranscript}>Schließen</button></div>
+        <div className="dialog-actions">{selectedSession ? <button className="secondary-button" type="button" onClick={() => exportTranscript(selectedSession)}><Download size={15} /> Als Text speichern</button> : null}{selectedSession && onSaveSessionAsNote ? <button className="secondary-button" type="button" disabled={savingNote || selectedSession.state === 'running'} onClick={() => void saveAsNote(selectedSession)}><BrainCircuit size={15} /> {savingNote ? 'Speichert…' : 'In Memory speichern'}</button> : null}<button className="primary-button" type="button" onClick={closeTranscript}>Schließen</button></div>
       </section>
     </div> : null}
   </div>;

@@ -334,6 +334,36 @@ function createWindow(): void {
               if (![...document.querySelectorAll('.task-card')].some((item) => item.textContent?.includes('Smoke-Karte'))) {
                 throw new Error('Gespeicherte Karte wurde nach Reload nicht im Board gerendert.');
               }
+              if (${process.platform === 'win32'}) {
+                const activityNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Aktivität'));
+                if (!activityNav) throw new Error('Aktivitätsnavigation fehlt.');
+                activityNav.click();
+                let openTranscript;
+                for (let attempt = 0; attempt < 300; attempt++) {
+                  openTranscript = [...document.querySelectorAll('.activity-item button')].find((item) => item.textContent?.includes('Verlauf ansehen'));
+                  if (openTranscript) break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                if (!openTranscript) throw new Error('Agentenlauf fehlt in der Aktivitätsansicht.');
+                openTranscript.click();
+                let saveNote;
+                for (let attempt = 0; attempt < 300; attempt++) {
+                  saveNote = [...document.querySelectorAll('.activity-transcript-dialog button')].find((item) => item.textContent?.includes('In Memory speichern'));
+                  if (saveNote) break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                if (!saveNote) throw new Error('Memory-Übernahme fehlt im Agentenverlauf.');
+                saveNote.click();
+                let savedNote = false;
+                for (let attempt = 0; attempt < 300; attempt++) {
+                  const project = (await window.studio.projects())[0];
+                  const current = await window.studio.snapshot(project.id);
+                  savedNote = current.notes.some((note) => note.title === 'Agentenlauf: Smoke-Karte' && note.tags.includes('agentenlauf') && note.body.includes('JARVIS_STUDIO_AGENT_OK'));
+                  if (savedNote && document.querySelector('.topbar-title h1')?.textContent === 'Memory') break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                if (!savedNote || document.querySelector('.topbar-title h1')?.textContent !== 'Memory') throw new Error('Agentenlauf wurde nicht sichtbar als lokale Memory-Notiz gespeichert.');
+              }
               return true;
             })()
           `;

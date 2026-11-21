@@ -24,6 +24,19 @@ export function serializeSessionTranscript(session: Session, cardTitle: string, 
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
+/** A deliberate Memory copy keeps source metadata and marks any shortened output. */
+export function sessionMemoryDraft(session: Session, cardTitle: string, agentName: string) {
+  const title = `Agentenlauf: ${cardTitle}`.slice(0, 200);
+  const full = serializeSessionTranscript(session, cardTitle, agentName);
+  if (full.length <= 200_000) return { title, body: full, tags: ['agentenlauf'], links: [] };
+  const header = serializeSessionTranscript({ ...session, output: '' }, cardTitle, agentName);
+  const output = readableSessionOutput(session.output);
+  const tail = output.slice(-190_000);
+  const omitted = output.length - tail.length;
+  const body = `${header}[Memory-Ausschnitt: ${omitted} Zeichen am Anfang ausgelassen. Vollständigen Verlauf in Aktivität als Text speichern.]\n\n${tail}`;
+  return { title, body, tags: ['agentenlauf'], links: [] };
+}
+
 export function sessionTranscriptFileName(sessionId: string): string {
   return `jarvis-lauf-${sessionId.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 36) || 'unbekannt'}.txt`;
 }

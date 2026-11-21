@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun, TerminalSquare, Upload } from 'lucide-react';
-import type { Project, ProjectPackagePreview, ProjectSnapshot } from '../shared/types';
+import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
 import { MemoryView } from './components/MemoryView';
@@ -10,6 +10,7 @@ import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
 import { ProjectPackageDialog } from './components/ProjectPackageDialog';
+import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
 import './theme.css';
@@ -123,6 +124,16 @@ export function App() {
     closeSearch();
   }
 
+  async function saveSessionAsNote(session: Session) {
+    if (!snapshot || session.projectId !== snapshot.project.id || session.state === 'running') return;
+    const existing = snapshot.notes.find((note) => note.tags.includes('agentenlauf') && note.body.includes(`Sitzung: ${session.id}\n`));
+    if (existing) { navigateToEntity('note', existing.id); return; }
+    const cardTitle = snapshot.cards.find((card) => card.id === session.cardId)?.title ?? 'Entfernte Karte';
+    const agentName = snapshot.agents.find((agent) => agent.id === session.agentId)?.name ?? 'Entfernter Agent';
+    const saved = await mutate(() => window.studio.saveNote({ projectId: snapshot.project.id, ...sessionMemoryDraft(session, cardTitle, agentName) }));
+    if (saved) navigateToEntity('note', saved.id);
+  }
+
   useEffect(() => {
     if (!projectId || !window.studio) return;
     const unsubscribe = window.studio.onSessionEvent((event) => {
@@ -234,7 +245,7 @@ export function App() {
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><Sparkles size={30} /></div><h2>Dein Agenten-Workspace beginnt hier.</h2><p>Lege ein Projekt mit dem Ordner an, in dem deine Agenten arbeiten sollen. Danach kannst du Aufgaben auf dem Board planen, CLI-Agenten starten und Wissen verknüpfen.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Erstes Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
-        {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} /> : null}
+        {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
