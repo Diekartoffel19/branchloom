@@ -53,7 +53,7 @@ export function resolveAgentLauncher(command: string, env: NodeJS.ProcessEnv = p
 }
 
 /** Never pass a command through a shell. Timeout and output bounds keep a broken CLI from blocking Electron. */
-export function readVersion(launcher: AgentLauncher, timeoutMs = 3_000, env: NodeJS.ProcessEnv = process.env, args = ['--version']): Promise<{ status: 'ready' | 'timeout' | 'error'; version: string | null }> {
+export function readVersion(launcher: AgentLauncher, timeoutMs = 8_000, env: NodeJS.ProcessEnv = process.env, args = ['--version']): Promise<{ status: 'ready' | 'timeout' | 'error'; version: string | null }> {
   return new Promise((resolveResult) => {
     let settled = false;
     let output = '';
@@ -87,7 +87,7 @@ async function inspectAgent(kind: AgentPreset['kind'], command: string, env: Nod
   if (!launcher) return { kind, command, profileId, available: false, version: null, status: 'missing' };
   // Custom programs and renamed executables are only resolved. Running arbitrary user-configured code just to draw this screen would be surprising.
   if (kind === 'custom' || !new RegExp(`^${kind}(?:\\.(?:exe|cmd))?$`, 'i').test(basename(command))) return { kind, command, profileId, available: true, version: null, status: 'found' };
-  const result = await readVersion(launcher, 3_000, env);
+  const result = await readVersion(launcher, 8_000, env);
   return { kind, command, profileId, available: result.status === 'ready', ...result };
 }
 
@@ -97,9 +97,31 @@ export async function detectAgents(profiles: AgentPreset[] = [], env: NodeJS.Pro
   return Promise.all([...standard, ...saved]);
 }
 
+function codexWorkflowProfileArgs(profileArgs: string[]): string[] {
+  const normalized: string[] = [];
+  for (let index = 0; index < profileArgs.length; index += 1) {
+    const arg = profileArgs[index]!;
+    if (arg === '--dangerously-bypass-approvals-and-sandbox') {
+      throw new Error('Unbeaufsichtigte Codex-Workflows erlauben keinen Sandbox-Bypass.');
+    }
+    if (arg === '--approve-for-me') continue;
+    if (arg === '--sandbox' || arg === '-s') {
+      const mode = profileArgs[++index];
+      if (mode !== 'workspace-write') throw new Error('Codex-Workflows mit automatischer Freigabe benötigen die workspace-write-Sandbox.');
+      continue;
+    }
+    if (arg.startsWith('--sandbox=') || arg.startsWith('-s=')) {
+      if (arg.slice(arg.indexOf('=') + 1) !== 'workspace-write') throw new Error('Codex-Workflows mit automatischer Freigabe benötigen die workspace-write-Sandbox.');
+      continue;
+    }
+    normalized.push(arg);
+  }
+  return normalized;
+}
+
 export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string, column?: { model: string | null; effort: ColumnEffort | null }): string[] {
   const args = mode === 'one-shot' && agent.kind === 'codex'
-    ? ['exec', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...agent.args]
+    ? ['exec', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...codexWorkflowProfileArgs(agent.args)]
     : [...agent.args];
   const model = column?.model ?? agent.model;
   if (model) {

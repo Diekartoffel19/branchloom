@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 03:53 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 04:10 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -20,11 +20,11 @@ Stand: 21.11.2026, 03:53 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Kartenreihenfolge, Agentendiagnose und Projektpaket `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (134 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und der verstärkte `npm run smoke:source`. Der Smoke prüft nun zusätzlich, ob nach Reload die gespeicherte Karte sichtbar im Board erscheint; lokal bestand auch dieser Schritt. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Agentendiagnose, Projektpaket-Dialog, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Kartenreihenfolge, Agentendiagnose, Projektpaket und Codex-Argumentfix `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (135 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und der verstärkte `npm run smoke:source`. Ein Test für die Agentendiagnose war zuvor unter hoher Last wegen eines zu kurzen synthetischen Prozesslimits fehlgeschlagen; nach Begrenzung der echten Erkennung auf acht Sekunden und Erhöhung des Testlimits bestand die vollständige Suite. Der Smoke prüft auch, ob nach Reload die gespeicherte Karte sichtbar im Board erscheint. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Agentendiagnose, Projektpaket-Dialog, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
 Für die explizite Kartenreihenfolge bestanden 12 gezielte Tests im integrierten Hauptzweig und die vollständige kombinierte Suite (126 bestanden, 2 optionale Live-Tests übersprungen). Im isolierten Zweig bestanden außerdem Typprüfung, Produktionsbuild und 16 gezielte Tests in vier Dateien. Geprüft wurden Queue-Auswahl nach Umordnung, Persistenz nach Neustart, Archivplätze, Board-Reihenfolge und beschriftete Nachbarn, Rand- und Eingabefehler sowie Transaktions-Rollback nach einem künstlichen SQLite-Fehler. Ein sichtbarer Klickpfad im Electron-Fenster wurde nicht durchgeführt.
 
-Lokales `codex exec --help` bestätigte die verwendeten `-m`, `-c` und `--approve-for-me`-Argumente. Ein echter Lauf mit je einem Modell-/Effort-Wert und ein sichtbarer UI-Durchlauf stehen noch aus; CLI- und Modellverfügbarkeit unterscheiden sich pro Nutzer.
+Ein direkter lokaler Codex-Aufruf mit `--approve-for-me`, `-m gpt-6.1-sol` und `-c model_reasoning_effort="low"` antwortete erfolgreich. Dabei wurde eine echte Inkompatibilität von `--approve-for-me` mit zusätzlichem `--sandbox` entdeckt und der Workflow-Argumentpfad angepasst. Ein echter Lauf aus der Studio-Oberfläche mit Spaltenmodell/-Effort steht noch aus; CLI- und Modellverfügbarkeit unterscheiden sich pro Nutzer.
 
 Für den Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Der echte Ordnerdialog wurde noch nicht visuell bedient.
 
@@ -34,12 +34,12 @@ Für das Projektpaket bestanden vier gezielte Datenbank-, Validierungs- und Rend
 
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44857070860](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44857070860) für `154b0e2` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und der stärkere Paket-Smoke mit gerendertem App-Mount sowie Projekt-/Karten-Speichern über Preload, IPC und SQLite. Dieser Test deckte zuvor einen echten Fehler mit absoluten Vite-Asset-Pfaden auf, der nun behoben ist. Projektpaket-Export/-Import sind in dieser CI noch nicht enthalten. Das ZIP wurde noch nicht sichtbar auf dem Entwicklungslaptop geöffnet; ZIP-Namen eines früheren Pakets enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44858274225](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44858274225) für `c8486d3` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und der stärkere Paket-Smoke mit gerendertem Board nach Reload. Dieser Test deckte zuvor einen echten Fehler mit absoluten Vite-Asset-Pfaden auf, der nun behoben ist. Ein separater echter PTY-Start im isolierten Terminalzweig deckte danach einen fehlerhaften `node-pty`-Default-Import im gebauten Electron-Prozess auf; Agenten-/Terminalstarts sind deshalb im aktuellen Paket noch nicht verlässlich. Der benannte Import und ein PTY-Smoke werden separat integriert. Das ZIP wurde noch nicht sichtbar auf dem Entwicklungslaptop geöffnet; ZIP-Namen eines früheren Pakets enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Projektpaket nach Public-Scan pushen und Windows-CI mit Paket-Smoke prüfen.
-2. Bewusst startbares Projekt-Terminal und Markdown-Vault-Import integrieren und getrennt verifizieren.
+1. Codex-Workflow-Argumentfix nach Public-Scan pushen; anschließend den PTY-Import samt echtem Start-/Stop-Smoke integrieren und in Windows-CI prüfen.
+2. Bewusst startbares Projekt-Terminal, Markdown-Vault-Import und Kartenanhänge getrennt integrieren und verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
 Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.

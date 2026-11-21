@@ -4,14 +4,14 @@ import type { AgentPreset } from '../../src/shared/types';
 
 describe('local agent diagnostics', () => {
   it('reads a real local version without a shell', async () => {
-    const result = await readVersion({ executable: process.execPath, prefixArgs: [] }, 2_000, process.env);
+    const result = await readVersion({ executable: process.execPath, prefixArgs: [] }, 10_000, process.env);
     expect(result).toMatchObject({ status: 'ready' });
     expect(result.version).toMatch(/^v\d/);
   });
 
   it('reports a hung and a failing process distinctly', async () => {
     const hung = await readVersion({ executable: process.execPath, prefixArgs: [] }, 150, process.env, ['-e', 'setTimeout(() => {}, 10000)']);
-    const failed = await readVersion({ executable: process.execPath, prefixArgs: [] }, 2_000, process.env, ['-e', 'process.exit(2)']);
+    const failed = await readVersion({ executable: process.execPath, prefixArgs: [] }, 10_000, process.env, ['-e', 'process.exit(2)']);
     expect(hung).toEqual({ status: 'timeout', version: null });
     expect(failed).toEqual({ status: 'error', version: null });
   });

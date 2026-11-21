@@ -12,7 +12,7 @@ const kindName = (kind: AgentPreset['kind']) => kind === 'codex' ? 'Codex' : kin
 export function diagnosticHint(item: AgentDetection): string {
   switch (item.status) {
     case 'missing': return `„${item.command}“ wurde nicht gefunden. CLI installieren oder den Programmpfad im Agentenprofil korrigieren; danach erneut prüfen.`;
-    case 'timeout': return 'Die lokale Versionsprüfung wurde nach drei Sekunden beendet. Prüfe die CLI im Terminal und starte die Erkennung erneut.';
+    case 'timeout': return 'Die lokale Versionsprüfung wurde nach acht Sekunden beendet. Prüfe die CLI im Terminal und starte die Erkennung erneut.';
     case 'error': return 'Die lokale Versionsprüfung schlug fehl. Prüfe die CLI im Terminal und starte die Erkennung erneut.';
     case 'found': return 'Programm gefunden. Eigene CLIs werden aus Sicherheitsgründen erst beim bewussten Kartenstart ausgeführt.';
     case 'ready': return 'CLI-Version geprüft. Die Anmeldung und ein Modellaufruf wurden nicht geprüft.';

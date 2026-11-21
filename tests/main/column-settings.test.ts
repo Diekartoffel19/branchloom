@@ -66,8 +66,15 @@ describe('column agent settings', () => {
     const interactive = buildAgentArgs(agent, 'Do the task', 'interactive', undefined, column);
     expect(interactive).toEqual(['--sandbox', 'workspace-write', '-m', 'column-model', '-c', 'model_reasoning_effort="high"', 'Do the task']);
     const workflow = buildAgentArgs(agent, 'Check the task', 'one-shot', 'last.txt', column);
-    expect(workflow).toEqual(['exec', '--approve-for-me', '--output-last-message', 'last.txt', '--sandbox', 'workspace-write', '-m', 'column-model', '-c', 'model_reasoning_effort="high"', 'Check the task']);
+    expect(workflow).toEqual(['exec', '--approve-for-me', '--output-last-message', 'last.txt', '-m', 'column-model', '-c', 'model_reasoning_effort="high"', 'Check the task']);
     expect(buildAgentArgs(agent, 'Other agent', 'interactive', undefined, { model: null, effort: null })).toContain('profile-model');
+  });
+
+  it('does not combine Codex auto approval with conflicting sandbox flags', () => {
+    const agent: AgentPreset = { id: 'agent', name: 'Codex', kind: 'codex', command: 'codex', args: ['--sandbox=workspace-write', '--approve-for-me'], model: null, enabled: true };
+    expect(buildAgentArgs(agent, 'Step', 'one-shot')).toEqual(['exec', '--approve-for-me', 'Step']);
+    expect(() => buildAgentArgs({ ...agent, args: ['-s', 'read-only'] }, 'Step', 'one-shot')).toThrow('workspace-write');
+    expect(() => buildAgentArgs({ ...agent, args: ['--dangerously-bypass-approvals-and-sandbox'] }, 'Step', 'one-shot')).toThrow('Sandbox-Bypass');
   });
 
   it('uses column overrides only for the matching card or workflow agent', () => {
