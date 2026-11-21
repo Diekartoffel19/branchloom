@@ -6,3 +6,7 @@
 .column-rename-form { display: flex; align-items: center; gap: 3px; width: 100%; }
 .column-rename-form input { flex: 1; min-width: 0; min-height: 30px; padding: 4px 7px; font-size: 12px; }
 .column-rename-form .icon-button { width: 27px; min-width: 27px; height: 28px; }
+.column-delete-confirm { display: flex; flex-direction: column; gap: 7px; padding: 11px 13px; border-bottom: 1px solid #6c434b; background: #2b202a; font-size: 11px; color: #f3d5d9; }
+.column-delete-confirm strong { font-size: 12px; }
+.column-delete-confirm > div { display: flex; gap: 6px; flex-wrap: wrap; }
+:root[data-theme='light'] .column-delete-confirm { background: #fff0f0; color: #673841; }

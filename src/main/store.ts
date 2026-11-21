@@ -292,6 +292,20 @@ export class StudioStore {
       return this.column(current.id);
     })();
   }
+  deleteColumn(id: string): void {
+    this.db.transaction(() => {
+      const target = this.column(id);
+      const columns = (this.db.prepare('SELECT * FROM columns WHERE project_id = ? ORDER BY position, id').all(target.projectId) as ColumnRow[]).map(column);
+      if (columns.length <= 1) throw new Error('Die letzte Board-Spalte kann nicht gelöscht werden.');
+      if (this.db.prepare('SELECT 1 FROM cards WHERE column_id = ? LIMIT 1').get(id)) throw new Error('Spalte enthält noch aktive oder archivierte Karten.');
+      const workflows = this.db.prepare('SELECT steps_json FROM workflows WHERE project_id = ?').all(target.projectId) as Array<{ steps_json: string }>;
+      if (workflows.some((row) => parseArray<WorkflowStep>(row.steps_json).some((step) => step.columnId === id))) throw new Error('Spalte wird noch von einem Workflow verwendet.');
+      if (target.name.trim().toLocaleLowerCase('de-DE') === 'to do' && this.projectQueue(target.projectId).state !== 'off') throw new Error('To-Do-Spalte erst nach Ausschalten der Warteschlange löschen.');
+      this.db.prepare('DELETE FROM columns WHERE id = ?').run(id);
+      const update = this.db.prepare('UPDATE columns SET position = ? WHERE id = ?');
+      columns.filter((item) => item.id !== id).forEach((item, index) => update.run(index, item.id));
+    })();
+  }
   card(id: string): Card { return card(required(this.db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as CardRow | undefined, 'Card not found')); }
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Card {
     const destination = this.column(input.columnId);

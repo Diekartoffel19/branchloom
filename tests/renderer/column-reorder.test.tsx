@@ -32,4 +32,13 @@ describe('board column order controls', () => {
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot: paused, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(html).toContain('To-Do-Spalte erst nach Ausschalten der Warteschlange umbenennen');
   });
+
+  it('offers deletion only when a column is empty and unreferenced', () => {
+    const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html).toContain('aria-label="Spalte Später löschen"');
+    expect(html).toContain('title="Leere Spalte löschen"');
+    const withCard = { ...snapshot, cards: [{ id: 'card', projectId: 'p', columnId: 'second', title: 'Archived', description: '', priority: 'none' as const, labels: [], position: 0, createdAt: stamp, updatedAt: stamp, archivedAt: stamp }] };
+    const blocked = renderToStaticMarkup(createElement(BoardView, { snapshot: withCard, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(blocked).toContain('Spalte enthält aktive oder archivierte Karten');
+  });
 });

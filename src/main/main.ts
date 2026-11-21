@@ -101,6 +101,7 @@ function installIpc(): void {
   bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));
   bind('updateColumn', (input: Parameters<StudioAPI['updateColumn']>[0]) => db.updateColumn(input));
   bind('reorderColumn', (input: Parameters<StudioAPI['reorderColumn']>[0]) => db.reorderColumn(input));
+  bind('deleteColumn', (id: string) => db.deleteColumn(id));
   bind('createCard', (input: Parameters<StudioAPI['createCard']>[0]) => {
     const card = db.createCard(input);
     queueEngine.onBoardChanged(card.projectId);
@@ -291,12 +292,15 @@ function createWindow(): void {
           const card = await window.studio.createCard({ projectId: project.id, columnId: todo.id, title: 'Smoke-Karte' });
           await window.studio.reorderColumn({ id: initial.columns[1].id, direction: 'right' });
           await window.studio.updateColumn({ id: initial.columns[2].id, name: 'Smoke-Umbenannt' });
+          const removable = await window.studio.createColumn({ projectId: project.id, name: 'Smoke-Leer' });
+          await window.studio.deleteColumn(removable.id);
           const saved = await window.studio.snapshot(project.id);
           if (!saved.cards.some((item) => item.id === card.id && item.title === 'Smoke-Karte')) {
             throw new Error('Karte wurde nicht über IPC und SQLite gespeichert.');
           }
           if (saved.columns[2]?.id !== initial.columns[1].id) throw new Error('Spaltenreihenfolge wurde nicht gespeichert.');
           if (saved.columns[1]?.name !== 'Smoke-Umbenannt') throw new Error('Spaltenname wurde nicht gespeichert.');
+          if (saved.columns.some((item) => item.id === removable.id)) throw new Error('Leere Spalte wurde nicht gelöscht.');
           if (${process.platform === 'win32'}) {
             const terminal = await window.studio.startCommandTerminal({ projectId: project.id, shell: 'cmd' });
             await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'set STUDIO_SMOKE_PREFIX=JARVIS_STUDIO_\\r' });

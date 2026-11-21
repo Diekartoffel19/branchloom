@@ -13,6 +13,7 @@ const studio: StudioAPI = {
   createColumn: (input) => invoke('createColumn', input),
   updateColumn: (input) => invoke('updateColumn', input),
   reorderColumn: (input) => invoke('reorderColumn', input),
+  deleteColumn: (id) => invoke('deleteColumn', id),
   createCard: (input) => invoke('createCard', input),
   updateCard: (input) => invoke('updateCard', input),
   moveCard: (input) => invoke('moveCard', input),

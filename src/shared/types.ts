@@ -49,6 +49,7 @@ export interface StudioAPI {
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   reorderColumn(input: { id: string; direction: 'left' | 'right' }): Promise<Column>;
+  deleteColumn(id: string): Promise<void>;
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;

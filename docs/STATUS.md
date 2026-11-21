@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 06:24 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 06:39 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -13,6 +13,7 @@ Stand: 21.11.2026, 06:24 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 - Aktive Board-Karten können innerhalb ihrer Spalte mit Auf/Ab-Schaltflächen umgeordnet werden. Die gespeicherte To-Do-Reihenfolge bestimmt die nächste freie Queue-Karte. Filter verändern die Reihenfolge nicht; archivierte Karten bleiben an ihrem Platz. Die Reihenfolgeänderung startet keinen Agenten.
 - Board-Spalten können im Spaltenkopf nach links oder rechts umgeordnet werden. Karten und Workflows behalten ihre Spalten-IDs; die Änderung ist transaktional und startet keinen Agenten. Auch bei aktivem Spaltenfilter beziehen sich die Schaltflächen auf die vollständige Board-Reihenfolge.
 - Board-Spalten lassen sich über ein Stiftsymbol umbenennen. Der Name muss projektweit eindeutig sein. Die To-Do-Spalte ist bei aktiver oder pausierter Queue für Umbenennung gesperrt; eine Queue benötigt später wieder eine Spalte namens To Do. Karten, Workflow-Referenzen und Agenteneinstellungen bleiben an der Spalten-ID.
+- Wirklich leere, in keinem Workflow verwendete Spalten lassen sich nach einer zweiten Bestätigung entfernen. Archivierte Karten, Workflow-Schritte, die letzte Spalte und eine nicht ausgeschaltete To-Do-Queue sperren das Löschen. Die verbleibenden Positionen werden transaktional verdichtet; Agenten und Projektdateien bleiben unberührt.
 - Aktive sichtbare Karten können für [Sammelaktionen](BULK_BOARD.md) ausgewählt, zusammen in eine Spalte verschoben oder nach zusätzlicher Bestätigung archiviert werden. Die Auswahl wird bei Filter- oder Projektwechsel aufgehoben. Maximal 100 Karten pro Aktion; die laufende Queue muss pausiert sein. Karten mit laufender Sitzung oder laufendem/pausiertem Workflow sind gesperrt. Die Datenbankänderung ist transaktional und startet keinen Spaltenagenten.
 - Manuelle Memory-Notizen mit `[[Verknüpfungen]]`, Rückverweisen, Graph, globaler Suche, sicherer Markdown-Vorschau und bewusstem Import/Export einzelner `.md`-Dateien. Ein expliziter Projektordner-Export legt für alle Notizen einen neuen Markdown-Unterordner an und überschreibt keine vorhandenen Dateien. Ein bewusster, begrenzter Vault-Ordnerimport zeigt neue und doppelte Notizen vor der Auswahl und schreibt nur neue Notizen. Beendete Agentenverläufe lassen sich bewusst als lokale Memory-Notiz übernehmen, bei sehr langen Ausgaben mit sichtbarem Kürzungshinweis. Ein Quelllink führt von solchen Notizen zur gespeicherten Sitzung zurück. Noch kein Live-Abgleich, Anhangimport oder automatische Übernahme und Verknüpfung von Agentengesprächen.
 - Projektweite Suche mit Strg/⌘+K, einschließlich Stichwortsuche in gespeicherten beendeten Agentenverläufen über einen lokalen SQLite-Volltextindex. Treffer öffnen die konkrete Sitzung auch jenseits der 200 im Snapshot geladenen Läufe; die Palette zeigt nur kurze Auszüge. Die Aktivitätsansicht zeigt Agentenläufe, Workflows und Karten ohne Lauf; Agentenausgabe lässt sich pro Sitzung ansehen, explizit als Text exportieren oder bewusst als Memory-Notiz übernehmen. Der eingebettete Browser hat isolierte Session, mehrere Tabs, eigenen Verlauf, URL-Policy, explizites Link-Kontextmenü und blockiert automatische Pop-ups, Downloads und Browser-Berechtigungen. Tab-Adressen werden lokal gespeichert und beim Neustart angezeigt; Webseiten laden erst beim Öffnen. Ein sichtbarer Tab lässt sich nach Klick als Screenshot in die Zwischenablage kopieren oder im Standardbrowser öffnen. Ein echter Webseitenlauf im sichtbaren Fenster bleibt ungeprüft.
@@ -34,6 +35,10 @@ Für die Rücknavigation von einer Memory-Notiz zu ihrer gespeicherten Quellsitz
 Für die Spaltenreihenfolge bestanden drei gezielte Datenbank- und Renderer-Tests, darunter Neustart-Persistenz, erhaltene Karten-/Workflow-Referenzen, Randfälle und ein künstlicher SQLite-Rollback. Typprüfung, Produktionsbuild und die vollständige kombinierte Suite bestanden (179 Tests, 2 optionale Live-Tests übersprungen). Der Quell-Smoke ordnete eine Spalte über IPC um und verglich nach Reload die gerenderte mit der gespeicherten Reihenfolge. [Windows-CI 44870046694](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44870046694) bestand einschließlich frischem Paket-Smoke.
 
 Für das Umbenennen bestanden drei zusätzliche gezielte Datenbank-/Renderer-Tests (Persistenz, Referenzen, doppelte Namen, Queue-Sperre, UI-Hinweis), Typprüfung und Produktionsbuild. Der Quell-Smoke aktualisierte zusätzlich einen Spaltennamen über IPC und verglich ihn nach Reload mit dem gerenderten Board. Die vollständige Suite und Paket-CI für diese Ergänzung stehen noch aus.
+
+Der erste CI-Lauf für die Spaltenumbenennung ([44870695824](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44870695824)) scheiterte in bestehenden Test-Fixtures, die noch neue Spalten mit bereits vorhandenen Standardnamen `Executing` und `Review` anlegten. Die Test-Fixtures wurden auf eindeutige Namen korrigiert; 18 gezielte Tests bestanden lokal. [Windows-CI 44871138207](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44871138207) bestand danach vollständig.
+
+Für das Entfernen leerer Spalten bestanden sieben gezielte Datenbank-/Renderer-Tests, darunter Schutz für archivierte Karten, Workflow-Referenzen, Queue-To-Do, letzte Spalte, Neustart-Persistenz und Transaktions-Rollback. Typprüfung und Produktionsbuild bestanden. Der Quell-Smoke erstellte und entfernte eine synthetische leere Spalte. Die vollständige kombinierte Suite bestand vor dem zusätzlichen Letzte-Spalte-Test mit 186 Tests und 2 optional übersprungenen Live-Tests; der neue gezielte Test bestand danach. Paket-CI steht noch aus.
 
 Für den Antigravity-Adapter im isolierten Entwicklungszweig bestanden `npm run typecheck`, `npm run build`, drei reine Argument-/Fake-CLI-Tests, fünf CLI-Diagnose-Tests und vier Renderer-Tests. Die lokale `agy.exe` meldete bei `--version` `1.5.13`; `--help` bestätigte `-i`, `-p`, `--model` und `--effort`. `npm ci` mit nativen Build-Skripten scheiterte auf diesem Laptop an fehlender Visual-Studio-C++-Toolchain; die SQLite-/PTY-Integrationstests liefen nach Übernahme im Hauptcheckout erfolgreich. Ein Modellaufruf, Login-Test und sichtbarer UI-Durchlauf fanden nicht statt.
 
@@ -64,7 +69,7 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Spaltenumbenennung nach Public-Scan pushen und Windows-CI mit frischem ZIP und erweitertem Smoke prüfen.
+1. CI-Korrektur prüfen; Spaltenlöschung nach Public-Scan pushen und Windows-CI mit frischem ZIP und erweitertem Smoke prüfen.
 2. Weitere klar abgegrenzte Paritätsfunktionen anhand [PARITY.md](PARITY.md) implementieren und getrennt verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten sichtbaren UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 
