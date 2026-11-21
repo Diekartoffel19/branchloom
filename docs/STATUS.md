@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 03:24 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 03:32 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -20,7 +20,7 @@ Stand: 21.11.2026, 03:24 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume, Transkriptsuche und Spalteneinstellungen `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (119 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Die neuen Spalteneinstellungen bestanden zusätzlich 18 gezielte Tests in vier Dateien. Ein früherer lokaler Smoke überschritt unter paralleler Last 120 Sekunden ohne Startsignal; ohne diese Last startete derselbe integrierte Quellstand. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
-Für die explizite Kartenreihenfolge bestanden Typprüfung, Produktionsbuild und 16 gezielte Tests in vier Dateien. Geprüft wurden Queue-Auswahl nach Umordnung, Persistenz nach Neustart, Archivplätze, Board-Reihenfolge und beschriftete Nachbarn, Rand- und Eingabefehler sowie Transaktions-Rollback nach einem künstlichen SQLite-Fehler. Ein sichtbarer Klickpfad im Electron-Fenster wurde nicht durchgeführt.
+Für die explizite Kartenreihenfolge bestanden 12 gezielte Tests im integrierten Hauptzweig und die vollständige kombinierte Suite (126 bestanden, 2 optionale Live-Tests übersprungen). Im isolierten Zweig bestanden außerdem Typprüfung, Produktionsbuild und 16 gezielte Tests in vier Dateien. Geprüft wurden Queue-Auswahl nach Umordnung, Persistenz nach Neustart, Archivplätze, Board-Reihenfolge und beschriftete Nachbarn, Rand- und Eingabefehler sowie Transaktions-Rollback nach einem künstlichen SQLite-Fehler. Ein sichtbarer Klickpfad im Electron-Fenster wurde nicht durchgeführt.
 
 Lokales `codex exec --help` bestätigte die verwendeten `-m`, `-c` und `--approve-for-me`-Argumente. Ein echter Lauf mit je einem Modell-/Effort-Wert und ein sichtbarer UI-Durchlauf stehen noch aus; CLI- und Modellverfügbarkeit unterscheiden sich pro Nutzer.
 
@@ -30,12 +30,12 @@ Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische I
 
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44854204664](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44854204664) für `07edfaa` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Paketstart. Ein stärkerer Smoke-Test deckte danach einen echten Fehler auf: der bisherige Paketstart prüfte den React-Mount nicht, und absolute Vite-Asset-Pfade ließen die Oberfläche unter `file://` leer. Relative Pfade sind jetzt gesetzt; ein lokaler Quell-Smoke bestätigte den gerenderten App-Mount sowie ein Projekt-/Karten-Speichern über Preload, IPC und SQLite. Der Paket-Smoke mit derselben Prüfung muss in der folgenden CI noch bestehen. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44855769536](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44855769536) für `2cf6c68` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und der stärkere Paket-Smoke mit gerendertem App-Mount sowie Projekt-/Karten-Speichern über Preload, IPC und SQLite. Dieser Test deckte zuvor einen echten Fehler mit absoluten Vite-Asset-Pfaden auf, der nun behoben ist. Das ZIP wurde noch nicht sichtbar auf dem Entwicklungslaptop geöffnet; ZIP-Namen eines früheren Pakets enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Korrigierten `file://`-Renderer und den strengeren Paket-Smoke nach Public-Scan pushen; Windows-CI prüfen.
-2. Reihenfolge von Karten innerhalb einer Spalte direkt im Board bearbeiten und in der Queue respektieren.
+1. Kartenreihenfolge nach integriertem Build, Smoke und Public-Scan pushen und Windows-CI prüfen.
+2. Sicheres Projektpaket für Export/Import und Agenten-Diagnose integrieren und getrennt verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
 Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.
