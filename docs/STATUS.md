@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 01:40 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 01:55 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -17,8 +17,7 @@ Stand: 21.11.2026, 01:40 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden `npm run typecheck`, `npm test` (93 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source` für `e4b96a6`. Der erste Gesamtlauf hatte bei 92 bestandenen Tests einen reinen 20-Sekunden-Timeout des bestehenden Worktree-/PTY-Tests; isoliert bestand er in 16 Sekunden, danach wurde sein Limit auf 60 Sekunden gesetzt und der vollständige Lauf bestand. Der danach ergänzte Test auf ignorierte Pfadkollision bei einer Git-Umbenennung bestand gezielt (1 Test; auf diesem Laptop 186 Sekunden unter paralleler Last). `npm audit --audit-level=critical` fand in der Windows-CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht weiter visuell geprüft.
-Im isolierten Board-Zweig bestanden zusätzlich `npm run typecheck`, `npm test -- --maxWorkers=2` (85 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Der kombinierte Stand wird nach der Integration geprüft. Die neue Prioritäts-/Label-Auswahl wurde noch nicht visuell bedient.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Board-/Memory-Stand `npm run typecheck`, `npm test -- --maxWorkers=2` (101 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Der neue Git-Umbenennungs-Kollisionsfall bestand zusätzlich gezielt. Unter paralleler lokaler Last brauchte der Electron-Smoke über 45 Sekunden; sein Limit wurde auf 120 Sekunden erhöht und der Start danach erfolgreich geprüft. `npm audit --audit-level=critical` fand in der vorherigen Windows-CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden früher separat erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
 Für den neuen Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Vollständige Suite und Windows-CI müssen nach Integration erneut laufen; ein echter Ordnerdialog wurde noch nicht visuell bedient.
 
@@ -26,7 +25,7 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Kombinierten Stand aus Board-Metadaten und Memory-Ordnerexport prüfen und öffentlich pushen; ausdrückliche Codex-Wiederaufnahme danach integrieren.
+1. Board-Metadaten und Memory-Ordnerexport nach Public-Scan öffentlich pushen und Windows-CI prüfen; ausdrückliche Codex-Wiederaufnahme danach integrieren.
 2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 3. Danach weitere Paritätsbausteine: zusätzliche CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 

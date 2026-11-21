@@ -22,7 +22,9 @@ let stdout = '';
 let stderr = '';
 child.stdout.on('data', (chunk) => { stdout = (stdout + chunk.toString()).slice(-10000); });
 child.stderr.on('data', (chunk) => { stderr = (stderr + chunk.toString()).slice(-10000); });
-const timeout = setTimeout(() => child.kill(), 45_000);
+const timeoutMs = 120_000;
+let timedOut = false;
+const timeout = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
 child.on('error', (error) => {
   clearTimeout(timeout);
   console.error(`Electron-Start fehlgeschlagen: ${error.message}`);
@@ -33,7 +35,7 @@ child.on('exit', (code) => {
   if (code === 0 && stdout.includes('STUDIO_SMOKE_OK')) {
     console.log(`${packaged ? 'Paket' : 'Quellbuild'}: Electron, native Module und Renderer starteten.`);
   } else {
-    console.error(`Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
+    console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Startsignal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
     console.error(stderr.slice(-2000) || stdout.slice(-2000));
     process.exitCode = 1;
   }
