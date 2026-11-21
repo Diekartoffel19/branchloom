@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 04:57 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 05:09 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -39,9 +39,9 @@ Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische I
 
 Für das Projektpaket bestanden vier gezielte Datenbank-, Validierungs- und Renderer-Tests sowie die vollständige kombinierte Suite und [Windows-CI 44857862486](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44857862486) inklusive Paket-Smoke. Der Datei-Dialog und Importklick wurden nicht visuell bedient.
 
-Für integrierte Kartenanhänge bestanden fünf gezielte Datenbank-, Pfad- und Renderer-Tests, Typprüfung, Produktionsbuild, der verstärkte Quell-Smoke und die vollständige kombinierte Suite. Im isolierten Zweig bestanden Public-Scan und `npm audit --audit-level=critical` (0 Funde). Der sichtbare Datei-Dialog und die Windows-CI für diesen Stand stehen noch aus.
+Für integrierte Kartenanhänge bestanden fünf gezielte Datenbank-, Pfad- und Renderer-Tests, Typprüfung, Produktionsbuild, der verstärkte Quell-Smoke und die vollständige kombinierte Suite. Im isolierten Zweig bestanden Public-Scan und `npm audit --audit-level=critical` (0 Funde). Der sichtbare Datei-Dialog steht noch aus; [Windows-CI 44863237661](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44863237661) bestand vollständig.
 
-Eine zusätzliche Paketprüfung sperrt lokale Konfigurationen, Datenbanken, Quell-/Testordner und Symlinks im gepackten App-Ordner vor dem CI-Upload. Zwei synthetische Tests bestanden; ein vorhandenes lokales Paket mit 32 App-Dateien bestand den Scan. Die neue CI-Grenze muss nach dem Push noch im frisch gebauten Paket bestehen. Vendordateien unter `node_modules` werden dabei nicht durchsucht.
+Eine zusätzliche Paketprüfung sperrt lokale Konfigurationen, Datenbanken, Quell-/Testordner und Symlinks im gepackten App-Ordner vor dem CI-Upload. Drei synthetische Tests bestanden; ein vorhandenes lokales Paket mit 32 App-Dateien bestand den erweiterten Scan. [Windows-CI 44863921227](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44863921227) bestand mit der ersten Paketprüfung auf einem frischen ZIP. Die nun erweiterte Prüfung erfasst auch geheime Dateinamen in Vendorpaketen und muss nach dem nächsten Push im frischen ZIP bestehen.
 
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
@@ -49,7 +49,7 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Paketprüfung nach Public-Scan pushen und Windows-CI mit frischem ZIP prüfen; Kartenanhang-CI ebenfalls auswerten.
+1. Erweiterte Paketprüfung nach Public-Scan pushen und Windows-CI mit frischem ZIP prüfen.
 2. Board-Sammelaktionen und eine ausdrücklich bestätigte Queue-Recovery getrennt integrieren und verifizieren.
 3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 

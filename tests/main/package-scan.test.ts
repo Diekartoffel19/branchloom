@@ -37,4 +37,13 @@ describe('packaged app public data gate', () => {
     expect(() => checkPackagedApp(root)).toThrow('Paketprüfung fehlgeschlagen');
     try { checkPackagedApp(root); } catch (error) { expect(String(error)).not.toContain('SHOULD_NEVER_APPEAR_IN_ERROR'); }
   });
+
+  it('checks vendor directories for actual secrets while allowing documentation examples', () => {
+    const root = fixture();
+    mkdirSync(join(root, 'node_modules', 'vendor', 'tests'), { recursive: true });
+    writeFileSync(join(root, 'node_modules', 'vendor', 'tests', '.env.example'), 'example');
+    expect(checkPackagedApp(root)).toBe(1);
+    writeFileSync(join(root, 'node_modules', 'vendor', '.npmrc'), 'fixture');
+    expect(() => checkPackagedApp(root)).toThrow('local configuration or database files');
+  });
 });

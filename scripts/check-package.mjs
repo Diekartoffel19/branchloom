@@ -3,7 +3,8 @@ import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const blockedDirectories = new Set(['.git', '.github', '.codex', '.venv', 'coverage', 'out', 'src', 'tests']);
-const blockedFile = (name) => /^(?:\.env(?:\..*)?|.*\.sqlite(?:-wal|-shm)?|studio\.db|auth\.json|credentials\.json)$/i.test(name);
+const blockedFile = (name) => /^(?:\.env(?:\..*)?|.*\.sqlite(?:-wal|-shm)?|studio\.db|auth\.json|credentials\.json|\.npmrc|\.pypirc|id_rsa|id_ed25519)$/i.test(name);
+const vendorExample = (name) => /^\.env\.(?:example|sample|template)$/i.test(name);
 
 /** Scan the distributable app, not just Git's tracked files. Never log private names or contents. */
 export function checkPackagedApp(appDirectory) {
@@ -13,17 +14,16 @@ export function checkPackagedApp(appDirectory) {
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) throw new Error('Der gepackte App-Ordner fehlt.');
   const violations = new Set();
   let files = 0;
-  const walk = (directory) => {
+  const walk = (directory, vendor = false) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const name = entry.name.toLowerCase();
       if (entry.isSymbolicLink()) { violations.add('symbolic links'); continue; }
       if (entry.isDirectory()) {
-        if (name === 'node_modules') continue; // Vendor package examples are outside our source bundle.
-        if (blockedDirectories.has(name)) { violations.add('local/source directories'); continue; }
-        walk(join(directory, entry.name));
+        if (!vendor && blockedDirectories.has(name)) { violations.add('local/source directories'); continue; }
+        walk(join(directory, entry.name), vendor || name === 'node_modules');
       } else if (entry.isFile()) {
-        files += 1;
-        if (blockedFile(name)) violations.add('local configuration or database files');
+        if (!vendor) files += 1;
+        if (blockedFile(name) && !(vendor && vendorExample(name))) violations.add('local configuration or database files');
       }
     }
   };
