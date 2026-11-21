@@ -26,3 +26,12 @@
 .memory-preview-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:18px}
 .memory-preview-tags span{border:1px solid #37646a;background:#214148;color:#afede6;border-radius:6px;font-size:11px;padding:4px 8px}
 .memory-vault-feedback { overflow-wrap: anywhere; color: var(--accent); margin: 0 0 14px; }
+.memory-vault-dialog { width: min(680px, calc(100vw - 32px)); }
+.memory-vault-selection { display: flex; gap: 16px; margin: 10px 0; }
+.memory-vault-files { max-height: min(45vh, 460px); overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.memory-vault-file { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.memory-vault-file:last-child { border-bottom: 0; }
+.memory-vault-file input { margin-top: 3px; }
+.memory-vault-file span { min-width: 0; display: grid; gap: 2px; }
+.memory-vault-file small { overflow-wrap: anywhere; color: var(--muted); }
+.memory-vault-file .memory-vault-reason { color: var(--danger); }

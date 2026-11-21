@@ -509,6 +509,30 @@ export class StudioStore {
   }
 
   note(id: string): MemoryNote { return note(required(this.db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow | undefined, 'Memory note not found')); }
+  importMemoryVaultNotes(projectId: string, entries: Array<{ title: string; body: string; tags: string[] }>): number {
+    this.project(projectId);
+    if (!entries.length || entries.length > 200) throw new Error('Bitte 1 bis 200 neue Notizen auswählen.');
+    return this.db.transaction(() => {
+      const all = this.snapshot(projectId).notes;
+      const titles = new Set(all.map((item) => item.title.trim().toLocaleLowerCase()));
+      for (const entry of entries) {
+        const key = entry.title.trim().toLocaleLowerCase();
+        if (!key || titles.has(key)) throw new Error(`Notiztitel bereits vorhanden: ${entry.title}`);
+        titles.add(key);
+      }
+      const created = entries.map((entry) => this.saveNote({ projectId, ...entry, links: [] }));
+      const byTitle = new Map([...all, ...created].map((item) => [item.title.trim().toLocaleLowerCase(), item.id]));
+      for (const item of created) {
+        const links = new Set<string>();
+        for (const match of item.body.matchAll(/\[\[([^\]]+)\]\]/g)) {
+          const target = byTitle.get(match[1]!.trim().toLocaleLowerCase());
+          if (target && target !== item.id) links.add(target);
+        }
+        if (links.size) this.saveNote({ projectId, id: item.id, title: item.title, body: item.body, tags: item.tags, links: [...links] });
+      }
+      return created.length;
+    })();
+  }
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): MemoryNote {
     this.project(input.projectId);
     if (!Array.isArray(input.tags) || !Array.isArray(input.links) || input.tags.length > 50 || input.links.length > 100) throw new Error('Too many tags or links');

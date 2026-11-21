@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
-import type { MemoryNote, ProjectSnapshot } from '../../shared/types';
+import type { MemoryNote, MemoryVaultImportPreview, ProjectSnapshot } from '../../shared/types';
 import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../memory-graph';
 import { MemoryMarkdown, memoryMarkdownFileName, parseMemoryMarkdownFile, serializeMemoryNote } from '../memory-markdown';
 import { emptyNoteNavigation, filterMemoryNotes, nextMemoryNote, openMemoryNote, previousMemoryNote } from '../memory-navigation';
 import type { Mutate } from './shared';
+import { MemoryVaultImportDialog } from './MemoryVaultImportDialog';
 import '../memory.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null }
@@ -20,6 +21,9 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const [importError, setImportError] = useState('');
   const [exportMessage, setExportMessage] = useState('');
   const [exportPending, setExportPending] = useState(false);
+  const [vaultPreview, setVaultPreview] = useState<MemoryVaultImportPreview | null>(null);
+  const [vaultSelection, setVaultSelection] = useState<Set<string>>(new Set());
+  const [vaultPending, setVaultPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const notes = useMemo(() => [...snapshot.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snapshot.notes]);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
@@ -34,6 +38,8 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     setQuery('');
     setImportError('');
     setExportMessage('');
+    setVaultPreview(null);
+    setVaultSelection(new Set());
   }, [snapshot.project.id]);
 
   useEffect(() => {
@@ -121,18 +127,47 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
     }
   }
 
+  async function previewVaultImport() {
+    if (vaultPending) return;
+    setImportError('');
+    setExportMessage('');
+    try {
+      const preview = await window.studio.previewMemoryVaultImport(snapshot.project.id);
+      if (!preview) return;
+      setVaultPreview(preview);
+      setVaultSelection(new Set(preview.files.filter((file) => file.eligible).map((file) => file.key)));
+    } catch (reason) { setImportError(reason instanceof Error ? reason.message : String(reason)); }
+  }
+
+  async function acceptVaultImport() {
+    if (!vaultPreview || vaultPending || vaultSelection.size === 0) return;
+    setVaultPending(true);
+    setImportError('');
+    try {
+      const result = await mutate(() => window.studio.acceptMemoryVaultImport({ projectId: snapshot.project.id, token: vaultPreview.token, keys: [...vaultSelection] }));
+      if (result) {
+        setVaultPreview(null);
+        setVaultSelection(new Set());
+        setExportMessage(`${result.count} Notizen aus dem Vault importiert.`);
+      }
+    } catch (reason) { setImportError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setVaultPending(false); }
+  }
+
   return <div className="standard-page memory-page">
     <div className="view-header">
       <div><div className="eyebrow">VERKNÜPFTES WISSEN</div><h2>Dein Memory</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
       <div className="memory-header-actions">
         <input ref={fileInputRef} className="sr-only" type="file" accept=".md,text/markdown" aria-label="Markdown-Datei auswählen" onChange={(event) => void importMarkdown(event)} />
         <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} /> Markdown importieren</button>
+        <button className="secondary-button" type="button" disabled={vaultPending} onClick={() => void previewVaultImport()}><Upload size={16} /> Vault-Ordner importieren</button>
         <button className="secondary-button" type="button" disabled={!notes.length || exportPending} onClick={() => void exportVault()}><Download size={16} /> {exportPending ? 'Export läuft…' : 'Alle Notizen exportieren'}</button>
         <button className="primary-button" type="button" onClick={beginNew}><Plus size={17} /> Neue Notiz</button>
       </div>
     </div>
     {importError ? <p className="inline-error" role="alert">{importError}</p> : null}
     {exportMessage ? <p className="memory-vault-feedback" role="status">{exportMessage}</p> : null}
+    {vaultPreview ? <MemoryVaultImportDialog preview={vaultPreview} selected={vaultSelection} busy={vaultPending} onToggle={(key) => setVaultSelection((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })} onAll={(all) => setVaultSelection(new Set(all ? vaultPreview.files.filter((file) => file.eligible).map((file) => file.key) : []))} onClose={() => setVaultPreview(null)} onImport={() => void acceptVaultImport()} /> : null}
     {tags.length ? <div className="memory-tag-filter" aria-label="Notizen nach Tag filtern"><button className={activeTag ? '' : 'active'} type="button" aria-pressed={!activeTag} onClick={() => setActiveTag('')}>Alle</button>{tags.map((tag) => <button className={activeTag === tag ? 'active' : ''} key={tag} type="button" aria-pressed={activeTag === tag} onClick={() => setActiveTag(tag)}>#{tag}</button>)}</div> : null}
     <div className="memory-layout">
       <aside className="memory-list">

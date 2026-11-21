@@ -42,6 +42,8 @@ const studio: StudioAPI = {
   saveNote: (input) => invoke('saveNote', input),
   deleteNote: (id) => invoke('deleteNote', id),
   exportMemoryVault: (projectId) => invoke('exportMemoryVault', projectId),
+  previewMemoryVaultImport: (projectId) => invoke('previewMemoryVaultImport', projectId),
+  acceptMemoryVaultImport: (input) => invoke('acceptMemoryVaultImport', input),
   transcribe: (audio) => invoke('transcribe', audio),
   onSessionEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: SessionEvent): void => callback(payload);

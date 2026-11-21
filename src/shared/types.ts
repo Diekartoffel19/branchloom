@@ -18,6 +18,9 @@ export interface WorkflowAgentSettings { agentId: string | null; model: string |
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
 export interface MemoryNote { id: string; projectId: string; title: string; body: string; tags: string[]; links: string[]; createdAt: string; updatedAt: string }
 export interface MemoryVaultExportResult { count: number; directory: string }
+export interface MemoryVaultImportFile { key: string; title: string; tags: string[]; eligible: boolean; reason: string | null }
+export interface MemoryVaultImportPreview { token: string; directoryName: string; files: MemoryVaultImportFile[]; eligible: number }
+export interface MemoryVaultImportResult { count: number }
 export interface ProjectPackagePreview { fingerprint: string; name: string; columns: number; cards: number; notes: number; workflows: number }
 export interface ProjectPackageExportResult { file: string; columns: number; cards: number; notes: number; workflows: number }
 export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
@@ -70,6 +73,8 @@ export interface StudioAPI {
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
   deleteNote(id: string): Promise<void>;
   exportMemoryVault(projectId: string): Promise<MemoryVaultExportResult | null>;
+  previewMemoryVaultImport(projectId: string): Promise<MemoryVaultImportPreview | null>;
+  acceptMemoryVaultImport(input: { projectId: string; token: string; keys: string[] }): Promise<MemoryVaultImportResult>;
   transcribe(audio: Uint8Array): Promise<string>;
   onSessionEvent(callback: (event: SessionEvent) => void): () => void;
   browserState(): Promise<BrowserState>;

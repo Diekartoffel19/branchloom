@@ -1,14 +1,15 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type { AgentPreset, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { exportMemoryVaultToDirectory } from './memory-vault';
+import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
@@ -34,6 +35,7 @@ function installIpc(): void {
   let workflowEngine: WorkflowEngine;
   let queueEngine: ProjectQueueEngine;
   let previewedPackage: { file: string; fingerprint: string } | null = null;
+  let previewedVault: { projectId: string; root: string; fingerprint: string; token: string } | null = null;
   const packageContent = (file: string): { json: string; fingerprint: string } => {
     if (statSync(file).size > PROJECT_PACKAGE_LIMIT) throw new Error('Projektpaket ist größer als 8 MiB.');
     const json = readFileSync(file, 'utf8');
@@ -165,6 +167,34 @@ function installIpc(): void {
     if (selection.canceled || !selection.filePaths[0]) return null;
     const current = db.snapshot(projectId);
     return exportMemoryVaultToDirectory(current.notes, selection.filePaths[0], current.project.name);
+  });
+  bind('previewMemoryVaultImport', async (projectId: string) => {
+    db.project(projectId);
+    if (!window || window.isDestroyed()) throw new Error('Das Importfenster ist nicht verfügbar.');
+    previewedVault = null;
+    const selection = await dialog.showOpenDialog(window, {
+      title: 'Markdown-Vault-Ordner auswählen',
+      properties: ['openDirectory'],
+    });
+    if (selection.canceled || !selection.filePaths[0]) return null;
+    const scanned = scanMemoryVault(selection.filePaths[0], db.snapshot(projectId).notes.map((item) => item.title));
+    const token = randomUUID();
+    previewedVault = { projectId, root: scanned.root, fingerprint: scanned.fingerprint, token };
+    return { token, directoryName: basename(scanned.root), files: scanned.files, eligible: scanned.files.filter((item) => item.eligible).length };
+  });
+  bind('acceptMemoryVaultImport', (input: { projectId: string; token: string; keys: string[] }) => {
+    if (!previewedVault || previewedVault.projectId !== input.projectId || previewedVault.token !== input.token) throw new Error('Vault bitte erneut auswählen.');
+    if (!Array.isArray(input.keys) || !input.keys.length || input.keys.length > 200 || new Set(input.keys).size !== input.keys.length) throw new Error('Ungültige Dateiauswahl.');
+    const scanned = scanMemoryVault(previewedVault.root, db.snapshot(input.projectId).notes.map((item) => item.title));
+    if (scanned.fingerprint !== previewedVault.fingerprint) throw new Error('Vault-Dateien wurden seit der Vorschau geändert. Bitte erneut auswählen.');
+    const entries = input.keys.map((key) => {
+      const file = scanned.parsed.get(key);
+      if (!file) throw new Error(`Datei nicht importierbar: ${String(key).slice(0, 100)}`);
+      return file;
+    });
+    const count = db.importMemoryVaultNotes(input.projectId, entries);
+    previewedVault = null;
+    return { count };
   });
   bind('transcribe', (audio: Uint8Array) => {
     if (!(audio instanceof Uint8Array) || audio.byteLength === 0 || audio.byteLength > 8 * 1024 * 1024) throw new Error('Die Audioaufnahme muss zwischen 1 Byte und 8 MiB groß sein.');
