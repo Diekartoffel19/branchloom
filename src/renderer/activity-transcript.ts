@@ -1,4 +1,4 @@
-import type { Session } from '../shared/types';
+import type { MemoryNote, Session } from '../shared/types';
 
 export function readableSessionOutput(output: string): string {
   return output
@@ -26,7 +26,7 @@ export function serializeSessionTranscript(session: Session, cardTitle: string, 
 
 /** A deliberate Memory copy keeps source metadata and marks any shortened output. */
 export function sessionMemoryDraft(session: Session, cardTitle: string, agentName: string) {
-  const title = `Agentenlauf: ${cardTitle}`.slice(0, 200);
+  const title = `Agentenlauf: ${cardTitle}`.slice(0, 120);
   const full = serializeSessionTranscript(session, cardTitle, agentName);
   if (full.length <= 200_000) return { title, body: full, tags: ['agentenlauf'], links: [] };
   const header = serializeSessionTranscript({ ...session, output: '' }, cardTitle, agentName);
@@ -35,6 +35,14 @@ export function sessionMemoryDraft(session: Session, cardTitle: string, agentNam
   const omitted = output.length - tail.length;
   const body = `${header}[Memory-Ausschnitt: ${omitted} Zeichen am Anfang ausgelassen. Vollständigen Verlauf in Aktivität als Text speichern.]\n\n${tail}`;
   return { title, body, tags: ['agentenlauf'], links: [] };
+}
+
+/** Only notes explicitly copied from Studio runs can offer a source link. */
+export function sourceSessionIdFromNote(note: Pick<MemoryNote, 'body' | 'tags'>): string | null {
+  if (!note.tags.includes('agentenlauf') || !note.body.startsWith('Jarvis Studio · Agentenlauf\n')) return null;
+  const header = note.body.slice(0, 4_000).split('\n\n', 1)[0] ?? '';
+  const matches = [...header.matchAll(/^Sitzung: ([a-zA-Z0-9-]{1,80})$/gm)];
+  return matches.at(-1)?.[1] ?? null;
 }
 
 export function sessionTranscriptFileName(sessionId: string): string {

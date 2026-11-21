@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Session } from '../../src/shared/types';
-import { readableSessionOutput, serializeSessionTranscript, sessionMemoryDraft, sessionTranscriptFileName } from '../../src/renderer/activity-transcript';
+import { readableSessionOutput, serializeSessionTranscript, sessionMemoryDraft, sessionTranscriptFileName, sourceSessionIdFromNote } from '../../src/renderer/activity-transcript';
 
 const session: Session = {
   id: 'abc-123', projectId: 'p', cardId: 'c', agentId: 'a', state: 'exited',
@@ -31,5 +31,13 @@ describe('historical activity transcripts', () => {
     expect(draft.body).toContain('Zeichen am Anfang ausgelassen');
     expect(draft.body).toContain('END');
     expect(draft.body).not.toContain('\x1b');
+  });
+
+  it('links only a Studio transcript header, never an arbitrary mention in note text', () => {
+    const draft = sessionMemoryDraft(session, 'Aufgabe', 'Codex');
+    expect(sourceSessionIdFromNote(draft)).toBe('abc-123');
+    expect(sourceSessionIdFromNote({ ...draft, tags: [] })).toBeNull();
+    expect(sourceSessionIdFromNote({ ...draft, body: 'Other text\nSitzung: abc-123\n' })).toBeNull();
+    expect(sourceSessionIdFromNote({ ...draft, body: 'Jarvis Studio · Agentenlauf\n\nAgent output\nSitzung: fake' })).toBeNull();
   });
 });

@@ -363,6 +363,21 @@ function createWindow(): void {
                   await new Promise((resolve) => setTimeout(resolve, 50));
                 }
                 if (!savedNote || document.querySelector('.topbar-title h1')?.textContent !== 'Memory') throw new Error('Agentenlauf wurde nicht sichtbar als lokale Memory-Notiz gespeichert.');
+                let sourceButton;
+                for (let attempt = 0; attempt < 300; attempt++) {
+                  sourceButton = [...document.querySelectorAll('.memory-modebar button')].find((item) => item.textContent?.includes('Quellverlauf öffnen'));
+                  if (sourceButton) break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                if (!sourceButton) throw new Error('Quellverlauf-Link fehlt an der Memory-Notiz.');
+                sourceButton.click();
+                let sourceOpened = false;
+                for (let attempt = 0; attempt < 300; attempt++) {
+                  sourceOpened = document.querySelector('.topbar-title h1')?.textContent === 'Aktivität' && Boolean(document.querySelector('.activity-transcript-dialog')?.textContent?.includes('JARVIS_STUDIO_AGENT_OK'));
+                  if (sourceOpened) break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                if (!sourceOpened) throw new Error('Quellverlauf wurde nicht aus Memory geöffnet.');
               }
               return true;
             })()

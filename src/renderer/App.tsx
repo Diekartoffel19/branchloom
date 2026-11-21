@@ -134,6 +134,17 @@ export function App() {
     if (saved) navigateToEntity('note', saved.id);
   }
 
+  async function openSessionFromMemory(sessionId: string) {
+    if (!snapshot) return;
+    try {
+      setError('');
+      await window.studio.sessionForProject({ projectId: snapshot.project.id, sessionId });
+      navigateToEntity('session', sessionId);
+    } catch {
+      setError('Der Quellverlauf ist in diesem Projekt nicht mehr vorhanden.');
+    }
+  }
+
   useEffect(() => {
     if (!projectId || !window.studio) return;
     const unsubscribe = window.studio.onSessionEvent((event) => {
@@ -247,7 +258,7 @@ export function App() {
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
-        {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} /> : null}
+        {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
         {view === 'terminal' ? <CommandTerminalView projectId={snapshot.project.id} /> : null}
       </div>}

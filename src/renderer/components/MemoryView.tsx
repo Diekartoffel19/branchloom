@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import type { MemoryNote, MemoryVaultImportPreview, ProjectSnapshot } from '../../shared/types';
 import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../memory-graph';
 import { MemoryMarkdown, memoryMarkdownFileName, parseMemoryMarkdownFile, serializeMemoryNote } from '../memory-markdown';
 import { emptyNoteNavigation, filterMemoryNotes, nextMemoryNote, openMemoryNote, previousMemoryNote } from '../memory-navigation';
+import { sourceSessionIdFromNote } from '../activity-transcript';
 import type { Mutate } from './shared';
 import { MemoryVaultImportDialog } from './MemoryVaultImportDialog';
 import '../memory.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null; onOpenSession?: (id: string) => void }
 
-export function MemoryView({ snapshot, mutate, openNote }: Props) {
+export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props) {
   const [query, setQuery] = useState('');
   const [navigation, setNavigation] = useState(emptyNoteNavigation);
   const selectedId = navigation.currentId;
@@ -27,6 +28,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const notes = useMemo(() => [...snapshot.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snapshot.notes]);
   const selected = notes.find((note) => note.id === selectedId) ?? null;
+  const sourceSessionId = selected ? sourceSessionIdFromNote(selected) : null;
   const shown = useMemo(() => filterMemoryNotes(notes, query, activeTag), [notes, query, activeTag]);
   const tags = useMemo(() => [...new Set(notes.flatMap((note) => note.tags))].sort((a, b) => a.localeCompare(b, 'de-DE')), [notes]);
 
@@ -186,6 +188,7 @@ export function MemoryView({ snapshot, mutate, openNote }: Props) {
               <button className="icon-button" type="button" disabled={!navigation.forward.length} aria-label="Nächste Notiz" title="Nächste Notiz" onClick={() => setNavigation(nextMemoryNote)}><ArrowRight size={16} /></button>
               {selected ? <button className="secondary-button small" type="button" onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}>{mode === 'preview' ? <Pencil size={14} /> : <Eye size={14} />}{mode === 'preview' ? 'Bearbeiten' : 'Vorschau'}</button> : null}
               {selected && mode === 'preview' ? <button className="secondary-button small" type="button" onClick={exportMarkdown}><Download size={14} /> .md</button> : null}
+              {sourceSessionId && onOpenSession ? <button className="secondary-button small" type="button" onClick={() => onOpenSession(sourceSessionId)}><ArrowUpRight size={14} /> Quellverlauf öffnen</button> : null}
               {selected ? <button className="icon-button danger-icon" type="button" aria-label="Notiz löschen" onClick={() => void remove()}><Trash2 size={17} /></button> : null}
             </div>
           </div>
