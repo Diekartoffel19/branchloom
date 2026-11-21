@@ -12,6 +12,7 @@ const studio: StudioAPI = {
   snapshot: (projectId) => invoke('snapshot', projectId),
   createColumn: (input) => invoke('createColumn', input),
   updateColumn: (input) => invoke('updateColumn', input),
+  reorderColumn: (input) => invoke('reorderColumn', input),
   createCard: (input) => invoke('createCard', input),
   updateCard: (input) => invoke('updateCard', input),
   moveCard: (input) => invoke('moveCard', input),

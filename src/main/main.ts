@@ -100,6 +100,7 @@ function installIpc(): void {
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
   bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));
   bind('updateColumn', (input: Parameters<StudioAPI['updateColumn']>[0]) => db.updateColumn(input));
+  bind('reorderColumn', (input: Parameters<StudioAPI['reorderColumn']>[0]) => db.reorderColumn(input));
   bind('createCard', (input: Parameters<StudioAPI['createCard']>[0]) => {
     const card = db.createCard(input);
     queueEngine.onBoardChanged(card.projectId);
@@ -286,12 +287,14 @@ function createWindow(): void {
           const project = await window.studio.createProject({ name: 'Smoke-Projekt', path: ${JSON.stringify(smokeDataDirectory)} });
           const initial = await window.studio.snapshot(project.id);
           const todo = initial.columns.find((column) => column.name === 'To Do');
-          if (!todo || initial.columns.length < 2) throw new Error('Standardspalten fehlen.');
+          if (!todo || initial.columns.length < 3) throw new Error('Standardspalten fehlen.');
           const card = await window.studio.createCard({ projectId: project.id, columnId: todo.id, title: 'Smoke-Karte' });
+          await window.studio.reorderColumn({ id: initial.columns[1].id, direction: 'right' });
           const saved = await window.studio.snapshot(project.id);
           if (!saved.cards.some((item) => item.id === card.id && item.title === 'Smoke-Karte')) {
             throw new Error('Karte wurde nicht über IPC und SQLite gespeichert.');
           }
+          if (saved.columns[2]?.id !== initial.columns[1].id) throw new Error('Spaltenreihenfolge wurde nicht gespeichert.');
           if (${process.platform === 'win32'}) {
             const terminal = await window.studio.startCommandTerminal({ projectId: project.id, shell: 'cmd' });
             await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'set STUDIO_SMOKE_PREFIX=JARVIS_STUDIO_\\r' });
@@ -334,6 +337,10 @@ function createWindow(): void {
               if (![...document.querySelectorAll('.task-card')].some((item) => item.textContent?.includes('Smoke-Karte'))) {
                 throw new Error('Gespeicherte Karte wurde nach Reload nicht im Board gerendert.');
               }
+              const boardProject = (await window.studio.projects())[0];
+              const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);
+              const renderedColumns = [...document.querySelectorAll('.board-column .column-title h3')].map((item) => item.textContent);
+              if (JSON.stringify(renderedColumns) !== JSON.stringify(storedColumns)) throw new Error('Gespeicherte Spaltenreihenfolge wurde nach Reload nicht gerendert.');
               if (${process.platform === 'win32'}) {
                 const activityNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Aktivität'));
                 if (!activityNav) throw new Error('Aktivitätsnavigation fehlt.');

@@ -1,0 +1,5 @@
+.column-header .column-title { flex: 1; }
+.column-order-actions { display: flex; align-items: center; gap: 2px; flex: none; margin-left: 5px; }
+.column-order-actions .icon-button { width: 26px; min-width: 26px; height: 28px; }
+.column-order-actions .icon-button:disabled { opacity: .4; cursor: not-allowed; }
+:root[data-theme='light'] .column-order-actions .icon-button { color: #285969; }

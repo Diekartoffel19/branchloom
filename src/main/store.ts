@@ -269,6 +269,20 @@ export class StudioStore {
     this.db.prepare('UPDATE columns SET name = ?, auto_start = ?, agent_id = ?, model = ?, effort = ? WHERE id = ?').run(value.name, Number(value.autoStart), value.agentId, value.model, value.effort, input.id);
     return value;
   }
+  reorderColumn(input: { id: string; direction: 'left' | 'right' }): Column {
+    if (input.direction !== 'left' && input.direction !== 'right') throw new Error('Ungültige Spaltenrichtung.');
+    return this.db.transaction(() => {
+      const current = this.column(input.id);
+      const columns = (this.db.prepare('SELECT * FROM columns WHERE project_id = ? ORDER BY position, id').all(current.projectId) as ColumnRow[]).map(column);
+      const index = columns.findIndex((item) => item.id === current.id);
+      const neighbor = columns[index + (input.direction === 'left' ? -1 : 1)];
+      if (!neighbor) throw new Error('Spalte ist bereits am Rand des Boards.');
+      const update = this.db.prepare('UPDATE columns SET position = ? WHERE id = ?');
+      update.run(neighbor.position, current.id);
+      update.run(current.position, neighbor.id);
+      return this.column(current.id);
+    })();
+  }
   card(id: string): Card { return card(required(this.db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as CardRow | undefined, 'Card not found')); }
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Card {
     const destination = this.column(input.columnId);

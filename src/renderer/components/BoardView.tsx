@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowRight, ArrowUp, Bot, FileJson2, GripVertical, Plus, Search, Terminal, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bot, FileJson2, GripVertical, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
@@ -10,6 +10,7 @@ import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
 import '../board-bulk.css';
+import '../column-order.css';
 import '../column-settings.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number } | null }
@@ -101,6 +102,13 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       : `Die Reihenfolge von „${card.title}“ konnte nicht geändert werden.`);
   }
 
+  async function reorderColumn(column: Column, direction: 'left' | 'right'): Promise<void> {
+    const changed = await mutate(() => window.studio.reorderColumn({ id: column.id, direction }));
+    setAnnouncement(changed
+      ? `Spalte „${column.name}“ wurde nach ${direction === 'left' ? 'links' : 'rechts'} verschoben.`
+      : `Die Reihenfolge von „${column.name}“ konnte nicht geändert werden.`);
+  }
+
   function onDrop(event: React.DragEvent<HTMLElement>, columnId: string) {
     event.preventDefault();
     const id = event.dataTransfer.getData('text/card-id');
@@ -161,7 +169,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
     {confirmBulkArchive && selectedBulkCards.length ? <BulkArchiveConfirmation count={selectedBulkCards.length} busy={bulkBusy} onConfirm={() => void applyBulk('archive')} onCancel={() => setConfirmBulkArchive(false)} /> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -179,17 +187,19 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReorder, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
+function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
   column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; onSelect: (id: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
+  onReorderColumn: (column: Column, direction: 'left' | 'right') => Promise<void>;
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
   onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
 }) {
   const agent = snapshot.agents.find((item) => item.id === column.agentId);
+  const columnIndex = columns.findIndex((item) => item.id === column.id);
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
   return <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
-    <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div>{canCreate ? <button className="icon-button" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /></button> : null}</header>
+    <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><div className="column-order-actions"><button className="icon-button" type="button" disabled={columnIndex <= 0} aria-label={`Spalte ${column.name} nach links verschieben`} title={columnIndex > 0 ? `Vor ${columns[columnIndex - 1]?.name}` : 'Erste Spalte'} onClick={() => void onReorderColumn(column, 'left')}><ArrowLeft size={15} /></button><button className="icon-button" type="button" disabled={columnIndex >= columns.length - 1} aria-label={`Spalte ${column.name} nach rechts verschieben`} title={columnIndex < columns.length - 1 ? `Hinter ${columns[columnIndex + 1]?.name}` : 'Letzte Spalte'} onClick={() => void onReorderColumn(column, 'right')}><ArrowRight size={15} /></button>{canCreate ? <button className="icon-button" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /></button> : null}</div></header>
     <div className="column-body">
       {agent ? <div className="column-agent"><Bot size={13} /><span>{column.autoStart ? 'Auto' : 'Manuell'} · {agent.name}{column.model ? ` · ${column.model}` : ''}{column.effort ? ` · ${column.effort}` : ''}</span></div> : null}
       {cards.map((card) => {
