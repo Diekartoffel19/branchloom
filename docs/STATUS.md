@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 01:55 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 02:10 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -19,15 +19,15 @@ Stand: 21.11.2026, 01:55 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 Auf dem Entwicklungslaptop bestanden für den kombinierten Board-/Memory-Stand `npm run typecheck`, `npm test -- --maxWorkers=2` (101 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Der neue Git-Umbenennungs-Kollisionsfall bestand zusätzlich gezielt. Unter paralleler lokaler Last brauchte der Electron-Smoke über 45 Sekunden; sein Limit wurde auf 120 Sekunden erhöht und der Start danach erfolgreich geprüft. `npm audit --audit-level=critical` fand in der vorherigen Windows-CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden früher separat erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
-Für den neuen Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Vollständige Suite und Windows-CI müssen nach Integration erneut laufen; ein echter Ordnerdialog wurde noch nicht visuell bedient.
+Für den Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Der echte Ordnerdialog wurde noch nicht visuell bedient.
 
-Für den erweiterten Trello-Label-Import bestanden im isolierten Zweig zehn gezielte synthetische Import- und UI-Tests, Typprüfung und Produktionsbuild. Der kombinierte Hauptzweig und ein echter Trello-Export sind danach noch zu prüfen.
+Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische Import- und UI-Tests, Typprüfung, Produktionsbuild und die vollständige kombinierte Suite (104 bestanden, 2 optionale Live-Tests übersprungen). Ein echter Trello-Export wurde noch nicht in der UI importiert.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44842782495](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44842782495) für `e4b96a6` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan und ein portables ZIP mit nativen Modulen. Ein früheres CI-ZIP startete im verdeckten Electron-Smoke-Test auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release. Zwei zuvor entdeckte Windows-Kurzpfadfehler in Worktree-Tests sind in der grünen CI behoben.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44847001709](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44847001709) für `7529196` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan und ein portables ZIP mit nativen Modulen. Der Trello-Label-Import ist in diesem Lauf noch nicht enthalten. Ein früheres CI-ZIP startete im verdeckten Electron-Smoke-Test auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Board-Metadaten und Memory-Ordnerexport nach Public-Scan öffentlich pushen und Windows-CI prüfen; ausdrückliche Codex-Wiederaufnahme danach integrieren.
+1. Trello-Label-Import nach Public-Scan pushen und Windows-CI prüfen; ausdrückliche Codex-Wiederaufnahme danach integrieren.
 2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 3. Danach weitere Paritätsbausteine: zusätzliche CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
