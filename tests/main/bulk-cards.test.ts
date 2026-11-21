@@ -14,7 +14,7 @@ function fixture() {
   const store = new StudioStore(path);
   const project = store.createProject({ name: 'Synthetic', path: root });
   const todo = store.snapshot(project.id).columns[0]!;
-  const destination = store.createColumn({ projectId: project.id, name: 'Executing', agentId: store.agents()[0]!.id, autoStart: true });
+  const destination = store.createColumn({ projectId: project.id, name: 'Bulk execution', agentId: store.agents()[0]!.id, autoStart: true });
   const first = store.createCard({ projectId: project.id, columnId: todo.id, title: 'First' });
   const second = store.createCard({ projectId: project.id, columnId: todo.id, title: 'Second' });
   const third = store.createCard({ projectId: project.id, columnId: destination.id, title: 'Existing' });

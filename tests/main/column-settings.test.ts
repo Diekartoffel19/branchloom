@@ -45,7 +45,7 @@ describe('column agent settings', () => {
 
   it('validates unsupported combinations before writing column settings', () => {
     const { store, project, codex, gemini, custom } = fixture();
-    const column = store.createColumn({ projectId: project.id, name: 'Executing', agentId: codex.id, model: 'gpt-6.1-sol', effort: 'medium' });
+    const column = store.createColumn({ projectId: project.id, name: 'Custom execution', agentId: codex.id, model: 'gpt-6.1-sol', effort: 'medium' });
     expect(() => store.updateColumn({ id: column.id, agentId: gemini.id })).toThrow('nur für Codex');
     expect(store.column(column.id).agentId).toBe(codex.id);
     expect(() => store.updateColumn({ id: column.id, agentId: custom.id, model: 'other', effort: null })).toThrow('Agentenprofil');
@@ -99,7 +99,7 @@ describe('column agent settings', () => {
   it('stores Antigravity column settings and excludes its unsupported ultra effort', () => {
     const { store, project } = fixture();
     const agent = store.agents().find((item) => item.kind === 'antigravity')!;
-    const column = store.createColumn({ projectId: project.id, name: 'Review', agentId: agent.id, model: 'gemini-3.8-flash-medium', effort: 'medium' });
+    const column = store.createColumn({ projectId: project.id, name: 'Custom review', agentId: agent.id, model: 'gemini-3.8-flash-medium', effort: 'medium' });
     expect(columnLaunchOverrides(column, agent)).toEqual({ model: 'gemini-3.8-flash-medium', effort: 'medium' });
     expect(() => store.updateColumn({ id: column.id, effort: 'ultra' })).toThrow('max');
     store.close();
