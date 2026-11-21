@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 08:02 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 08:09 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -54,7 +54,7 @@ Für die Entwurfsbearbeitung bestanden gezielte Datenbank- und Renderer-Tests ei
 
 Für die To-Do-Vorbedingung bestanden 16 gezielte Queue- und Renderer-Tests sowie Typprüfung, Produktionsbuild und Quell-Electron-Smoke. Die vollständige Suite bestand mit 201 Tests und 2 optional übersprungenen Live-Tests. [Windows-CI 44876123931](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44876123931) bestand vollständig, inklusive frischem ZIP, Paket-Smoke und Paket-Scan. Das CI-Artefakt wurde zusätzlich auf dem Entwicklungslaptop entpackt: der isolierte Electron-Paket-Smoke und der Scan des entpackten App-Ordners mit 63 App-Dateien bestanden. Weder ein Modell noch bestehende Nutzerdaten wurden dabei verwendet.
 
-Nach einer Laufzeitprüfung wurde ein Fehler bei ausdrücklich manuellen Workflow-Schritten mit Spalten-Standardagent behoben. 19 gezielte Workflow-/Queue-Tests, Typprüfung, Produktionsbuild, Quell-Electron-Smoke und Public-Scan bestanden. Die vollständige Suite bestand mit 201 Tests und 2 optional übersprungenen Live-Tests. Paket-CI folgt nach Push.
+Nach einer Laufzeitprüfung wurde ein Fehler bei ausdrücklich manuellen Workflow-Schritten mit Spalten-Standardagent behoben. 19 gezielte Workflow-/Queue-Tests, Typprüfung, Produktionsbuild, Quell-Electron-Smoke und Public-Scan bestanden. Die vollständige Suite bestand mit 201 Tests und 2 optional übersprungenen Live-Tests. [Windows-CI 44878296941](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44878296941) bestand vollständig, einschließlich frischem ZIP, Paket-Smoke und Paket-Scan.
 
 Für den Antigravity-Adapter im isolierten Entwicklungszweig bestanden `npm run typecheck`, `npm run build`, drei reine Argument-/Fake-CLI-Tests, fünf CLI-Diagnose-Tests und vier Renderer-Tests. Die lokale `agy.exe` meldete bei `--version` `1.5.13`; `--help` bestätigte `-i`, `-p`, `--model` und `--effort`. `npm ci` mit nativen Build-Skripten scheiterte auf diesem Laptop an fehlender Visual-Studio-C++-Toolchain; die SQLite-/PTY-Integrationstests liefen nach Übernahme im Hauptcheckout erfolgreich. Ein Modellaufruf, Login-Test und sichtbarer UI-Durchlauf fanden nicht statt.
 
