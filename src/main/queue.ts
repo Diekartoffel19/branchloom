@@ -19,6 +19,7 @@ export class ProjectQueueEngine {
     const templateWorkflowId = input.templateWorkflowId ?? current.templateWorkflowId;
     if (input.state === 'running') {
       if (!templateWorkflowId) throw new Error('Zuerst eine Workflow-Route als Vorlage wählen.');
+      this.store.queueCandidates(input.projectId, 1); // Validate To Do before persisting a running queue.
       const template = this.store.workflow(templateWorkflowId);
       if (template.projectId !== input.projectId) throw new Error('Workflow-Vorlage gehört zu einem anderen Projekt.');
       if (current.activeWorkflowId) {

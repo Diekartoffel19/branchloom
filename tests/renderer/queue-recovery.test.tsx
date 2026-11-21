@@ -21,6 +21,13 @@ const snapshot: ProjectSnapshot = {
 const mutate = async <T,>(action: () => Promise<T>): Promise<T> => action();
 
 describe('queue recovery view', () => {
+  it('disables activation and explains the missing To-Do column', () => {
+    const inactive = { ...snapshot, queue: { ...snapshot.queue, state: 'off' as const, activeWorkflowId: null } };
+    const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: inactive, mutate }));
+    expect(html).toContain('braucht dieses Board eine Spalte namens To Do');
+    expect(html.slice(0, html.indexOf('Queue aktivieren')).slice(-700)).toContain('disabled=""');
+  });
+
   it('offers a deliberate skip only for a paused active queue workflow', () => {
     const paused = renderToStaticMarkup(createElement(WorkflowView, { snapshot, mutate }));
     expect(paused).toContain('Aktive Karte überspringen');

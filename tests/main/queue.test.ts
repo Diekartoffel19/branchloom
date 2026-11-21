@@ -43,6 +43,14 @@ function fixture() {
 }
 
 describe('explicit durable project queue', () => {
+  it('rejects activation without a To-Do column and leaves the queue off', () => {
+    const { store, project, columns, template, queue } = fixture();
+    store.updateColumn({ id: columns[0]!.id, name: 'Inbox' });
+    expect(() => queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id })).toThrow('To-Do-Spalte');
+    expect(store.projectQueue(project.id).state).toBe('off');
+    store.close();
+  });
+
   it('previews exactly the eligible cards in the same order used for the next claim', () => {
     const { store, project, template, first, second, queue } = fixture();
     expect(store.queueCandidates(project.id).map((card) => card.id)).toEqual([first.id, second.id]);
