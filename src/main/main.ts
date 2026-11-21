@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -111,6 +111,19 @@ function installIpc(): void {
     queueEngine.onBoardChanged(card.projectId);
     return card;
   });
+  bind('cardAttachments', (cardId: string) => db.cardAttachments(cardId));
+  bind('chooseCardAttachments', async (cardId: string) => {
+    if (db.card(cardId).archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    if (!window || window.isDestroyed()) throw new Error('Das Dateifenster ist nicht verfügbar.');
+    const choice = await dialog.showOpenDialog(window, { title: 'Dateien mit Karte verknüpfen', properties: ['openFile', 'multiSelections'] });
+    return choice.canceled || !choice.filePaths.length ? null : db.addCardAttachments(cardId, choice.filePaths);
+  });
+  bind('openCardAttachment', async (input: { cardId: string; attachmentId: string }) => {
+    const path = db.attachmentPathForCard(input);
+    const error = await shell.openPath(path);
+    if (error) throw new Error(`Datei konnte nicht geöffnet werden: ${error}`);
+  });
+  bind('removeCardAttachment', (input: { cardId: string; attachmentId: string }) => db.removeCardAttachment(input));
   bind('moveCard', (input: { id: string; columnId: string }) => {
     const before = db.card(input.id);
     const moved = db.moveCard(input);

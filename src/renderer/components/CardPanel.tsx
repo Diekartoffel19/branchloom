@@ -3,6 +3,7 @@ import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal,
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
+import { CardAttachments } from './CardAttachments';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 
@@ -133,6 +134,8 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         </fieldset></form>
         <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
+        <div className="drawer-divider" />
+        <CardAttachments key={card.id} card={card} />
         <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
         <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>

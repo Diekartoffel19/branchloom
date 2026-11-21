@@ -1,0 +1,8 @@
+.card-attachments { display: grid; gap: 10px; }
+.card-attachment-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.card-attachment-list li { border: 1px solid var(--border); border-radius: 10px; padding: 9px; display: grid; gap: 5px; }
+.card-attachment-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.card-attachment-name span { overflow-wrap: anywhere; font-weight: 600; }
+.card-attachment-name small { margin-left: auto; white-space: nowrap; color: var(--muted); }
+.card-attachment-actions { display: flex; align-items: center; gap: 7px; }
+.card-attachment-warning { color: var(--warning, #b45309); }

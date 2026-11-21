@@ -7,6 +7,7 @@ export type ColumnEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
 export interface Project { id: string; name: string; path: string; createdAt: string }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
+export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
@@ -51,6 +52,10 @@ export interface StudioAPI {
   moveCard(input: { id: string; columnId: string }): Promise<Card>;
   reorderCard(input: { id: string; direction: 'up' | 'down' }): Promise<Card>;
   setCardArchived(input: { id: string; archived: boolean }): Promise<Card>;
+  cardAttachments(cardId: string): Promise<CardAttachment[]>;
+  chooseCardAttachments(cardId: string): Promise<CardAttachment[] | null>;
+  openCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
+  removeCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;

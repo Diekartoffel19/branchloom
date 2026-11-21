@@ -2,13 +2,14 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, Card, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentPreset, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
 import { parseProjectPackage, type ProjectPackageV1 } from './project-package';
+import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -39,6 +40,7 @@ interface WorktreeRow { card_id: string; project_id: string; source_root: string
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
 interface QueueRow { project_id: string; state: QueueState; template_workflow_id: string | null; active_workflow_id: string | null; pause_reason: string | null; updated_at: string }
 interface NoteRow { id: string; project_id: string; title: string; body: string; tags_json: string; links_json: string; created_at: string; updated_at: string }
+interface AttachmentRow { id: string; card_id: string; path: string; name: string; size: number; added_at: string }
 
 const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, path: row.path, createdAt: row.created_at });
 const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id, model: row.model, effort: row.effort });
@@ -64,6 +66,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, command TEXT NOT NULL, args_json TEXT NOT NULL, model TEXT, enabled INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id), model TEXT, effort TEXT);
       CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, priority TEXT NOT NULL DEFAULT 'none', labels_json TEXT NOT NULL DEFAULT '[]');
+      CREATE TABLE IF NOT EXISTS card_attachments (id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, path TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, added_at TEXT NOT NULL, UNIQUE(card_id, path));
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, agent_id TEXT NOT NULL REFERENCES agents(id), state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS command_terminals (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, shell TEXT NOT NULL, state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS workflows (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, card_ids_json TEXT NOT NULL, steps_json TEXT NOT NULL, state TEXT NOT NULL, current_step INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -77,6 +80,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS queue_runs (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL UNIQUE REFERENCES workflows(id) ON DELETE CASCADE, PRIMARY KEY (project_id, card_id));
       CREATE INDEX IF NOT EXISTS idx_columns_project ON columns(project_id, position);
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
+      CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id, added_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_card ON sessions(card_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_command_terminals_project ON command_terminals(project_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows(project_id, state);
@@ -304,6 +308,43 @@ export class StudioStore {
     const stamp = now();
     this.db.prepare('UPDATE cards SET archived_at = ?, updated_at = ? WHERE id = ?').run(input.archived ? stamp : null, stamp, old.id);
     return this.card(old.id);
+  }
+
+  cardAttachments(cardId: string): CardAttachment[] {
+    this.card(cardId);
+    const rows = this.db.prepare('SELECT * FROM card_attachments WHERE card_id = ? ORDER BY added_at, id').all(cardId) as AttachmentRow[];
+    return rows.map((row) => ({ id: row.id, cardId: row.card_id, name: row.name, size: row.size, addedAt: row.added_at, available: attachmentAvailable(row.path), canOpen: canOpenAttachment(row.name) }));
+  }
+
+  addCardAttachments(cardId: string, paths: string[]): CardAttachment[] {
+    const card = this.card(cardId);
+    if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    if (!Array.isArray(paths) || paths.length === 0 || paths.length > MAX_CARD_ATTACHMENTS) throw new Error('Wähle höchstens 20 Dateien.');
+    const files = paths.map(checkedAttachmentPath);
+    this.db.transaction(() => {
+      const existing = new Set((this.db.prepare('SELECT path FROM card_attachments WHERE card_id = ?').all(cardId) as Array<{ path: string }>).map((row) => row.path));
+      const added = new Set(files.map((file) => file.path).filter((path) => !existing.has(path)));
+      if (existing.size + added.size > MAX_CARD_ATTACHMENTS) throw new Error('Eine Karte kann höchstens 20 Anhänge haben.');
+      const insert = this.db.prepare('INSERT OR IGNORE INTO card_attachments (id, card_id, path, name, size, added_at) VALUES (?, ?, ?, ?, ?, ?)');
+      for (const file of files) insert.run(randomUUID(), cardId, file.path, file.name, file.size, now());
+    })();
+    return this.cardAttachments(cardId);
+  }
+
+  attachmentPathForCard(input: { cardId: string; attachmentId: string }): string {
+    this.card(input.cardId);
+    const row = this.db.prepare('SELECT * FROM card_attachments WHERE id = ? AND card_id = ?').get(input.attachmentId, input.cardId) as AttachmentRow | undefined;
+    if (!row) throw new Error('Anhang gehört nicht zu dieser Karte.');
+    if (!attachmentAvailable(row.path)) throw new Error('Die verknüpfte Datei fehlt oder ihr Pfad hat sich geändert.');
+    if (!canOpenAttachment(row.name)) throw new Error('Dieser Dateityp wird aus Sicherheitsgründen nicht geöffnet.');
+    return row.path;
+  }
+
+  removeCardAttachment(input: { cardId: string; attachmentId: string }): void {
+    const card = this.card(input.cardId);
+    if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    const result = this.db.prepare('DELETE FROM card_attachments WHERE id = ? AND card_id = ?').run(input.attachmentId, input.cardId);
+    if (result.changes !== 1) throw new Error('Anhang gehört nicht zu dieser Karte.');
   }
 
   previewTrelloImport(input: { projectId: string; json: string }): TrelloImportPreview {
