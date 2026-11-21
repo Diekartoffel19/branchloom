@@ -1,6 +1,6 @@
 # Status
 
-Stand: 21.11.2026, 02:57 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 21.11.2026, 03:08 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
 ## Umgesetzt
 
@@ -17,9 +17,9 @@ Stand: 21.11.2026, 02:57 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, ke
 
 ## Prüfungen
 
-Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume und Transkriptsuche `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (113 bestanden, 2 optionale Live-Tests übersprungen), acht gezielte Suchtests, `npm run build` und `npm run smoke:source`. Der Git-Umbenennungs-Kollisionsfall und alle vier Worktree-Merge-Tests bestanden auch isoliert. Ein früherer lokaler Smoke überschritt unter paralleler Last 120 Sekunden ohne Startsignal; ohne diese Last startete derselbe integrierte Quellstand in 28 Sekunden. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
+Auf dem Entwicklungslaptop bestanden für den kombinierten Stand einschließlich Codex-Resume, Transkriptsuche und Spalteneinstellungen `npm run typecheck`, `npm test -- --maxWorkers=2 --testTimeout=240000` (119 bestanden, 2 optionale Live-Tests übersprungen), `npm run build` und `npm run smoke:source`. Die neuen Spalteneinstellungen bestanden zusätzlich 18 gezielte Tests in vier Dateien. Ein früherer lokaler Smoke überschritt unter paralleler Last 120 Sekunden ohne Startsignal; ohne diese Last startete derselbe integrierte Quellstand. `npm audit --audit-level=critical` fand in der vorherigen CI 0 kritische Funde. Die beiden Codex-Live-Tests wurden separat früher erfolgreich ausgeführt. Ein früher nativer UI-Durchlauf speicherte Projekt, Karte, Notiz und manuellen Workflow. Danach wurde Rechnersteuerung auf Nutzerwunsch beendet; der Codex-Picker, Transkriptsuche-Klickpfad, Spalteneinstellungen, Prioritäts-/Label-Auswahl, Ordnerdialog, Responsive-Darstellung, Mikrofonoberfläche und Browser-Seite wurden nicht visuell geprüft.
 
-Für die neuen Spalteneinstellungen bestanden `npm run typecheck`, `npm run build` und 28 relevante Tests in sieben Dateien, darunter Migration, Persistenz, Validierung, CLI-Argumente, Vorrangregel und Renderer-Formular. Der gesamte Testlauf wurde nach einem langen Git-Status in einem anderen Test beendet; sein Ergebnis ist für diesen Stand nicht bestätigt. Lokales `codex exec --help` bestätigte die verwendeten `-m`, `-c` und `--approve-for-me`-Argumente. Ein echter Lauf mit je einem Modell-/Effort-Wert und ein sichtbarer UI-Durchlauf stehen noch aus; CLI- und Modellverfügbarkeit unterscheiden sich pro Nutzer.
+Lokales `codex exec --help` bestätigte die verwendeten `-m`, `-c` und `--approve-for-me`-Argumente. Ein echter Lauf mit je einem Modell-/Effort-Wert und ein sichtbarer UI-Durchlauf stehen noch aus; CLI- und Modellverfügbarkeit unterscheiden sich pro Nutzer.
 
 Für den Projektordner-Export bestanden zusätzlich sieben gezielte Memory-Tests mit synthetischen Notizen. Der echte Ordnerdialog wurde noch nicht visuell bedient.
 
@@ -27,12 +27,12 @@ Für den integrierten Trello-Label-Import bestanden zehn gezielte synthetische I
 
 Im isolierten Transkriptsuche-Zweig bestanden acht gezielte Datenbank- und UI-Routing-Tests, Typprüfung, Produktionsbuild und `npm audit --audit-level=critical` (0 Funde). Ein bestehender Git-Divergenztest traf dort unter paralleler Last ein Zeitlimit und bestand isoliert; die vollständige Kombination bestand danach lokal. Ein sichtbarer Klickpfad wurde wegen beendeter Rechnersteuerung nicht geprüft.
 
-Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44851935951](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44851935951) für `86a8355` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Start des gepackten Programms. Die neue Transkriptsuche ist darin noch nicht enthalten. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
+Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die hier fehlen. [Windows-CI 44853051581](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44853051581) für `7d07c65` bestand vollständig: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, portables ZIP und verdeckter Start des gepackten Programms. Die Spalteneinstellungen sind darin noch nicht enthalten. Ein früheres CI-ZIP startete auch auf dem Entwicklungslaptop; ZIP-Namen enthielten keine `.env`, Datenbank oder Browserprofile. Noch kein Installer oder signiertes Release.
 
 ## Nächster Schritt
 
-1. Transkriptsuche nach Public-Scan pushen und Windows-CI mit Paket-Smoke prüfen. Danach Agent/Modell/Effort direkt pro Board-Spalte integrieren.
-2. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
-3. Danach weitere Paritätsbausteine: zusätzliche CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
+1. Spalteneinstellungen nach Public-Scan pushen und Windows-CI mit Paket-Smoke prüfen.
+2. Reihenfolge von Karten innerhalb einer Spalte direkt im Board bearbeiten und in der Queue respektieren.
+3. Lokalen Trello-Import und Workflow-Route in einem echten UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist. Danach weitere CLI- und Importadapter sowie verfeinerte Queue-Steuerung.
 
 Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.
