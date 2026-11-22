@@ -89,4 +89,4 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 2. Lokalen Trello-Import und Workflow-Route in einem echten sichtbaren UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
 3. Langfristig sichere Sitzungswiederaufnahme nach CLI-/Netzausfall ohne doppelte externe Aktion entwickeln; aktuelle Pausenstrategie in [QUEUE.md](QUEUE.md) bleibt bis dahin maßgeblich.
 
-Der bisherige Jarvis-Kern bleibt während des Aufbaus dieser App pausiert. [PARITY.md](PARITY.md) nennt die offenen Funktionen und Abnahmekriterien.
+Der persönliche Jarvis-Kern und seine privaten Module werden getrennt von Jarvis Studio betreut. [PARITY.md](PARITY.md) nennt die offenen Studio-Funktionen und Abnahmekriterien.

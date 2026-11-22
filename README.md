@@ -1,6 +1,6 @@
 # Jarvis Studio
 
-Eigenständige lokale Windows-App für Projekte, Kanban-Boards, CLI-Agenten, Workflows, Browser und verknüpfte Notizen. Das Ziel ist zunächst Funktionsparität mit Kangentic und danach der Ausbau von Jarvis. Der Quellcode dieser App ist neu geschrieben; [die Paritätsliste](docs/PARITY.md) zeigt die noch offenen Funktionen.
+Eigenständige lokale Windows-App für Projekte, Kanban-Boards, CLI-Agenten, Workflows, Browser und verknüpfte Notizen. Das Ziel ist zunächst Funktionsparität mit Kangentic und danach der weitere Ausbau von Jarvis Studio. Der persönliche Jarvis-Assistent und seine Module sind separate Projekte. Der Quellcode dieser App ist neu geschrieben; [die Paritätsliste](docs/PARITY.md) zeigt die noch offenen Funktionen.
 
 ## Starten
 
@@ -44,4 +44,4 @@ Vor einer öffentlichen Veröffentlichung zusätzlich `node scripts/check-public
 
 ## Stand und Grenzen
 
-[STATUS.md](docs/STATUS.md) nennt den tatsächlich geprüften Stand. Die App ist eine frühe Entwicklungsfassung. Kangentic-Funktionen wie weitere Importquellen, Konflikt-Merge und Worktree-Aufräumen, weitere CLI-Adapter, Live-Diktat, kontrollierte Browsersteuerung durch Agenten, Remote-Mobilzugriff und automatische Knowledge-Graph-Indizierung stehen noch auf der [Paritätsliste](docs/PARITY.md). Die bisherige Jarvis-Implementierung bleibt während dieses Aufbaus pausiert.
+[STATUS.md](docs/STATUS.md) nennt den tatsächlich geprüften Stand. Die App ist eine frühe Entwicklungsfassung. Kangentic-Funktionen wie weitere Importquellen, Konflikt-Merge und Worktree-Aufräumen, weitere CLI-Adapter, Live-Diktat, kontrollierte Browsersteuerung durch Agenten, Remote-Mobilzugriff und automatische Knowledge-Graph-Indizierung stehen noch auf der [Paritätsliste](docs/PARITY.md). Die [technische Übergabe](docs/HANDOVER.md) beschreibt Einstieg und nächsten Schritt für eine neue Studio-Entwicklungsinstanz. Der persönliche Jarvis-Assistent und seine privaten Module sind separate Projekte; diese Studio-Übergabe umfasst sie nicht.

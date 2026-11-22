@@ -38,6 +38,6 @@ Die sechs Punkte sind **erst nach Tests und einem echten UI-Durchlauf** als fert
 1. Desktop-Kern: Datenmodell, IPC, PTY, Board, Agentenwahl, erste Route, manuelle Notizen, lokales Transkript.
 2. Zuverlässigkeit: Warteschlange, Dauerzustand, Resume je CLI, Testgates, Retry/Backoff, Undo und Abbruch.
 3. Parität der Arbeitsmittel: Backlog/Import, Git-Worktrees, Automationen, Browser, Suche, Quellen, Einstellungen und Konten.
-4. Jarvis-Ausbau: allgemeines Gespräch, freigegebene persönliche Module und Obsidian-artiges Langzeitgedächtnis mit belegbaren Quellen.
+4. Studio-Ausbau über Kangentic hinaus: bessere Agentenkoordination und quellenbelegtes Projektgedächtnis. Der persönliche Jarvis-Assistent und seine Module werden in getrennten Projekten von Codex betreut; diese Paritätsliste überträgt sie nicht an den Studio-Agenten.
 
 Persönliche Zugangsdaten und Modulzustände gehören in einen lokalen Datenordner oder private Pakete. Das öffentliche Repository enthält nur allgemeine Implementierung und synthetische Testdaten.
