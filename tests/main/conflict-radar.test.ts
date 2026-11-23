@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { changedPaths, reviewCardConflicts } from '../../src/main/conflict-radar';
@@ -70,6 +70,17 @@ describe('conflict radar', () => {
     writeFileSync(join(secondTree.path, 'new.txt'), 'second untracked');
     expect((await reviewCardConflicts(store, first.id, store.runningSessionsForProject(project.id))).peers[0]?.commonPaths).toContain('new.txt');
     await expect(changedPaths(firstTree.path, join(firstTree.path, '..', '..', '..', 'does-not-exist'))).rejects.toThrow('Git-Status');
+    store.close();
+  });
+
+  it('tracks both sides of a working-tree rename so an edit of the old path still warns', async () => {
+    const { store, project, first, firstTree, secondTree } = fixture();
+    renameSync(join(firstTree.path, 'shared.txt'), join(firstTree.path, 'renamed.txt'));
+    writeFileSync(join(secondTree.path, 'shared.txt'), 'second edits the old name');
+    const result = await reviewCardConflicts(store, first.id, store.runningSessionsForProject(project.id));
+    expect(result.state).toBe('overlap');
+    expect(result.peers[0]).toMatchObject({ state: 'overlap', commonPaths: ['shared.txt'] });
+    expect(await changedPaths(firstTree.path, project.path)).toEqual(new Set(['shared.txt', 'renamed.txt']));
     store.close();
   });
 

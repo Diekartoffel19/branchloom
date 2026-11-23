@@ -10,7 +10,7 @@ import { validateWorkflowProposal } from './workflow-proposal';
 const PLANNER_TIMEOUT_MS = 90_000;
 const MAX_PLANNER_OUTPUT = 200_000;
 
-export interface PlannerInvocation { executable: string; args: string[]; cwd: string; outputPath: string }
+export interface PlannerInvocation { executable: string; args: string[]; cwd: string; outputPath: string; stdin?: string }
 export type PlannerExecutor = (invocation: PlannerInvocation) => Promise<void>;
 
 /** No shell, no inherited project MCP configuration, and a hard timeout. */
@@ -25,9 +25,9 @@ export const executePlanner: PlannerExecutor = (invocation) => new Promise<void>
     if (error) reject(new Error(`Workflow agent failed or timed out (${String((error as NodeJS.ErrnoException).code ?? 'unknown')}). Review its CLI login and model settings.`));
     else resolve();
   });
-  // Codex exec sees piped stdin as additional prompt input. An open pipe makes
-  // it wait forever after its positional prompt; close it immediately.
-  child.stdin?.end();
+  // Codex reads the prompt from stdin when args end in '-'. Close the pipe
+  // immediately after writing it, also for calls using a positional prompt.
+  child.stdin?.end(invocation.stdin ?? '');
 });
 
 function outputSchema(columnIds: string[]): Record<string, unknown> {
@@ -78,7 +78,7 @@ export async function proposeWorkflow(
       `User request: ${input.request.trim()}`,
     ].join('\n\n');
     const model = settings.model ?? preset.model;
-    const args = [...launcher.prefixArgs, 'exec', '--ignore-user-config', '--sandbox', 'read-only', '--skip-git-repo-check', '--output-schema', schemaPath, '--output-last-message', outputPath];
+    const args = [...launcher.prefixArgs, 'exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check', '--output-schema', schemaPath, '--output-last-message', outputPath];
     if (model) args.push('--model', model);
     if (settings.effort) args.push('--config', `model_reasoning_effort="${settings.effort}"`);
     // Preset CLI flags may contain permission overrides. The planner uses a

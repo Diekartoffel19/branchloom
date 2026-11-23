@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Inbox, Moon, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Inbox, Moon, Network, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
 import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
@@ -18,7 +18,9 @@ import { decisionItems } from './decision-inbox';
 import './theme.css';
 import './brand.css';
 
-type View = 'board' | 'activity' | 'workflows' | 'decisions' | 'memory' | 'agents' | 'terminal' | 'browser';
+const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
+
+type View = 'board' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'agents' | 'terminal' | 'browser';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
 
 const views: { id: View; name: string; icon: typeof Columns3 }[] = [
@@ -26,6 +28,7 @@ const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
   { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
+  { id: 'whiteboard', name: 'Whiteboard', icon: Network },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
   { id: 'agents', name: 'Agenten', icon: Bot },
   { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
@@ -49,6 +52,7 @@ export function App() {
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const viewAreaRef = useRef<HTMLDivElement>(null);
   const focusBeforeSearch = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
@@ -56,6 +60,10 @@ export function App() {
     document.documentElement.style.colorScheme = theme;
     persistTheme(theme);
   }, [theme]);
+
+  useLayoutEffect(() => {
+    if (viewAreaRef.current) viewAreaRef.current.scrollTop = 0;
+  }, [view, projectId]);
 
   useEffect(() => {
     if (view !== 'workflows' || queueNavigationToken === 0) return;
@@ -99,6 +107,7 @@ export function App() {
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        if (document.querySelector('[aria-modal="true"]')) return;
         event.preventDefault();
         if (snapshot?.project.id === projectId && !creatingProject) openSearch();
       }
@@ -272,11 +281,12 @@ export function App() {
 
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
-      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
+      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
         {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} /> : null}
+        {view === 'whiteboard' ? <Suspense fallback={<div className="content-message">Whiteboard wird geladen…</div>}><WhiteboardView snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} /></Suspense> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
         {view === 'terminal' ? <CommandTerminalView projectId={snapshot.project.id} /> : null}

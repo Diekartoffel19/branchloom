@@ -6,6 +6,7 @@ import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
+import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 
@@ -31,15 +32,33 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const [conflictRadar, setConflictRadar] = useState<ConflictRadarResult | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState('');
+  const conflictRequest = useRef(0);
+  const conflictInFlight = useRef(false);
+  const conflictSessionKey = useRef('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
+  useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
-  const session = sessions[0] ?? null;
-  useEffect(() => { setConflictRadar(null); }, [session?.id]);
+  const session = sessions.find((item) => item.state === 'running') ?? sessions[0] ?? null;
+  useEffect(() => {
+    // A drawer can stay open across periodic snapshots. Check at most once per
+    // 30 seconds, while its current agent is running, without blocking renders.
+    const key = `${card.id}:${session?.id ?? ''}:${session?.state ?? ''}`;
+    if (conflictSessionKey.current !== key) {
+      conflictSessionKey.current = key;
+      conflictRequest.current += 1;
+      conflictInFlight.current = false;
+      setConflictRadar(null);
+      setConflictError('');
+      setConflictBusy(false);
+    }
+    const stop = startConflictRadarRefresh(session?.state === 'running', () => { void reviewConflicts(); });
+    return stop;
+  }, [card.id, session?.id, session?.state]);
   const sessionAgent = session ? snapshot.agents.find((item) => item.id === session.agentId) : null;
   const enabledAgents = snapshot.agents.filter((item) => item.enabled);
   const defaultAgentId = snapshot.columns.find((column) => column.id === card.columnId)?.agentId ?? enabledAgents[0]?.id ?? '';
@@ -60,10 +79,24 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   }
 
   async function reviewConflicts() {
-    setConflictBusy(true); setConflictError(''); setConflictRadar(null);
-    try { setConflictRadar(await window.studio.reviewCardConflicts(card.id)); }
-    catch (reason) { setConflictError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setConflictBusy(false); }
+    if (conflictInFlight.current) return;
+    conflictInFlight.current = true;
+    const request = ++conflictRequest.current;
+    setConflictBusy(true); setConflictError('');
+    try {
+      const result = await window.studio.reviewCardConflicts(card.id);
+      if (request === conflictRequest.current) setConflictRadar(result);
+    } catch (reason) {
+      if (request === conflictRequest.current) {
+        setConflictRadar(null);
+        setConflictError(reason instanceof Error ? reason.message : String(reason));
+      }
+    } finally {
+      if (request === conflictRequest.current) {
+        conflictInFlight.current = false;
+        setConflictBusy(false);
+      }
+    }
   }
 
   async function mergeWorktree() {
@@ -170,6 +203,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
         <div className="agent-actions"><button className="secondary-button" type="button" disabled={worktreeBusy} onClick={() => void reviewWorktree()}>{worktreeBusy ? 'Prüfe…' : 'Git-Stand prüfen'}</button><button className="secondary-button" type="button" disabled={conflictBusy} onClick={() => void reviewConflicts()}>{conflictBusy ? 'Prüfe…' : 'Parallele Änderungen prüfen'}</button></div>
+        {session?.state === 'running' ? <p className="run-meta">Bei geöffneter Karte wird das Konflikt-Radar etwa alle 30 Sekunden automatisch aktualisiert.</p> : null}
         {worktreeError ? <p className="inline-error" role="alert">{worktreeError}</p> : null}
         {conflictError ? <p className="inline-error" role="alert">Konflikt-Radar: {conflictError}</p> : null}
         {conflictRadar ? <ConflictRadarNotice result={conflictRadar} /> : null}

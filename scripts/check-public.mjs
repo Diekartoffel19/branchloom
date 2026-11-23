@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
 
 const files = execFileSync('git', ['ls-files', '--cached', '-z'], { encoding: 'utf8' })
   .split('\0').filter(Boolean);
@@ -27,8 +26,12 @@ for (const file of files) {
     failures.push(`${file}: forbidden path`);
     continue;
   }
-  if (!existsSync(file)) continue;
-  checkContent(file, readFileSync(file, 'utf8'));
+  // Review the exact blob that would be committed. A clean working-tree copy
+  // must not hide sensitive content already staged in Git's index.
+  const content = execFileSync('git', ['show', `:${file}`], {
+    encoding: 'utf8', maxBuffer: 11 * 1024 * 1024,
+  });
+  checkContent(file, content);
 }
 
 // A token committed and then deleted is still publishable through Git history.

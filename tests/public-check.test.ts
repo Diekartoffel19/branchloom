@@ -36,6 +36,25 @@ describe('public repository guard', () => {
     expect(result.output).not.toContain(token);
   });
 
+  it('checks the staged blob even when the working tree has been cleaned', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'branchloom-index-'));
+    temporary.push(dir);
+    const token = 'sk-' + 'i'.repeat(24);
+    const file = join(dir, 'config.ts');
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+      if (result.status !== 0) throw new Error(result.stderr);
+    };
+    git('init', '-q');
+    writeFileSync(file, `export default '${token}';\n`);
+    git('add', 'config.ts');
+    writeFileSync(file, 'export default "safe";\n');
+    const result = spawnSync(process.execPath, [guard], { cwd: dir, encoding: 'utf8' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('sensitive content pattern');
+    expect(result.stderr).not.toContain(token);
+  });
+
   it('rejects a tracked credential file by path', () => {
     expect(checkedFile('.env', 'PLACEHOLDER=yes\n').status).toBe(1);
   });

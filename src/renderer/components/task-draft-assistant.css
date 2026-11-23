@@ -1,0 +1,21 @@
+.task-draft-backdrop { z-index: 30; }
+.task-draft-panel { width: min(640px, calc(100vw - 2rem)); max-height: min(900px, calc(100vh - 2rem)); overflow: auto; margin: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 24px 65px rgb(30 28 23 / 22%); }
+.task-draft-content { display: grid; gap: 1rem; padding: 1.25rem; }
+.task-draft-turns { display: grid; gap: .65rem; max-height: 260px; overflow: auto; }
+.task-draft-turn { padding: .8rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.task-draft-turn.user { margin-left: 2rem; }
+.task-draft-turn.assistant { margin-right: 2rem; }
+.task-draft-turn strong { display: block; margin-bottom: .3rem; font-size: .75rem; }
+.task-draft-turn p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-draft-ask, .task-draft-spec { display: grid; gap: .75rem; }
+.task-draft-ask label, .task-draft-spec label { display: grid; gap: .35rem; }
+.task-draft-ask button, .task-draft-spec button { justify-self: start; }
+.task-draft-spec { padding-top: 1rem; border-top: 1px solid var(--border); }
+.task-draft-spec h3 { margin: 0; }
+@media (max-width: 420px) {
+  .task-draft-panel { width: calc(100vw - 1rem); max-height: calc(100vh - 1rem); }
+  .task-draft-content { padding: 1rem; }
+  .task-draft-turn.user { margin-left: 1rem; }
+  .task-draft-turn.assistant { margin-right: 1rem; }
+  .task-draft-ask button, .task-draft-spec button { width: 100%; justify-content: center; }
+}

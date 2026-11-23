@@ -1,4 +1,5 @@
 import type { ConflictRadarResult } from './conflict-radar';
+import type { DraftTurn, TaskDraftReply } from './task-draft';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -7,6 +8,10 @@ export type CardPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 export type ColumnEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 export interface Project { id: string; name: string; path: string; createdAt: string }
+export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'folder' | 'file'; path: string };
+export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
+export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string }
+export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' };
@@ -48,6 +53,14 @@ export interface StudioAPI {
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
+  whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
+  previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;
+  acceptRepoMap(input: { projectId: string; fingerprint: string; nodeIds: string[] }): Promise<import('./repo-map').RepoMapImportResult>;
+  createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
+  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
+  deleteWhiteboardNode(input: { projectId: string; id: string }): Promise<void>;
+  createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string }): Promise<WhiteboardEdge>;
+  deleteWhiteboardEdge(input: { projectId: string; id: string }): Promise<void>;
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   reorderColumn(input: { id: string; direction: 'left' | 'right' }): Promise<Column>;
@@ -89,6 +102,7 @@ export interface StudioAPI {
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;
   proposeWorkflow(input: { projectId: string; request: string }): Promise<WorkflowProposal>;
+  discussTaskDraft(input: { projectId: string; turns: DraftTurn[] }): Promise<TaskDraftReply>;
   acceptWorkflowProposal(input: { projectId: string; proposal: WorkflowProposal }): Promise<Workflow>;
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;

@@ -13,10 +13,13 @@ import { reviewCardConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
+import { createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
 import { proposeWorkflow } from './workflow-planner';
+import { discussTaskDraft } from './task-draft';
 import { transcribeAudio } from './voice/transcribe';
 
 let window: BrowserWindow | null = null;
@@ -112,6 +115,14 @@ function installIpc(): void {
     return created;
   });
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
+  bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
+  bind('previewRepoMap', (projectId: string) => previewRepoMap(db, projectId));
+  bind('acceptRepoMap', (input: Parameters<StudioAPI['acceptRepoMap']>[0]) => acceptRepoMap(db, input));
+  bind('createWhiteboardNode', (input: Parameters<StudioAPI['createWhiteboardNode']>[0]) => createWhiteboardNode(db, input));
+  bind('updateWhiteboardNode', (input: Parameters<StudioAPI['updateWhiteboardNode']>[0]) => updateWhiteboardNode(db, input));
+  bind('deleteWhiteboardNode', (input: Parameters<StudioAPI['deleteWhiteboardNode']>[0]) => deleteWhiteboardNode(db, input));
+  bind('createWhiteboardEdge', (input: Parameters<StudioAPI['createWhiteboardEdge']>[0]) => createWhiteboardEdge(db, input));
+  bind('deleteWhiteboardEdge', (input: Parameters<StudioAPI['deleteWhiteboardEdge']>[0]) => deleteWhiteboardEdge(db, input));
   bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));
   bind('updateColumn', (input: Parameters<StudioAPI['updateColumn']>[0]) => db.updateColumn(input));
   bind('reorderColumn', (input: Parameters<StudioAPI['reorderColumn']>[0]) => db.reorderColumn(input));
@@ -200,6 +211,7 @@ function installIpc(): void {
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));
   bind('proposeWorkflow', (input: { projectId: string; request: string }) => proposeWorkflow(db, input));
+  bind('discussTaskDraft', (input: Parameters<StudioAPI['discussTaskDraft']>[0]) => discussTaskDraft(db, input));
   bind('acceptWorkflowProposal', (input: { projectId: string; proposal: WorkflowProposal }) => db.acceptWorkflowProposal(input));
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
@@ -316,6 +328,9 @@ function createWindow(): void {
           const todo = initial.columns.find((column) => column.name === 'To Do');
           if (!todo || initial.columns.length < 3) throw new Error('Standardspalten fehlen.');
           const card = await window.studio.createCard({ projectId: project.id, columnId: todo.id, title: 'Smoke-Karte' });
+          const wbFolder = await window.studio.createWhiteboardNode({ projectId: project.id, title: 'Smoke-Ordner', x: 10, y: 20, reference: { kind: 'folder', path: '.' } });
+          const wbCard = await window.studio.createWhiteboardNode({ projectId: project.id, title: 'Smoke-Aufgabe', x: 220, y: 20, reference: { kind: 'card', cardId: card.id } });
+          await window.studio.createWhiteboardEdge({ projectId: project.id, sourceId: wbFolder.id, targetId: wbCard.id, label: 'gehört zu' });
           await window.studio.reorderColumn({ id: initial.columns[1].id, direction: 'right' });
           await window.studio.updateColumn({ id: initial.columns[2].id, name: 'Smoke-Umbenannt' });
           const removable = await window.studio.createColumn({ projectId: project.id, name: 'Smoke-Leer' });
@@ -381,6 +396,37 @@ function createWindow(): void {
               const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);
               const renderedColumns = [...document.querySelectorAll('.board-column .column-title h3')].map((item) => item.textContent);
               if (JSON.stringify(renderedColumns) !== JSON.stringify(storedColumns)) throw new Error('Gespeicherte Spaltenreihenfolge wurde nach Reload nicht gerendert.');
+              const discussion = [...document.querySelectorAll('.board-header-actions button')].find((item) => item.textContent?.includes('Aufgabe besprechen'));
+              if (!discussion) throw new Error('Aufgabenklärung fehlt im Board.');
+              discussion.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"]')) throw new Error('Aufgabenklärung öffnete sich nicht.');
+              document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"] button[aria-label="Schließen"]')?.click();
+              const whiteboardNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'));
+              if (!whiteboardNav) throw new Error('Whiteboard-Navigation fehlt.');
+              whiteboardNav.click();
+              let whiteboardReady = false;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                whiteboardReady = Boolean(document.querySelector('.wb-canvas') && document.querySelector('.wb-inspector') && document.querySelector('.wb-node'));
+                if (whiteboardReady) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              const whiteboard = await window.studio.whiteboard(boardProject.id);
+              if (!whiteboardReady || whiteboard.nodes.length !== 2 || whiteboard.edges.length !== 1) throw new Error('Whiteboard-Boxen oder Verbindungen wurden nach Reload nicht angezeigt/gespeichert.');
+              const linkedNode = [...document.querySelectorAll('.wb-node')].find((item) => item.textContent?.includes('Smoke-Aufgabe'));
+              if (!linkedNode) throw new Error('Verknüpfte Whiteboard-Box fehlt im Canvas.');
+              linkedNode.click();
+              let openLinkedCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                openLinkedCard = [...document.querySelectorAll('.wb-inspector button')].find((item) => item.textContent?.includes('Karte öffnen'));
+                if (openLinkedCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!openLinkedCard) throw new Error('Whiteboard-Kartenlink fehlt im Inspector.');
+              openLinkedCard.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-drawer')?.textContent?.includes('Smoke-Karte')) throw new Error('Whiteboard-Kartenlink öffnete nicht die Karte.');
+              document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               const workflowNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Workflows'));
               if (!workflowNav) throw new Error('Workflow-Navigation fehlt.');
               workflowNav.click();

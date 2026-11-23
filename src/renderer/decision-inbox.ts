@@ -3,10 +3,23 @@ import type { ProjectSnapshot, Workflow } from '../shared/types';
 export interface DecisionItem {
   id: string;
   kind: 'workflow' | 'queue';
+  category: 'approval' | 'manual' | 'review' | 'paused';
   title: string;
   reason: string;
   context: string | null;
+  nextAction: string;
+  updatedAt: string | null;
   workflowId: string | null;
+}
+
+export type DecisionFilter = 'all' | DecisionItem['category'];
+
+export function filterDecisionItems(items: DecisionItem[], category: DecisionFilter, query: string): DecisionItem[] {
+  const search = query.trim().toLocaleLowerCase('de');
+  return items.filter((item) =>
+    (category === 'all' || item.category === category)
+    && (!search || [item.title, item.reason, item.context, item.nextAction].some((value) => value?.toLocaleLowerCase('de').includes(search))),
+  );
 }
 
 function workflowTitle(workflow: Workflow): string {
@@ -23,21 +36,33 @@ function workflowReason(workflow: Workflow): string {
   return 'Der Workflow ist pausiert. Prüfe den Verlauf vor dem Fortsetzen.';
 }
 
+function workflowNextAction(workflow: Workflow): string {
+  if (workflow.pauseReason === 'approval') return 'Prüfe den nächsten Schritt im Workflow und gib ihn dort ausdrücklich frei.';
+  if (workflow.pauseReason === 'manual') return 'Erledige oder prüfe die Handarbeit; bestätige den Schritt erst danach im Workflow.';
+  if (workflow.pauseReason === 'review') return 'Prüfe das Agentenergebnis und den Verlauf, bevor du den Schritt erneut startest.';
+  return 'Prüfe den bisherigen Verlauf, bevor du den Workflow fortsetzt.';
+}
+
 /** Only persisted, actionable pause states enter the inbox. No model text is inferred. */
 export function decisionItems(snapshot: ProjectSnapshot): DecisionItem[] {
+  const columns = new Map(snapshot.columns.map((column) => [column.id, column]));
+  const cards = new Map(snapshot.cards.map((card) => [card.id, card]));
+  const agents = new Map(snapshot.agents.map((agent) => [agent.id, agent]));
   const workflows = snapshot.workflows
     .filter((workflow) => workflow.state === 'paused' && !workflow.queueSkip)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .map((workflow): DecisionItem => {
       const step = workflow.steps[workflow.currentStep];
-      const column = step ? snapshot.columns.find((item) => item.id === step.columnId) : null;
+      const column = step ? columns.get(step.columnId) : null;
       const cardNames = workflow.cardIds
-        .map((id) => snapshot.cards.find((card) => card.id === id)?.title)
+        .map((id) => cards.get(id)?.title)
         .filter((name): name is string => Boolean(name));
-      const parts = [step ? `Schritt ${workflow.currentStep + 1} von ${workflow.steps.length}` : null, column?.name, cardNames.length ? `Karten: ${cardNames.slice(0, 3).join(', ')}${cardNames.length > 3 ? ` und ${cardNames.length - 3} weitere` : ''}` : null];
+      const agent = step?.agentId ? agents.get(step.agentId) : null;
+      const parts = [step ? `Schritt ${workflow.currentStep + 1} von ${workflow.steps.length}` : null, column?.name, step ? (agent?.name ?? (step.agentId ? 'Agent nicht mehr vorhanden' : 'Ohne Agent')) : null, cardNames.length ? `Karten: ${cardNames.slice(0, 3).join(', ')}${cardNames.length > 3 ? ` und ${cardNames.length - 3} weitere` : ''}` : null];
       return {
-        id: `workflow:${workflow.id}`, kind: 'workflow', title: workflowTitle(workflow),
+        id: `workflow:${workflow.id}`, kind: 'workflow', category: workflow.pauseReason === 'approval' || workflow.pauseReason === 'manual' || workflow.pauseReason === 'review' ? workflow.pauseReason : 'paused', title: workflowTitle(workflow),
         reason: workflowReason(workflow), context: parts.filter(Boolean).join(' · ') || null,
+        nextAction: workflowNextAction(workflow), updatedAt: workflow.updatedAt,
         workflowId: workflow.id,
       };
     });
@@ -46,8 +71,13 @@ export function decisionItems(snapshot: ProjectSnapshot): DecisionItem[] {
   return [
     {
       id: 'queue', kind: 'queue', title: 'Warteschlange pausiert',
+      category: 'paused',
       reason: snapshot.queue.pauseReason?.trim() || 'Die Warteschlange ist pausiert. Prüfe ihre Route und den aktiven Ablauf vor dem Fortsetzen.',
       context: active ? `Aktiver Ablauf: ${active.name}` : null,
+      nextAction: active?.state === 'paused' && !active.queueSkip
+        ? 'Prüfe zuerst den aktiven Workflow. Die Warteschlange bleibt bis zu deiner Entscheidung angehalten.'
+        : 'Prüfe den Queue-Status und die nächste Karte vor dem Fortsetzen.',
+      updatedAt: snapshot.queue.updatedAt,
       workflowId: active?.id ?? null,
     },
     ...workflows,

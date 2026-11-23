@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bot, Check, FileJson2, GripVertical, Pencil, Plus, Search, Terminal, Trash2, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bot, Check, FileJson2, GripVertical, MessageCircle, Pencil, Plus, Search, Terminal, Trash2, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
 import type { Mutate } from './shared';
 import { CardPanel } from './CardPanel';
 import { TrelloImportPanel } from './TrelloImportPanel';
+import { TaskDraftAssistant } from './TaskDraftAssistant';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
@@ -29,6 +30,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const [title, setTitle] = useState('');
   const [newColumn, setNewColumn] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showTaskDraft, setShowTaskDraft] = useState(false);
   const [query, setQuery] = useState('');
   const [filterColumnId, setFilterColumnId] = useState('');
   const [visibility, setVisibility] = useState<BoardVisibility>('active');
@@ -144,7 +146,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   }
 
   return <div className="board-page">
-    <div className="view-header"><div><h2>Planen und ausführen</h2><p>Karten ordnen, Agenten zuweisen und Ergebnisse prüfen.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello-JSON importieren</button></div></div>
+    <div className="view-header"><div><h2>Planen und ausführen</h2><p>Karten ordnen, Agenten zuweisen und Ergebnisse prüfen.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)}><MessageCircle size={16} /> Aufgabe besprechen</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello-JSON importieren</button></div></div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
       <label className="board-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Karten suchen…" aria-label="Karten suchen" aria-describedby="board-filter-help" /></label>
       <label><span className="sr-only">Spalte filtern</span><select value={filterColumnId} onChange={(event) => setFilterColumnId(event.target.value)} aria-label="Spalte filtern"><option value="">Alle Spalten</option>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
@@ -175,6 +177,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
     {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={() => setSelectedId(null)} /> : null}
+    {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); setSelectedId(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
   </div>;
 }

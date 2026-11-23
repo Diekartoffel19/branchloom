@@ -11,6 +11,7 @@ import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
 import { parseProjectPackage, type ProjectPackageV1 } from './project-package';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
+import { installWhiteboard } from './whiteboard';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -97,6 +98,7 @@ export class StudioStore {
     const columnColumns = this.db.pragma('table_info(columns)') as Array<{ name: string }>;
     if (!columnColumns.some((item) => item.name === 'model')) this.db.exec('ALTER TABLE columns ADD COLUMN model TEXT');
     if (!columnColumns.some((item) => item.name === 'effort')) this.db.exec('ALTER TABLE columns ADD COLUMN effort TEXT');
+    installWhiteboard(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

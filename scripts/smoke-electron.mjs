@@ -33,7 +33,7 @@ child.on('error', (error) => {
 child.on('exit', (code) => {
   clearTimeout(timeout);
   if (code === 0 && stdout.includes('STUDIO_SMOKE_OK')) {
-    console.log(`${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, lokales Terminal und Agenten-PTY, Board und Memory-Übernahme erfolgreich.`);
+    console.log(`${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Aufgabenklärung, Whiteboard und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Startsignal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
     console.error(stderr.slice(-2000) || stdout.slice(-2000));
