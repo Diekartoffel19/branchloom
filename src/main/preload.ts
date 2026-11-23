@@ -41,6 +41,7 @@ const studio: StudioAPI = {
   saveAgent: (input) => invoke('saveAgent', input),
   startSession: (input) => invoke('startSession', input),
   resumeCodexSession: (input) => invoke('resumeCodexSession', input),
+  acknowledgeInterruptedSession: (input) => invoke('acknowledgeInterruptedSession', input),
   sendSession: (input) => invoke('sendSession', input),
   writeSessionInput: (input) => invoke('writeSessionInput', input),
   resizeSession: (input) => invoke('resizeSession', input),

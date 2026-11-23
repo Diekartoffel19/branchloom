@@ -205,11 +205,18 @@ export function App() {
     if (!snapshot) return;
     try {
       setError('');
-      await window.studio.sessionForProject({ projectId: snapshot.project.id, sessionId });
+      const found = await window.studio.sessionForProject({ projectId: snapshot.project.id, sessionId });
+      setSnapshot((old) => old && old.project.id === found.projectId && !old.sessions.some((item) => item.id === found.id)
+        ? { ...old, sessions: [found, ...old.sessions] } : old);
       navigateToEntity('session', sessionId);
     } catch {
       setError('Der Quellverlauf ist in diesem Projekt nicht mehr vorhanden.');
     }
+  }
+
+  async function acknowledgeInterruptedSession(sessionId: string) {
+    if (!snapshot || !window.confirm('Hast du den gespeicherten Verlauf und die betroffenen Projektdateien geprüft? Das Quittieren startet keinen Agenten und löst einen pausierten Workflow nicht auf.')) return;
+    await mutate(() => window.studio.acknowledgeInterruptedSession({ projectId: snapshot.project.id, sessionId }));
   }
 
   useEffect(() => {
@@ -329,7 +336,7 @@ export function App() {
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
-        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} /> : null}
+        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} /> : null}
         {view === 'whiteboard' ? <Suspense fallback={<div className="content-message">Whiteboard wird geladen…</div>}><WhiteboardView snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} /></Suspense> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}

@@ -20,6 +20,7 @@ export interface CardAttachment { id: string; cardId: string; name: string; size
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'antigravity' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
+export interface InterruptedSessionReview { sessionId: string; projectId: string; cardId: string; cardTitle: string; agentName: string; interruptedAt: string; worktreePath: string | null }
 export type CommandShell = 'powershell' | 'cmd';
 export interface CommandTerminal { id: string; projectId: string; shell: CommandShell; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string }
 export interface CommandTerminalEvent { terminalId: string; projectId: string; type: 'output' | 'state'; data: string; state?: SessionState }
@@ -36,7 +37,7 @@ export interface MemoryVaultImportPreview { token: string; directoryName: string
 export interface MemoryVaultImportResult { count: number }
 export interface ProjectPackagePreview { fingerprint: string; name: string; columns: number; cards: number; notes: number; workflows: number }
 export interface ProjectPackageExportResult { file: string; columns: number; cards: number; notes: number; workflows: number }
-export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
+export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; interruptedSessions?: InterruptedSessionReview[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
 export interface BrowserTabState { id: string; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
@@ -85,6 +86,7 @@ export interface StudioAPI {
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   resumeCodexSession(input: { sessionId: string }): Promise<Session>;
+  acknowledgeInterruptedSession(input: { projectId: string; sessionId: string }): Promise<void>;
   sendSession(input: { sessionId: string; text: string }): Promise<void>;
   writeSessionInput(input: { sessionId: string; data: string }): Promise<void>;
   resizeSession(input: { sessionId: string; cols: number; rows: number }): Promise<void>;

@@ -90,4 +90,26 @@ describe('decision inbox', () => {
     const html = renderToStaticMarkup(createElement(App));
     expect(html).toContain('Entscheidungen');
   });
+
+  it('shows a persisted interruption with inspect and explicit review actions', () => {
+    const interrupted = {
+      sessionId: 'interrupted', projectId: snapshot.project.id, cardId: 'card',
+      cardTitle: 'Karte prüfen', agentName: 'Synthetischer Agent', interruptedAt: date,
+      worktreePath: 'C:\\synthetic\\worktree',
+    };
+    const source = { ...snapshot, workflows: [], queue: { ...snapshot.queue, state: 'off' as const }, interruptedSessions: [interrupted] };
+    const items = decisionItems(source);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ id: 'session:interrupted', kind: 'session', category: 'review', sessionId: 'interrupted', cardId: 'card' });
+    expect(items[0].reason).toContain('nicht automatisch wiederholt');
+    expect(filterDecisionItems(items, 'review', 'Karte prüfen')).toHaveLength(1);
+    const html = renderToStaticMarkup(createElement(DecisionInbox, {
+      snapshot: source, onOpenWorkflow: () => undefined, onOpenQueue: () => undefined,
+      onOpenSession: () => undefined, onOpenCard: () => undefined, onAcknowledgeSession: () => undefined,
+    }));
+    expect(html).toContain('Verlauf prüfen');
+    expect(html).toContain('Karte und Dateien öffnen');
+    expect(html).toContain('Prüfung abgeschlossen');
+    expect(html).not.toContain('Queue fortsetzen');
+  });
 });

@@ -2,7 +2,7 @@ import type { ProjectSnapshot, Workflow } from '../shared/types';
 
 export interface DecisionItem {
   id: string;
-  kind: 'workflow' | 'queue';
+  kind: 'workflow' | 'queue' | 'session';
   category: 'approval' | 'manual' | 'review' | 'paused';
   title: string;
   reason: string;
@@ -10,6 +10,8 @@ export interface DecisionItem {
   nextAction: string;
   updatedAt: string | null;
   workflowId: string | null;
+  sessionId: string | null;
+  cardId: string | null;
 }
 
 export type DecisionFilter = 'all' | DecisionItem['category'];
@@ -64,9 +66,18 @@ export function decisionItems(snapshot: ProjectSnapshot): DecisionItem[] {
         reason: workflowReason(workflow), context: parts.filter(Boolean).join(' · ') || null,
         nextAction: workflowNextAction(workflow), updatedAt: workflow.updatedAt,
         workflowId: workflow.id,
+        sessionId: null, cardId: null,
       };
     });
-  if (snapshot.queue.state !== 'paused') return workflows;
+  const interruptions: DecisionItem[] = (snapshot.interruptedSessions ?? []).map((item) => ({
+    id: `session:${item.sessionId}`, kind: 'session', category: 'review',
+    title: `Unterbrochener Agentenlauf: ${item.cardTitle}`,
+    reason: 'Branchloom wurde während dieses Laufs beendet. Ob eine Datei oder externe Aktion bereits geändert wurde, ist nicht sicher. Der Auftrag wird nicht automatisch wiederholt.',
+    context: `${item.agentName} · Karte: ${item.cardTitle}${item.worktreePath ? ' · Git-Worktree vorhanden' : ''}`,
+    nextAction: 'Prüfe den gespeicherten Verlauf und die Projektdateien. Öffne bei Codex bei Bedarf bewusst den Gesprächs-Picker. Quittiere die Unterbrechung erst danach.',
+    updatedAt: item.interruptedAt, workflowId: null, sessionId: item.sessionId, cardId: item.cardId,
+  }));
+  if (snapshot.queue.state !== 'paused') return [...interruptions, ...workflows];
   const active = snapshot.workflows.find((workflow) => workflow.id === snapshot.queue.activeWorkflowId);
   return [
     {
@@ -79,7 +90,9 @@ export function decisionItems(snapshot: ProjectSnapshot): DecisionItem[] {
         : 'Prüfe den Queue-Status und die nächste Karte vor dem Fortsetzen.',
       updatedAt: snapshot.queue.updatedAt,
       workflowId: active?.id ?? null,
+      sessionId: null, cardId: null,
     },
+    ...interruptions,
     ...workflows,
   ];
 }

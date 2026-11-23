@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { normalizedWorkflowStep, workflowStepSettings } from '../shared/workflow-step-settings';
@@ -93,6 +93,9 @@ export class StudioStore {
     `);
     const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
     if (!sessionColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE sessions ADD COLUMN worktree_path TEXT');
+    if (!sessionColumns.some((item) => item.name === 'interrupted_at')) this.db.exec('ALTER TABLE sessions ADD COLUMN interrupted_at TEXT');
+    if (!sessionColumns.some((item) => item.name === 'interruption_reviewed_at')) this.db.exec('ALTER TABLE sessions ADD COLUMN interruption_reviewed_at TEXT');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_interruption ON sessions(project_id, interrupted_at DESC) WHERE interrupted_at IS NOT NULL AND interruption_reviewed_at IS NULL');
     const cardColumns = this.db.pragma('table_info(cards)') as Array<{ name: string }>;
     if (!cardColumns.some((item) => item.name === 'archived_at')) this.db.exec('ALTER TABLE cards ADD COLUMN archived_at TEXT');
     if (!cardColumns.some((item) => item.name === 'priority')) this.db.exec("ALTER TABLE cards ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'");
@@ -115,8 +118,9 @@ export class StudioStore {
     }
     // A process crash cannot leave an old PTY marked live. Restarting an agent
     // is a deliberate action; a possibly completed external write is never replayed.
-    this.db.prepare("UPDATE sessions SET state = 'failed', ended_at = ?, output = substr(output || ?, -200000) WHERE state = 'running'")
-      .run(now(), '\n[Branchloom restarted; this session was not replayed.]\n');
+    const interruptedAt = now();
+    this.db.prepare("UPDATE sessions SET state = 'failed', ended_at = ?, interrupted_at = ?, output = substr(output || ?, -200000) WHERE state = 'running'")
+      .run(interruptedAt, interruptedAt, '\n[Branchloom restarted; this session was not replayed.]\n');
     this.db.prepare("UPDATE command_terminals SET state = 'failed', ended_at = ?, output = substr(output || ?, -100000) WHERE state = 'running'")
       .run(now(), '\n[Branchloom restarted; this terminal was not replayed.]\n');
     this.db.prepare("UPDATE workflows SET state = 'paused', updated_at = ? WHERE state = 'running'").run(now());
@@ -184,12 +188,19 @@ export class StudioStore {
   }
 
   snapshot(projectId: string): ProjectSnapshot {
+    const recentSessions = this.db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY started_at DESC LIMIT 200').all(projectId) as SessionRow[];
+    // Keep recovery transcripts available even when the ordinary recent-run cap is reached.
+    const interruptedRows = this.db.prepare(`SELECT * FROM sessions WHERE project_id = ? AND interrupted_at IS NOT NULL
+      AND interruption_reviewed_at IS NULL ORDER BY interrupted_at DESC, id DESC LIMIT 100`).all(projectId) as SessionRow[];
+    const visibleSessions = [...new Map([...recentSessions, ...interruptedRows].map((row) => [row.id, row])).values()]
+      .sort((a, b) => b.started_at.localeCompare(a.started_at));
     return {
       project: this.project(projectId),
       columns: (this.db.prepare('SELECT * FROM columns WHERE project_id = ? ORDER BY position').all(projectId) as ColumnRow[]).map(column),
       cards: (this.db.prepare('SELECT * FROM cards WHERE project_id = ? ORDER BY position, created_at, id').all(projectId) as CardRow[]).map(card),
       agents: this.agents(),
-      sessions: (this.db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY started_at DESC LIMIT 200').all(projectId) as SessionRow[]).map(session),
+      sessions: visibleSessions.map(session),
+      interruptedSessions: this.interruptedSessions(projectId),
       workflows: (this.db.prepare('SELECT * FROM workflows WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as WorkflowRow[]).map((row) => this.hydrateWorkflow(row)),
       notes: (this.db.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY updated_at DESC').all(projectId) as NoteRow[]).map(note),
       queue: this.projectQueue(projectId),
@@ -515,6 +526,29 @@ export class StudioStore {
     const row = this.db.prepare('SELECT * FROM sessions WHERE id = ? AND project_id = ?').get(sessionId, projectId) as SessionRow | undefined;
     if (!row) throw new Error('Sitzung gehört zu einem anderen Projekt oder wurde entfernt.');
     return session(row);
+  }
+  interruptedSessions(projectId: string): InterruptedSessionReview[] {
+    this.project(projectId);
+    const rows = this.db.prepare(`SELECT s.id AS session_id, s.project_id, s.card_id, c.title AS card_title, a.name AS agent_name, s.interrupted_at, s.worktree_path
+      FROM sessions s JOIN cards c ON c.id = s.card_id JOIN agents a ON a.id = s.agent_id
+      WHERE s.project_id = ? AND s.interrupted_at IS NOT NULL AND s.interruption_reviewed_at IS NULL
+      ORDER BY s.interrupted_at DESC, s.id DESC LIMIT 100`).all(projectId) as Array<{
+        session_id: string; project_id: string; card_id: string; card_title: string;
+        agent_name: string; interrupted_at: string; worktree_path: string | null;
+      }>;
+    return rows.map((row) => ({
+      sessionId: row.session_id, projectId: row.project_id, cardId: row.card_id,
+      cardTitle: row.card_title, agentName: row.agent_name, interruptedAt: row.interrupted_at,
+      worktreePath: row.worktree_path,
+    }));
+  }
+  acknowledgeInterruptedSession(input: { projectId: string; sessionId: string }): void {
+    this.project(input.projectId);
+    const changed = this.db.prepare(`UPDATE sessions SET interruption_reviewed_at = ?
+      WHERE id = ? AND project_id = ? AND state = 'failed'
+        AND interrupted_at IS NOT NULL AND interruption_reviewed_at IS NULL`)
+      .run(now(), input.sessionId, input.projectId);
+    if (changed.changes !== 1) throw new Error('Unterbrechung wurde bereits geprüft oder gehört nicht zu diesem Projekt.');
   }
   commandTerminals(projectId: string): CommandTerminal[] {
     this.project(projectId);

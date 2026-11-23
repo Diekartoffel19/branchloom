@@ -46,6 +46,20 @@ if (smokeDataDirectory) {
   app.setPath('userData', dataDirectory);
 }
 
+// A second normal app process must not reopen the live SQLite profile and
+// mistake its running PTYs for sessions interrupted by a restart. Isolated
+// developer/smoke profiles are kept independent for tests.
+const sharedProfileInstance = !smokeDataDirectory && !devDataDirectory;
+const ownsSharedProfile = !sharedProfileInstance || app.requestSingleInstanceLock();
+if (sharedProfileInstance && ownsSharedProfile) {
+  app.on('second-instance', () => {
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  });
+}
+
 function mustStore(): StudioStore {
   if (!store) throw new Error('Store is not ready');
   return store;
@@ -179,6 +193,7 @@ function installIpc(): void {
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string }) => runner?.resumeCodex(input));
+  bind('acknowledgeInterruptedSession', (input: { projectId: string; sessionId: string }) => db.acknowledgeInterruptedSession(input));
   bind('sendSession', (input: { sessionId: string; text: string }) => runner?.send(input));
   bind('writeSessionInput', (input: { sessionId: string; data: string }) => runner?.writeRaw(input));
   bind('resizeSession', (input: { sessionId: string; cols: number; rows: number }) => runner?.resize(input));
@@ -565,7 +580,7 @@ function createWindow(): void {
   window.on('closed', () => { browser?.dispose(); browser = null; window = null; });
 }
 
-app.whenReady().then(() => {
+if (ownsSharedProfile) app.whenReady().then(() => {
   const directory = app.getPath('userData');
   mkdirSync(directory, { recursive: true });
   store = new StudioStore(join(directory, 'studio.sqlite'));
@@ -576,6 +591,7 @@ app.whenReady().then(() => {
   console.error('[Branchloom] startup failed', error);
   app.quit();
 });
+else app.quit();
 
 app.on('before-quit', () => {
   browser?.dispose();
