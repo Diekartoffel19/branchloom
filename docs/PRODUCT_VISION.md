@@ -27,7 +27,7 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Ste
 | Theme-Playground | Farben, Schrift und Radien live testen; erst nach ausdrücklichem Übernehmen schreiben | Offen. Projekt-Tokens nicht blind ersetzen. |
 | Visuelle Vorlage | Screenshot als Inspiration aufnehmen und auf vorhandene Tokens abbilden | Offen. Rechte, Quellen und Originalität beachten. |
 | Performance/Barrierefreiheit | Preview markiert konkrete Kontrast-, Touch- und Ressourcenprobleme; Fix als überprüfbarer Diff | Offen. Messung vor Agentenaktion, erneute Messung danach. |
-| Plan- und Code-Review | Anmerkungen an Planstellen und Diff-Zeilen; Antwort zurück an den zuständigen Agenten | Erste lokale Diff-Zeilenkommentare sind an Git-Commits und Diff-Fingerabdruck gebunden. Planstellen, Antwort an Agenten und Review-Freigabe bleiben offen. |
+| Plan- und Code-Review | Anmerkungen an Planstellen und Diff-Zeilen; Antwort zurück an den zuständigen Agenten | Lokale Diff-Zeilenkommentare sind an Git-Commits und Diff-Fingerabdruck gebunden. Gespeicherte Planvorschläge erlauben zeilenbezogene Kommentare mit Fingerabdruck und bewusstem Feedback-Kopieren. Automatischer Rückkanal an Agenten und Review-Freigabe bleiben offen. |
 | Visuelle Diffs | Vorher/Nachher für Desktop und Mobile direkt neben Codeänderung | Offen. Reproduzierbare URLs/Zustände und Screenshots nötig. |
 | Review-Gedächtnis | Wiederkehrende Kritik als überprüfbare Projektregel übernehmen | Offen. Mensch bestätigt Regel und Geltungsbereich. |
 | Auto-QA | Isolierter Browser prüft Console-Fehler und Layout vor Review-Inbox; Fehler zurück an Coding-Agent | Offen. Keine unkontrollierte Ausführung fremder Seiten oder automatischer Merge. |

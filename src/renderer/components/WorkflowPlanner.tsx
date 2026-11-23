@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Bot, Check, ListTree, LoaderCircle } from 'lucide-react';
 import type { AgentDetection, ProjectSnapshot, WorkflowAgentSettings, WorkflowProposal } from '../../shared/types';
+import type { ReviewedPlan } from '../../shared/plan-review';
 import type { Mutate } from './shared';
+import { PlanReviewPanel } from './PlanReviewPanel';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
 const emptySettings: WorkflowAgentSettings = { agentId: null, model: null, effort: null };
@@ -10,15 +12,15 @@ function errorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
 }
 
-export function ProposalPreview({ proposal, snapshot, onAccept, accepting }: {
-  proposal: WorkflowProposal; snapshot: ProjectSnapshot; onAccept: () => void; accepting: boolean;
+export function ProposalPreview({ proposal, snapshot, onAccept, accepting, accepted = false, acceptDisabled = false }: {
+  proposal: WorkflowProposal; snapshot: ProjectSnapshot; onAccept: () => void; accepting: boolean; accepted?: boolean; acceptDisabled?: boolean;
 }) {
   const route = proposal.columnIds.map((id) => snapshot.columns.find((column) => column.id === id));
   return <section className="proposal-preview" aria-label="Workflow-Vorschau">
-    <div className="proposal-heading"><div><span className="workflow-kicker"><ListTree size={14} /> VORSCHLAG</span><h3>{proposal.title}</h3></div><span className="state-badge">Noch nicht übernommen</span></div>
+    <div className="proposal-heading"><div><span className="workflow-kicker"><ListTree size={14} /> VORSCHLAG</span><h3>{proposal.title}</h3></div><span className="state-badge">{accepted ? 'Bereits übernommen' : 'Noch nicht übernommen'}</span></div>
     <p>{proposal.explanation}</p>
     <div className="proposal-grid"><div><h4>Karten</h4><ol className="proposal-cards">{proposal.cards.map((card, index) => <li key={index}><strong>{card.title}</strong><span>{card.description}</span></li>)}</ol></div><div><h4>Route und Spaltenagenten</h4><div className="proposal-route">{route.map((column, index) => <span key={`${index}-${column?.id ?? 'missing'}`}><span className="route-number">{index + 1}</span><span><strong>{column?.name ?? 'Unbekannte Spalte'}</strong><small>{snapshot.agents.find((agent) => agent.id === column?.agentId)?.name ?? 'Manueller Schritt'} · {column?.autoStart ? 'Automatisch' : 'Freigabe vor Start'}</small></span>{index < route.length - 1 ? <ArrowRight size={13} /> : null}</span>)}</div></div></div>
-    <div className="proposal-footer"><span>Beim Übernehmen werden Karten und ein Workflow-Entwurf angelegt. Er startet erst nach deinem Klick auf „Starten“.</span><button className="primary-button" type="button" disabled={accepting || proposal.cards.length === 0 || route.length === 0} onClick={onAccept}>{accepting ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />} Vorschlag übernehmen</button></div>
+    <div className="proposal-footer"><span>Beim Übernehmen werden Karten und ein Workflow-Entwurf angelegt. Er startet erst nach deinem Klick auf „Starten“.</span><button className="primary-button" type="button" disabled={accepted || acceptDisabled || accepting || proposal.cards.length === 0 || route.length === 0} onClick={onAccept}>{accepting ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />} Vorschlag übernehmen</button></div>
   </section>;
 }
 
@@ -27,7 +29,8 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [detections, setDetections] = useState<AgentDetection[]>([]);
   const [request, setRequest] = useState('');
-  const [proposal, setProposal] = useState<WorkflowProposal | null>(null);
+  const [plans, setPlans] = useState<ReviewedPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [busy, setBusy] = useState<'save' | 'plan' | 'accept' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -43,7 +46,17 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => { setProposal(null); setNotice(''); }, [snapshot.project.id]);
+  useEffect(() => {
+    let active = true;
+    setPlans([]); setSelectedPlanId(null); setNotice('');
+    void window.studio.reviewedPlans(snapshot.project.id).then((items) => {
+      if (active) { setPlans(items); setSelectedPlanId(items[0]?.id ?? null); setRequest(items[0]?.request ?? ''); }
+    }, (reason) => { if (active) setError(errorMessage(reason)); });
+    return () => { active = false; };
+  }, [snapshot.project.id]);
+
+  const planDraft = plans.find((item) => item.id === selectedPlanId) ?? null;
+  const changedRequest = Boolean(planDraft && request.trim() !== planDraft.request);
 
   const selected = snapshot.agents.find((agent) => agent.id === settings.agentId);
   const selectedDetection = selected && detections.find((item) => item.kind === selected.kind && item.command === selected.command);
@@ -51,7 +64,7 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
   const unsupportedPlanner = selected && selected.kind !== 'codex';
 
   function changeSettings(next: WorkflowAgentSettings) {
-    setSettings(next); setProposal(null); setNotice(''); setError('');
+    setSettings(next); setNotice(''); setError('');
   }
 
   async function save() {
@@ -66,22 +79,29 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
   async function plan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected?.enabled || unsupportedPlanner || missingCli || !request.trim()) return;
-    setBusy('plan'); setError(''); setNotice(''); setProposal(null);
+    setBusy('plan'); setError(''); setNotice('');
     const projectId = snapshot.project.id;
     try {
       const saved = await window.studio.saveWorkflowAgentSettings(settings);
       setSettings(saved);
-      const result = await window.studio.proposeWorkflow({ projectId, request: request.trim() });
-      if (currentProjectId.current === projectId) setProposal(result);
+      const result = await window.studio.proposeReviewedWorkflow({ projectId, request: request.trim() });
+      if (currentProjectId.current === projectId) {
+        const next = await window.studio.reviewedPlans(projectId);
+        if (currentProjectId.current === projectId) { setPlans(next); setSelectedPlanId(result.id); }
+      }
     } catch (reason) { setError(errorMessage(reason)); }
     finally { setBusy(null); }
   }
 
   async function accept() {
-    if (!proposal) return;
+    if (!planDraft || planDraft.state !== 'open' || changedRequest) return;
     setBusy('accept'); setError(''); setNotice('');
-    const created = await mutate(() => window.studio.acceptWorkflowProposal({ projectId: snapshot.project.id, proposal }));
-    if (created) { setProposal(null); setRequest(''); setNotice('Der Workflow-Entwurf und seine Karten wurden im Board angelegt.'); }
+    const created = await mutate(() => window.studio.acceptReviewedPlan({ planId: planDraft.id, fingerprint: planDraft.fingerprint }));
+    if (created) {
+      const projectId = snapshot.project.id;
+      const next = await window.studio.reviewedPlans(projectId);
+      if (currentProjectId.current === projectId) { setPlans(next); setNotice('Der Workflow-Entwurf und seine Karten wurden im Board angelegt.'); }
+    }
     setBusy(null);
   }
 
@@ -97,9 +117,11 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
     {selected && !selected.enabled ? <p className="inline-error" role="alert">Dieses Agentenprofil ist deaktiviert. Aktiviere es im Bereich „Agenten“.</p> : null}
     {unsupportedPlanner ? <p className="inline-error" role="alert">Die sichere, schreibgeschützte Workflow-Planung unterstützt derzeit nur Codex CLI. Andere CLI-Agenten können als Spaltenagenten arbeiten.</p> : null}
     {missingCli ? <p className="inline-error" role="alert">Die CLI für „{selected.name}“ ist auf diesem Gerät nicht installiert oder nicht erreichbar. Prüfe die Installation im Bereich „Agenten“.</p> : null}
-    <form className="planner-request" onSubmit={(event) => void plan(event)}><label htmlFor="workflow-request">Was soll erledigt werden?</label><textarea id="workflow-request" rows={4} maxLength={8000} value={request} disabled={busy !== null} onChange={(event) => { setRequest(event.target.value); setProposal(null); setNotice(''); }} placeholder="Zum Beispiel: Plane die Umsetzung einer lokalen Suche mit Tests und Review." /><div className="planner-request-actions"><span>Beim Planen erhält Codex dein Ziel, den Projektnamen, Spalten mit Agent und Autostart-Status sowie das reguläre Projekt-README (maximal 12 KB). Andere Projektdateien werden nicht mitgegeben. Der Vorschlag legt noch nichts an.</span><button className="primary-button" type="submit" disabled={!loaded || busy !== null || !selected?.enabled || Boolean(unsupportedPlanner) || Boolean(missingCli) || !request.trim()}>{busy === 'plan' ? <LoaderCircle className="spin" size={15} /> : <ListTree size={15} />} Ablauf vorschlagen</button></div></form>
+    <form className="planner-request" onSubmit={(event) => void plan(event)}><label htmlFor="workflow-request">Was soll erledigt werden?</label><textarea id="workflow-request" rows={4} maxLength={8000} value={request} disabled={busy !== null} onChange={(event) => { setRequest(event.target.value); setNotice(''); }} placeholder="Zum Beispiel: Plane die Umsetzung einer lokalen Suche mit Tests und Review." /><div className="planner-request-actions"><span>Beim Planen erhält Codex dein Ziel, den Projektnamen, Spalten mit Agent und Autostart-Status sowie das reguläre Projekt-README (maximal 12 KB). Andere Projektdateien werden nicht mitgegeben. Der Vorschlag legt noch nichts an.</span><button className="primary-button" type="submit" disabled={!loaded || busy !== null || !selected?.enabled || Boolean(unsupportedPlanner) || Boolean(missingCli) || !request.trim()}>{busy === 'plan' ? <LoaderCircle className="spin" size={15} /> : <ListTree size={15} />} Ablauf vorschlagen</button></div></form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="planner-notice" role="status">{notice}</p> : null}
-    {proposal ? <ProposalPreview proposal={proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} /> : null}
+    {plans.length ? <label className="field-label">Gespeicherte Planvorschläge<select value={selectedPlanId ?? ''} onChange={(event) => { const next = plans.find((item) => item.id === event.target.value); setSelectedPlanId(event.target.value); if (next) setRequest(next.request); }}>{plans.map((item) => <option key={item.id} value={item.id}>{item.proposal.title} · {item.state === 'open' ? 'offen' : item.state === 'accepted' ? 'übernommen' : 'älter'}</option>)}</select></label> : null}
+    {changedRequest ? <p className="inline-note" role="status">Der Auftrag wurde seit diesem Vorschlag bearbeitet. Plane erneut, bevor du ihn übernimmst.</p> : null}
+    {planDraft ? <><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} /></> : null}
   </section>;
 }

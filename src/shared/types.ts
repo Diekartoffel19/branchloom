@@ -109,6 +109,11 @@ export interface StudioAPI {
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;
   proposeWorkflow(input: { projectId: string; request: string }): Promise<WorkflowProposal>;
+  proposeReviewedWorkflow(input: { projectId: string; request: string }): Promise<import('./plan-review').ReviewedPlan>;
+  reviewedPlans(projectId: string): Promise<import('./plan-review').ReviewedPlan[]>;
+  planComments(planId: string): Promise<import('./plan-review').PlanComment[]>;
+  createPlanComment(input: { planId: string; fingerprint: string; line: number; body: string }): Promise<import('./plan-review').PlanComment>;
+  acceptReviewedPlan(input: { planId: string; fingerprint: string }): Promise<Workflow>;
   discussTaskDraft(input: { projectId: string; turns: DraftTurn[] }): Promise<TaskDraftReply>;
   acceptWorkflowProposal(input: { projectId: string; proposal: WorkflowProposal }): Promise<Workflow>;
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
