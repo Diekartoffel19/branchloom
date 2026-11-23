@@ -506,6 +506,8 @@ function createWindow(): void {
               if (!document.querySelector('.card-drawer')?.textContent?.includes('Smoke-Karte')) throw new Error('Whiteboard-Kartenlink öffnete nicht die Karte.');
               const qaForm = document.querySelector('.card-drawer .card-qa-form');
               if (!qaForm) throw new Error('Karten-QA-Formular fehlt.');
+              for (let attempt = 0; attempt < 100 && document.querySelector('.card-qa')?.textContent?.includes('Gespeicherte Prüfungen werden geladen'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.card-qa')?.textContent?.includes('Gespeicherte Prüfungen werden geladen')) throw new Error('Karten-QA-Berichte wurden nicht geladen.');
               const qaInput = qaForm.querySelector('input');
               if (!qaInput) throw new Error('Karten-QA-URL-Feld fehlt.');
               const qaValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;

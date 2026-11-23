@@ -45,7 +45,7 @@ function persist(store: StudioStore, report: CardQaReport): CardQaReport {
   return report;
 }
 
-/** An explicit, one-page QA pass in a fresh in-memory browser partition. It never drives an agent or mutates the project checkout. */
+/** An explicit page-load QA pass in a fresh in-memory browser partition. Branchloom itself does not run an agent or write to the checkout; page JavaScript may call its own local server. */
 export async function runCardQa(store: StudioStore, input: { cardId: string; url: string }): Promise<CardQaReport> {
   const card = store.card(input.cardId);
   if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');

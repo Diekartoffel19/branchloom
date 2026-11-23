@@ -21,7 +21,7 @@ export function CardQaPanel({ card }: { card: Card }) {
     void window.studio.cardQaReports(card.id).then((items) => {
       if (!alive) return;
       setReports(items); setLoading(false);
-      setUrl(items[0]?.requestedUrl ?? '');
+      setUrl((current) => current || items[0]?.requestedUrl || '');
     }).catch((reason: unknown) => { if (alive) { setError(messageOf(reason)); setLoading(false); } });
     return () => { alive = false; };
   }, [card.id]);

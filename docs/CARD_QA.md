@@ -7,3 +7,5 @@ Zulässig sind nur HTTP(S)-Adressen auf `localhost`, `127.0.0.1` oder `[::1]`, o
 **Bestanden** heißt nur, dass beim einen Seitenaufruf im kurzen Prüfzeitraum keine erfassten Fehler auftraten. **Fehlgeschlagen** nennt konkrete Console-Error-Meldungen, Hauptframe-Ladefehler oder blockierte Fremdanfragen. **Nicht abgeschlossen** zeigt einen Ladefehler oder Zeitablauf. Gespeicherte URLs verlieren Query und Fragment; Konsolenmeldungen und Fehlertexte können weiterhin Inhalte aus der lokalen App enthalten und bleiben deshalb nur im lokalen SQLite-Profil.
 
 Die Prüfung beweist kein korrektes Layout, keine Interaktionen, weitere Routen oder Barrierefreiheit. Sie verschiebt keine Karte, startet keinen Fix-Agenten, gibt keinen Review frei und merged keinen Code. Für eine vollständige QA sind diese Schritte weiterhin separat nötig.
+
+Die geladene lokale Seite führt ihr eigenes JavaScript aus und kann Anfragen an dieselbe lokale Origin senden. Prüfe deshalb eine Dev-Server-Route, die für diesen Test geeignet ist; Branchloom behauptet keine Nebenwirkungsfreiheit der besuchten Anwendung.
