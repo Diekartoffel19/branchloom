@@ -16,7 +16,7 @@ import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
-import { createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
@@ -144,6 +144,7 @@ function installIpc(): void {
   bind('updateWhiteboardNode', (input: Parameters<StudioAPI['updateWhiteboardNode']>[0]) => updateWhiteboardNode(db, input));
   bind('deleteWhiteboardNode', (input: Parameters<StudioAPI['deleteWhiteboardNode']>[0]) => deleteWhiteboardNode(db, input));
   bind('createWhiteboardEdge', (input: Parameters<StudioAPI['createWhiteboardEdge']>[0]) => createWhiteboardEdge(db, input));
+  bind('createCardFromWhiteboardEdge', (input: Parameters<StudioAPI['createCardFromWhiteboardEdge']>[0]) => createCardFromWhiteboardEdge(db, input));
   bind('deleteWhiteboardEdge', (input: Parameters<StudioAPI['deleteWhiteboardEdge']>[0]) => deleteWhiteboardEdge(db, input));
   bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));
   bind('updateColumn', (input: Parameters<StudioAPI['updateColumn']>[0]) => db.updateColumn(input));
@@ -474,6 +475,45 @@ function createWindow(): void {
               openLinkedCard.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-drawer')?.textContent?.includes('Smoke-Karte')) throw new Error('Whiteboard-Kartenlink öffnete nicht die Karte.');
+              document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'))?.click();
+              let edgeListButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                edgeListButton = document.querySelector('.wb-edge-list-item');
+                if (edgeListButton) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!edgeListButton) throw new Error('Whiteboard-Verbindung fehlt in der zugänglichen Auswahl.');
+              edgeListButton.click();
+              let suggestCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                suggestCard = [...document.querySelectorAll('.wb-inspector button')].find((item) => item.textContent?.includes('Kartenentwurf aus Verbindung'));
+                if (suggestCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!suggestCard) throw new Error('Kartenentwurf aus Whiteboard-Verbindung fehlt.');
+              suggestCard.click();
+              let cardDraft;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                cardDraft = document.querySelector('.wb-card-form');
+                if (cardDraft) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!cardDraft?.querySelector('input')?.value.includes('→') || !cardDraft.querySelector('select')?.value) throw new Error('Editierbarer Whiteboard-Kartenentwurf fehlt.');
+              const beforeCardCount = (await window.studio.snapshot(boardProject.id)).cards.length;
+              const createFromEdge = [...cardDraft.querySelectorAll('button')].find((item) => item.textContent?.includes('Karte anlegen'));
+              if (!createFromEdge) throw new Error('Ausdrückliche Kartenanlage fehlt.');
+              createFromEdge.click();
+              let createdEdgeCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                createdEdgeCard = (await window.studio.whiteboard(boardProject.id)).edges[0]?.cardId;
+                if (createdEdgeCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              const afterCardSnapshot = await window.studio.snapshot(boardProject.id);
+              if (!createdEdgeCard || afterCardSnapshot.cards.length !== beforeCardCount + 1 || !afterCardSnapshot.cards.find((item) => item.id === createdEdgeCard)?.description.includes('Whiteboard-Bezug:')) throw new Error('Whiteboard-Karte wurde nicht mit Quellenbezug gespeichert.');
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-drawer')) throw new Error('Neue Whiteboard-Karte wurde nicht geöffnet.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               const workflowNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Workflows'));
               if (!workflowNav) throw new Error('Workflow-Navigation fehlt.');

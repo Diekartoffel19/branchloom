@@ -11,7 +11,7 @@ export type ColumnEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
 export interface Project { id: string; name: string; path: string; createdAt: string }
 export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'folder' | 'file'; path: string };
 export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
-export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string }
+export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string; cardId: string | null }
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
@@ -67,6 +67,7 @@ export interface StudioAPI {
   updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
   deleteWhiteboardNode(input: { projectId: string; id: string }): Promise<void>;
   createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string }): Promise<WhiteboardEdge>;
+  createCardFromWhiteboardEdge(input: { projectId: string; edgeId: string; columnId: string; title: string; description: string }): Promise<Card>;
   deleteWhiteboardEdge(input: { projectId: string; id: string }): Promise<void>;
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
   updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;

@@ -17,6 +17,18 @@
 .wb-inspector input, .wb-inspector textarea, .wb-inspector select { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font: inherit; font-weight: 400; }
 .wb-inspector textarea { resize: vertical; }
 .wb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wb-card-form { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.wb-edge-note { font-size: 12px; overflow-wrap: anywhere; }
+.wb-edge-refs { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); }
+.wb-edge-refs div { min-width: 0; }
+.wb-edge-refs dt { color: var(--muted); font-size: 11px; }
+.wb-edge-refs dd { margin: 2px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.wb-edge-list { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px solid var(--border); }
+.wb-edge-list h4 { margin: 0 0 2px; font-size: 13px; }
+.wb-edge-list-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%; text-align: left; }
+.wb-edge-list-item span { min-width: 0; overflow-wrap: anywhere; }
+.wb-edge-list-item small { flex: none; color: var(--muted); }
+.wb-inspector button:focus-visible, .wb-inspector input:focus-visible, .wb-inspector textarea:focus-visible, .wb-inspector select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .wb-inspector .primary-button, .wb-inspector .secondary-button { min-height: 36px; }
 .wb-danger { color: var(--danger) !important; }
 .wb-node { width: 188px; border: 1px solid var(--border) !important; border-radius: 6px !important; background: var(--surface) !important; color: var(--text) !important; box-shadow: 0 2px 8px #00000010 !important; text-align: left !important; }

@@ -21,6 +21,7 @@ const studio: StudioAPI = {
   updateWhiteboardNode: (input) => invoke('updateWhiteboardNode', input),
   deleteWhiteboardNode: (input) => invoke('deleteWhiteboardNode', input),
   createWhiteboardEdge: (input) => invoke('createWhiteboardEdge', input),
+  createCardFromWhiteboardEdge: (input) => invoke('createCardFromWhiteboardEdge', input),
   deleteWhiteboardEdge: (input) => invoke('deleteWhiteboardEdge', input),
   createColumn: (input) => invoke('createColumn', input),
   updateColumn: (input) => invoke('updateColumn', input),
