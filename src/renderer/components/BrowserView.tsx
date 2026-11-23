@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Camera, ExternalLink, Globe2, Plus, RotateCw, X } from 'lucide-react';
 import type { BrowserDiagnostic, BrowserState, ProjectSnapshot } from '../../shared/types';
 import './browser-diagnostics.css';
@@ -17,6 +17,11 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
   const [savingDiagnostic, setSavingDiagnostic] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const editing = useRef(false);
+  const syncBounds = useCallback(() => {
+    const rect = viewport.current?.getBoundingClientRect();
+    if (!rect) return;
+    void window.studio.browserSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }).catch((reason: unknown) => setError(messageOf(reason)));
+  }, []);
 
   useEffect(() => {
     if (!window.studio) return;
@@ -52,8 +57,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
     const updateBounds = () => {
       cancelAnimationFrame(scheduled);
       scheduled = requestAnimationFrame(() => {
-        const rect = element.getBoundingClientRect();
-        void window.studio.browserSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }).catch((reason: unknown) => setError(messageOf(reason)));
+        syncBounds();
       });
     };
     const observer = new ResizeObserver(updateBounds);
@@ -69,7 +73,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
       window.removeEventListener('scroll', updateBounds, true);
       void window.studio.browserSetVisible(false).catch(() => undefined);
     };
-  }, [active]);
+  }, [active, syncBounds]);
 
   async function navigate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,18 +149,18 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
     </div>
     {error || state.error ? <div className="browser-error" role="alert">{error || state.error}</div> : null}
     {notice ? <div className="browser-notice" role="status">{notice}</div> : null}
-    {state.diagnostics.length ? <BrowserDiagnostics diagnostics={state.diagnostics} selectedId={selectedDiagnosticId} snapshot={snapshot} columnId={columnId} reproduction={reproduction} saving={savingDiagnostic} onSelect={setSelectedDiagnosticId} onColumn={setColumnId} onReproduction={setReproduction} onCreate={(event) => void createDiagnosticCard(event)} /> : null}
+    {state.diagnostics.length ? <BrowserDiagnostics diagnostics={state.diagnostics} selectedId={selectedDiagnosticId} snapshot={snapshot} columnId={columnId} reproduction={reproduction} saving={savingDiagnostic} onSelect={setSelectedDiagnosticId} onColumn={setColumnId} onReproduction={setReproduction} onCreate={(event) => void createDiagnosticCard(event)} onToggle={() => requestAnimationFrame(syncBounds)} /> : null}
     <div className="browser-viewport" ref={viewport}>
       {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Browser</h2><p>Gib oben eine Webadresse ein. Webseiten laufen getrennt von den Rechten der App und der CLI-Agenten.</p></div> : null}
     </div>
   </section>;
 }
 
-export function BrowserDiagnostics({ diagnostics, selectedId, snapshot, columnId, reproduction, saving, onSelect, onColumn, onReproduction, onCreate }: {
+export function BrowserDiagnostics({ diagnostics, selectedId, snapshot, columnId, reproduction, saving, onSelect, onColumn, onReproduction, onCreate, onToggle }: {
   diagnostics: BrowserDiagnostic[]; selectedId: string | null; snapshot: ProjectSnapshot | null; columnId: string; reproduction: string; saving: boolean;
-  onSelect: (id: string) => void; onColumn: (id: string) => void; onReproduction: (value: string) => void; onCreate: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSelect: (id: string) => void; onColumn: (id: string) => void; onReproduction: (value: string) => void; onCreate: (event: React.FormEvent<HTMLFormElement>) => void; onToggle?: () => void;
 }) {
-  return <details className="browser-diagnostics"><summary>{diagnostics.length} Fehler im lokalen Dev-Server erfasst</summary>
+  return <details className="browser-diagnostics" onToggle={onToggle}><summary>{diagnostics.length} Fehler im lokalen Dev-Server erfasst</summary>
       <p>Nur Konsolenfehler und Ladefehler von localhost werden erfasst. Der Verlauf bleibt bis zum Schließen des Tabs oder App-Neustart im Arbeitsspeicher. Eine Karte wird erst auf deinen Klick gespeichert.</p>
       <form onSubmit={onCreate}>
         <label>Fehler auswählen<select value={selectedId ?? ''} onChange={(event) => onSelect(event.target.value)}>{diagnostics.map((item) => <option key={item.id} value={item.id}>{item.kind === 'console' ? 'Konsole' : 'Laden'} · {item.message.slice(0, 100)}</option>)}</select></label>
