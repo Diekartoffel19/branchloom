@@ -41,7 +41,7 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Ste
 | Loop- und Kostenbremse | Nutzungsdaten, wiederholte Fehler und Limits pro Task sichtbar machen und sicher pausieren | Offen. Anbieterabhängige Telemetrie nur bei belegbarer Quelle. |
 | Zeitmaschine | Git-Stand plus Preview-Screenshot als benannte, wiederherstellbare Meilensteine | Offen. Zurücksetzen nur nach Diff- und Datenprüfung. |
 | Worktree teilen | Temporäre Vorschau ausdrücklich teilen; externes Feedback in Inbox | Offen. Öffentliche Tunnel sind optional und brauchen sichtbare Freigaben. |
-| Changelog | Täglich/wöchentlich aus echten Commits, Tests und Reviews zusammenfassen | Offen. Quelle und Zeitraum jeder Aussage angeben. |
+| Changelog | Täglich/wöchentlich aus echten Commits, Tests und Reviews zusammenfassen | Erste lesende Git-Stufe: 24 Stunden oder sieben Tage, Commit-Hash, Zeit und Betreff aus aktuellem HEAD; bewusste Markdown-Kopie. Test-/Review-Zuordnung und automatische Berichte offen. |
 
 ## Umsetzungsfolge
 

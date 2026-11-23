@@ -485,6 +485,9 @@
   .voice-button.recording { animation: none; }
 }
 
+/* Keep every workspace destination reachable as the navigation grows. */
+.sidebar { min-height: 0; overflow-y: auto; }
+
 @media (max-width: 900px) {
   .brand strong { display: none; }
 }
@@ -499,6 +502,8 @@
 }
 
 @media (max-width: 600px) {
+  .sidebar { overflow-x: auto; overflow-y: hidden; }
+  .side-nav { flex: none; }
   .brand { padding: 0; }
   :root[data-theme] .mobile-workspace { background: var(--surface); border-color: var(--border); }
   :root[data-theme] .nav-item.active { box-shadow: inset 0 -3px var(--accent); }

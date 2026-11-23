@@ -10,6 +10,7 @@ const studio: StudioAPI = {
   previewProjectPackage: () => invoke('previewProjectPackage'),
   importProjectPackage: (input) => invoke('importProjectPackage', input),
   snapshot: (projectId) => invoke('snapshot', projectId),
+  projectChangelog: (input) => invoke('projectChangelog', input),
   ideas: (projectId) => invoke('ideas', projectId),
   saveIdea: (input) => invoke('saveIdea', input),
   discussIdea: (input) => invoke('discussIdea', input),

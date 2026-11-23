@@ -1,6 +1,7 @@
 import type { ConflictRadarResult, ProjectConflictRadarResult } from './conflict-radar';
 import type { DraftTurn, TaskDraftReply } from './task-draft';
 import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
+import type { ChangelogPeriod, ProjectChangelog } from './changelog';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -56,6 +57,7 @@ export interface StudioAPI {
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
+  projectChangelog(input: { projectId: string; period: ChangelogPeriod }): Promise<ProjectChangelog>;
   ideas(projectId: string): Promise<import('./ideas').Idea[]>;
   saveIdea(input: { projectId: string; id?: string; title: string; body: string; category: import('./ideas').IdeaCategory; turns: DraftTurn[] }): Promise<import('./ideas').Idea>;
   discussIdea(input: { projectId: string; turns: DraftTurn[]; title: string; body: string; category: import('./ideas').IdeaCategory }): Promise<import('./ideas').IdeaReply>;

@@ -25,6 +25,7 @@ import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
 import { transcribeAudio } from './voice/transcribe';
+import { projectChangelog } from './changelog';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
@@ -133,6 +134,7 @@ function installIpc(): void {
     return created;
   });
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
+  bind('projectChangelog', (input: Parameters<StudioAPI['projectChangelog']>[0]) => projectChangelog(db, input.projectId, input.period));
   bind('ideas', (projectId: string) => listIdeas(db, projectId));
   bind('saveIdea', (input: Parameters<StudioAPI['saveIdea']>[0]) => saveIdea(db, input));
   bind('discussIdea', (input: Parameters<StudioAPI['discussIdea']>[0]) => discussIdea(db, input));
