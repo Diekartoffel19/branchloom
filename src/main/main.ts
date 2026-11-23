@@ -24,6 +24,7 @@ import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
 import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { analyzeWhiteboardImpact } from './whiteboard-impact';
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
@@ -45,6 +46,9 @@ const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
   app.setPath('userData', smokeDataDirectory);
+  mkdirSync(join(smokeDataDirectory, 'src'));
+  writeFileSync(join(smokeDataDirectory, 'src', 'widget.ts'), 'export const widget = 1;');
+  writeFileSync(join(smokeDataDirectory, 'screen.ts'), "import './src/widget';");
 } else if (devDataDirectory) {
   if (!isAbsolute(devDataDirectory)) throw new Error('BRANCHLOOM_DEV_USER_DATA muss ein absoluter Pfad sein.');
   mkdirSync(devDataDirectory, { recursive: true });
@@ -152,6 +156,7 @@ function installIpc(): void {
   bind('discussIdea', (input: Parameters<StudioAPI['discussIdea']>[0]) => discussIdea(db, input));
   bind('convertIdeaToCard', (input: Parameters<StudioAPI['convertIdeaToCard']>[0]) => convertIdeaToCard(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
+  bind('whiteboardImpact', (input: Parameters<StudioAPI['whiteboardImpact']>[0]) => analyzeWhiteboardImpact(db, input));
   bind('previewRepoMap', (projectId: string) => previewRepoMap(db, projectId));
   bind('acceptRepoMap', (input: Parameters<StudioAPI['acceptRepoMap']>[0]) => acceptRepoMap(db, input));
   bind('createWhiteboardNode', (input: Parameters<StudioAPI['createWhiteboardNode']>[0]) => createWhiteboardNode(db, input));
@@ -407,9 +412,11 @@ function createWindow(): void {
           const todo = initial.columns.find((column) => column.name === 'To Do');
           if (!todo || initial.columns.length < 3) throw new Error('Standardspalten fehlen.');
           const card = await window.studio.createCard({ projectId: project.id, columnId: todo.id, title: 'Smoke-Karte' });
-          const wbFolder = await window.studio.createWhiteboardNode({ projectId: project.id, title: 'Smoke-Ordner', x: 10, y: 20, reference: { kind: 'folder', path: '.' } });
+          const wbFolder = await window.studio.createWhiteboardNode({ projectId: project.id, title: 'Smoke-Ordner', x: 10, y: 20, reference: { kind: 'folder', path: 'src' } });
           const wbCard = await window.studio.createWhiteboardNode({ projectId: project.id, title: 'Smoke-Aufgabe', x: 220, y: 20, reference: { kind: 'card', cardId: card.id } });
           await window.studio.createWhiteboardEdge({ projectId: project.id, sourceId: wbFolder.id, targetId: wbCard.id, label: 'gehört zu' });
+          const directImpact = await window.studio.whiteboardImpact({ projectId: project.id, nodeId: wbFolder.id });
+          if (directImpact.partial || directImpact.importers.length !== 1 || directImpact.importers[0].path !== 'screen.ts') throw new Error('Whiteboard-Änderungswirkung über IPC fehlt.');
           await window.studio.reorderColumn({ id: initial.columns[1].id, direction: 'right' });
           await window.studio.updateColumn({ id: initial.columns[2].id, name: 'Smoke-Umbenannt' });
           const removable = await window.studio.createColumn({ projectId: project.id, name: 'Smoke-Leer' });
@@ -504,6 +511,19 @@ function createWindow(): void {
               }
               const whiteboard = await window.studio.whiteboard(boardProject.id);
               if (!whiteboardReady || whiteboard.nodes.length !== 2 || whiteboard.edges.length !== 1) throw new Error('Whiteboard-Boxen oder Verbindungen wurden nach Reload nicht angezeigt/gespeichert.');
+              const folderNode = [...document.querySelectorAll('.wb-node')].find((item) => item.textContent?.includes('Smoke-Ordner'));
+              if (!folderNode) throw new Error('Whiteboard-Ordnerbox fehlt im Canvas.');
+              folderNode.click();
+              let impactButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                impactButton = [...document.querySelectorAll('.wb-impact button')].find((item) => item.textContent?.includes('Direkte Imports prüfen'));
+                if (impactButton && !impactButton.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!impactButton || impactButton.disabled) throw new Error('Whiteboard-Änderungswirkung fehlt im Inspector.');
+              impactButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-impact-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.wb-impact-result')?.textContent?.includes('screen.ts:1')) throw new Error('Whiteboard-Importbeleg fehlt im Inspector.');
               const linkedNode = [...document.querySelectorAll('.wb-node')].find((item) => item.textContent?.includes('Smoke-Aufgabe'));
               if (!linkedNode) throw new Error('Verknüpfte Whiteboard-Box fehlt im Canvas.');
               linkedNode.click();

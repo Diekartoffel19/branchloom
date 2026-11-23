@@ -18,6 +18,16 @@
 .wb-inspector textarea { resize: vertical; }
 .wb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .wb-card-form { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.wb-impact { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; padding-top: 14px; border-top: 1px solid var(--border); }
+.wb-impact h4 { margin: 0; font-size: 13px; }
+.wb-impact p { margin: 0; font-size: 12px; }
+.wb-impact-result { display: flex; flex-direction: column; gap: 6px; min-width: 0; width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); }
+.wb-impact-result strong { font-size: 12px; }
+.wb-impact-result small, .wb-impact-note { color: var(--muted); font-size: 11px; }
+.wb-impact-result ol { max-height: 230px; overflow: auto; min-width: 0; margin: 4px 0; padding-left: 18px; font-size: 11px; }
+.wb-impact-result li { margin-bottom: 8px; overflow-wrap: anywhere; }
+.wb-impact-result li span { display: block; color: var(--muted); }
+.wb-impact-error { color: var(--danger) !important; overflow-wrap: anywhere; }
 .wb-edge-note { font-size: 12px; overflow-wrap: anywhere; }
 .wb-edge-refs { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); }
 .wb-edge-refs div { min-width: 0; }

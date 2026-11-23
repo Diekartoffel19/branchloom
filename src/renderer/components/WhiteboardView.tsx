@@ -3,8 +3,10 @@ import { ReactFlow, Background, Controls, MiniMap, useNodesState, type Connectio
 import { FolderTree, Link2, Plus, Trash2 } from 'lucide-react';
 import type { ProjectSnapshot, WhiteboardNode, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
 import type { RepoMapProposal, RepoMapImportResult } from '../../shared/repo-map';
+import type { WhiteboardImpact } from '../../shared/whiteboard-impact';
 import type { Mutate } from './shared';
 import { RepoMapPreview } from './RepoMapPreview';
+import { WhiteboardImpactResult } from './WhiteboardImpactResult';
 import '@xyflow/react/dist/style.css';
 import './whiteboard.css';
 
@@ -48,6 +50,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
   const [mapError, setMapError] = useState('');
   const [mapBusy, setMapBusy] = useState(false);
   const [mapResult, setMapResult] = useState<RepoMapImportResult | null>(null);
+  const [impact, setImpact] = useState<WhiteboardImpact | null>(null);
+  const [impactBusy, setImpactBusy] = useState(false);
+  const [impactError, setImpactError] = useState('');
+  const impactRequest = useRef(0);
   const flowApi = useRef<ReactFlowInstance<Node, Edge> | null>(null);
   const latestProjectId = useRef(projectId);
   latestProjectId.current = projectId;
@@ -65,6 +71,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     setCardDraft(null);
     setBoard({ nodes: [], edges: [] });
     setMapProposal(null); setMapError(''); setMapResult(null); setMapBusy(false);
+    impactRequest.current++; setImpact(null); setImpactError(''); setImpactBusy(false);
     window.studio.whiteboard(projectId).then((next) => { if (live) setBoard(next); })
       .catch((reason: unknown) => { if (live) setError(message(reason)); })
       .finally(() => { if (live) setLoading(false); });
@@ -92,6 +99,21 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
   const edge = board.edges.find((item) => item.id === selectedEdge) ?? null;
 
   useEffect(() => { setDraft(selectedNode ? draftOf(selectedNode) : emptyDraft()); }, [selectedNode?.id]);
+  useEffect(() => {
+    impactRequest.current++;
+    setImpact(null); setImpactError(''); setImpactBusy(false);
+  }, [selectedNode?.id, selectedNode?.reference?.kind, selectedNode?.reference?.kind === 'file' || selectedNode?.reference?.kind === 'folder' ? selectedNode.reference.path : null]);
+
+  async function inspectImpact() {
+    if (!selectedNode || (selectedNode.reference?.kind !== 'file' && selectedNode.reference?.kind !== 'folder')) return;
+    const request = ++impactRequest.current;
+    setImpactBusy(true); setImpactError(''); setImpact(null);
+    try {
+      const result = await window.studio.whiteboardImpact({ projectId, nodeId: selectedNode.id });
+      if (request === impactRequest.current && latestProjectId.current === projectId) setImpact(result);
+    } catch (reason) { if (request === impactRequest.current && latestProjectId.current === projectId) setImpactError(message(reason)); }
+    finally { if (request === impactRequest.current && latestProjectId.current === projectId) setImpactBusy(false); }
+  }
 
   async function run(action: () => Promise<unknown>): Promise<void> {
     setBusy(true); setError('');
@@ -196,7 +218,14 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
           {draft.referenceKind === 'folder' || draft.referenceKind === 'file' ? <label>Relativer {draft.referenceKind === 'file' ? 'Datei' : 'Ordner'}pfad<input value={draft.folderPath} onChange={(event) => setDraft({ ...draft, folderPath: event.target.value })} placeholder={draft.referenceKind === 'file' ? 'src/renderer/App.tsx' : 'src/renderer'} /></label> : null}
           <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !draft.title.trim()} onClick={saveNode}>Speichern</button>
             {selectedNode.reference?.kind === 'card' && snapshot.cards.some((card) => card.id === (selectedNode.reference as { kind: 'card'; cardId: string }).cardId) ? <button className="secondary-button" type="button" onClick={() => onOpenCard((selectedNode.reference as { kind: 'card'; cardId: string }).cardId)}>Karte öffnen</button> : null}
-            <button className="secondary-button wb-danger" type="button" disabled={busy} onClick={deleteNode}><Trash2 size={14} /> Entfernen</button></div></>
+            <button className="secondary-button wb-danger" type="button" disabled={busy} onClick={deleteNode}><Trash2 size={14} /> Entfernen</button></div>
+          {selectedNode.reference?.kind === 'file' || selectedNode.reference?.kind === 'folder' ? <section className="wb-impact" aria-label="Änderungswirkung">
+            <h4>Änderungswirkung</h4><p>Direkte relative Imports zur gespeicherten {selectedNode.reference.kind === 'file' ? 'Datei' : 'Ordnerstruktur'} suchen. Keine Agentenaktion.</p>
+            <button className="secondary-button" type="button" disabled={impactBusy || busy || draft.referenceKind !== selectedNode.reference.kind || draft.folderPath !== selectedNode.reference.path} onClick={() => void inspectImpact()}>{impactBusy ? 'Prüfe Imports…' : 'Direkte Imports prüfen'}</button>
+            {draft.referenceKind !== selectedNode.reference.kind || draft.folderPath !== selectedNode.reference.path ? <p className="wb-impact-note">Verknüpfung zuerst speichern.</p> : null}
+            {impactError ? <p className="wb-impact-error" role="alert">{impactError}</p> : null}
+            {impact ? <WhiteboardImpactResult impact={impact} /> : null}
+          </section> : null}</>
         : edge ? <><h3>Verbindung</h3><p>{board.nodes.find((item) => item.id === edge.sourceId)?.title} → {board.nodes.find((item) => item.id === edge.targetId)?.title}</p>
           <dl className="wb-edge-refs"><div><dt>Von</dt><dd>{referenceSummary(board.nodes.find((item) => item.id === edge.sourceId), snapshot)}</dd></div><div><dt>Nach</dt><dd>{referenceSummary(board.nodes.find((item) => item.id === edge.targetId), snapshot)}</dd></div></dl>
           {edge.cardId ? <><p className="wb-edge-note">Diese Verbindung hat bereits eine Karte. Änderungen an der Karte bleiben im Board.</p><button className="secondary-button" type="button" onClick={() => onOpenCard(edge.cardId!)}>Karte öffnen</button></>

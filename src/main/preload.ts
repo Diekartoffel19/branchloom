@@ -20,6 +20,7 @@ const studio: StudioAPI = {
   discussIdea: (input) => invoke('discussIdea', input),
   convertIdeaToCard: (input) => invoke('convertIdeaToCard', input),
   whiteboard: (projectId) => invoke('whiteboard', projectId),
+  whiteboardImpact: (input) => invoke('whiteboardImpact', input),
   previewRepoMap: (projectId) => invoke('previewRepoMap', projectId),
   acceptRepoMap: (input) => invoke('acceptRepoMap', input),
   createWhiteboardNode: (input) => invoke('createWhiteboardNode', input),
