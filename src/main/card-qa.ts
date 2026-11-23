@@ -11,14 +11,16 @@ const LOAD_TIMEOUT_MS = 15_000;
 const SETTLE_MS = 900;
 const MAX_SCREENSHOT_BYTES = 1_000_000;
 const MAX_SCREENSHOTS = 100;
+const VIEWPORT_WIDTH = 1280;
+const VIEWPORT_HEIGHT = 800;
 const SCREENSHOT_WIDTH = 960;
 const SCREENSHOT_HEIGHT = 600;
 const SCREENSHOT_TIMEOUT_MS = 3_000;
 const activeCards = new Set<string>();
 
-type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; note: string | null; screenshot_available: number };
-const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], note: row.note, screenshotAvailable: row.screenshot_available === 1 });
-const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
+type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; note: string | null; screenshot_available: number; viewport_width: number; viewport_height: number };
+const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], note: row.note, screenshotAvailable: row.screenshot_available === 1, viewportWidth: row.viewport_width, viewportHeight: row.viewport_height });
+const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, viewport_width, viewport_height, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
 
 async function captureBounded(contents: Electron.WebContents): Promise<Buffer> {
   let timeout: NodeJS.Timeout | null = null;
@@ -44,10 +46,13 @@ export function installCardQa(db: Database.Database): void {
     id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     requested_url TEXT NOT NULL, final_url TEXT, started_at TEXT NOT NULL,
-    ended_at TEXT NOT NULL, status TEXT NOT NULL, diagnostics_json TEXT NOT NULL, note TEXT, screenshot_png BLOB
+    ended_at TEXT NOT NULL, status TEXT NOT NULL, diagnostics_json TEXT NOT NULL, note TEXT,
+    screenshot_png BLOB, viewport_width INTEGER NOT NULL DEFAULT 0, viewport_height INTEGER NOT NULL DEFAULT 0
   ); CREATE INDEX IF NOT EXISTS card_qa_reports_card ON card_qa_reports(card_id, ended_at DESC);`);
   const columns = db.pragma('table_info(card_qa_reports)') as Array<{ name: string }>;
   if (!columns.some((item) => item.name === 'screenshot_png')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN screenshot_png BLOB');
+  if (!columns.some((item) => item.name === 'viewport_width')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN viewport_width INTEGER NOT NULL DEFAULT 0');
+  if (!columns.some((item) => item.name === 'viewport_height')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN viewport_height INTEGER NOT NULL DEFAULT 0');
 }
 
 export function normalizeCardQaUrl(value: string): string {
@@ -72,8 +77,8 @@ export function cardQaScreenshot(store: StudioStore, input: { cardId: string; re
 
 function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | null): CardQaReport {
   store.db.transaction(() => {
-    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, screenshot_png)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.note, screenshot);
+    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, screenshot_png, viewport_width, viewport_height)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.note, screenshot, report.viewportWidth, report.viewportHeight);
     store.db.prepare(`DELETE FROM card_qa_reports WHERE card_id = ? AND id NOT IN (
       SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY ended_at DESC, rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
     store.db.prepare(`UPDATE card_qa_reports SET screenshot_png = NULL WHERE id IN (
@@ -107,7 +112,7 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
   let status: CardQaReport['status'] = 'error';
   let screenshot: Buffer | null = null;
   try {
-    qaWindow = new BrowserWindow({ show: false, width: 1280, height: 800, webPreferences: {
+    qaWindow = new BrowserWindow({ show: false, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT, useContentSize: true, webPreferences: {
       nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
       webviewTag: false, backgroundThrottling: false, partition: `branchloom-qa-${randomUUID()}`,
     } });
@@ -164,5 +169,5 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
     activeCards.delete(card.id);
   }
-  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null }, screenshot);
+  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null, viewportWidth: VIEWPORT_WIDTH, viewportHeight: VIEWPORT_HEIGHT }, screenshot);
 }

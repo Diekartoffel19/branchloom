@@ -49,7 +49,7 @@ export interface BrowserTabState { id: string; url: string; title: string; loadi
 export interface BrowserDiagnostic { id: string; kind: 'console' | 'load'; message: string; pageUrl: string; sourceUrl: string | null; line: number | null; capturedAt: string }
 export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null; diagnostics: BrowserDiagnostic[] }
 export interface BrowserCaptureResult { width: number; height: number }
-export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; note: string | null; screenshotAvailable: boolean }
+export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }

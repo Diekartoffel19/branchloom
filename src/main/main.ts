@@ -539,6 +539,46 @@ function createWindow(): void {
               if (qaReport?.status !== 'failed' || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR'))) throw new Error('Lokale Karten-QA hat den Browserfehler nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('Karten-QA-Bericht wurde nicht sichtbar gerendert.');
+              const screenshotButton = [...document.querySelectorAll('.card-qa-screenshot button')].find((item) => item.textContent?.includes('Screenshot ansehen'));
+              if (!screenshotButton) throw new Error('QA-Screenshot-Knopf fehlt.');
+              screenshotButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-screenshot img[src^="data:image/png;base64,"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const screenshotImage = document.querySelector('.card-qa-screenshot img[src^="data:image/png;base64,"]');
+              if (!screenshotImage) throw new Error('QA-Screenshot wurde nach Klick nicht im Kartenbericht geöffnet.');
+              await screenshotImage.decode();
+              if (!screenshotImage.naturalWidth || screenshotImage.naturalWidth > 960 || screenshotImage.naturalHeight > 600) throw new Error('QA-Screenshot überschreitet die begrenzten Bildmaße.');
+              for (let attempt = 0; attempt < 100 && qaButton.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (qaButton.disabled) throw new Error('Zweiter QA-Lauf konnte nicht gestartet werden.');
+              qaButton.click();
+              let comparisonReports;
+              for (let attempt = 0; attempt < 300; attempt++) {
+                comparisonReports = await window.studio.cardQaReports(qaCard.id);
+                if (comparisonReports.length >= 2) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (comparisonReports?.length !== 2 || !comparisonReports.every((item) => item.screenshotAvailable)) throw new Error('Zwei gespeicherte QA-Screenshots fehlen.');
+              let comparisonSelects;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                comparisonSelects = [...document.querySelectorAll('.card-qa-comparison select')];
+                if (comparisonSelects.length === 2) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (comparisonSelects?.length !== 2) throw new Error('Visual-Diff-Auswahl fehlt.');
+              const selectValueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!selectValueSetter) throw new Error('Visual-Diff-Auswahl kann im Smoke nicht gesetzt werden.');
+              selectValueSetter.call(comparisonSelects[0], comparisonReports[1].id);
+              comparisonSelects[0].dispatchEvent(new Event('change', { bubbles: true }));
+              selectValueSetter.call(comparisonSelects[1], comparisonReports[0].id);
+              comparisonSelects[1].dispatchEvent(new Event('change', { bubbles: true }));
+              const compareButton = [...document.querySelectorAll('.card-qa-comparison button')].find((item) => item.textContent?.includes('Visuell vergleichen'));
+              for (let attempt = 0; attempt < 100 && compareButton?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!compareButton || compareButton.disabled) throw new Error('Visual-Diff-Vergleich wurde nicht aktiv.');
+              compareButton.click();
+              for (let attempt = 0; attempt < 100 && document.querySelectorAll('.card-qa-comparison-images img').length !== 2; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const comparedImages = [...document.querySelectorAll('.card-qa-comparison-images img')];
+              if (comparedImages.length !== 2) throw new Error('Visual-Diff zeigte nicht beide gespeicherten Bilder.');
+              await Promise.all(comparedImages.map((image) => image.decode()));
+              if (!document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 1280 × 800 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Keine Pixelbewertung')) throw new Error('Visual-Diff-Quellen oder Grenzen fehlen.');
               const contextForm = document.querySelector('.card-drawer .card-context-form');
               const contextInput = contextForm?.querySelector('input');
               if (!contextForm || !contextInput) throw new Error('Karten-Kontextformular fehlt.');

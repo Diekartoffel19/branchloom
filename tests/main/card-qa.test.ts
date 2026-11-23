@@ -75,7 +75,7 @@ describe('explicit local card QA', () => {
     const { file, store, project, card } = fixture();
     fake.mode = 'console';
     const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/page?token=private' });
-    expect(report).toMatchObject({ status: 'failed', requestedUrl: 'http://127.0.0.1:5173/page', finalUrl: 'http://127.0.0.1:5173/page', screenshotAvailable: true });
+    expect(report).toMatchObject({ status: 'failed', requestedUrl: 'http://127.0.0.1:5173/page', finalUrl: 'http://127.0.0.1:5173/page', screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     expect(report.diagnostics[0]).toMatchObject({ message: 'Synthetic TypeError', sourceUrl: 'http://127.0.0.1:5173/app.js', line: 7 });
     expect(fake.windows[0]).toMatchObject({ destroyed: true, options: { show: false, webPreferences: { sandbox: true, nodeIntegration: false, webSecurity: true } } });
     expect(fake.windows[0]!.options.webPreferences.partition).not.toContain('persist:');
@@ -155,13 +155,17 @@ describe('explicit local card QA', () => {
 
   it('adds the screenshot column to an existing QA report table on upgrade', async () => {
     const { store, file, card } = fixture();
+    const old = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/old' });
     store.close();
     const legacy = new Database(file);
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN screenshot_png');
+    legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN viewport_width');
+    legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN viewport_height');
     legacy.close();
     const reopened = new StudioStore(file);
+    expect(cardQaReports(reopened, card.id).find((item) => item.id === old.id)).toMatchObject({ viewportWidth: 0, viewportHeight: 0, screenshotAvailable: false });
     const report = await runCardQa(reopened, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
-    expect(report.screenshotAvailable).toBe(true);
+    expect(report).toMatchObject({ screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     reopened.close();
   });
 });

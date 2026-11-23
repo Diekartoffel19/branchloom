@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import type { Card, CardQaReport } from '../../shared/types';
+import { CardQaComparison } from './CardQaComparison';
 import './card-qa.css';
 
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -75,6 +76,7 @@ export function CardQaPanel({ card }: { card: Card }) {
         {report.screenshotAvailable ? <CardQaScreenshot cardId={card.id} reportId={report.id} /> : null}
       </details>)}
     </div>}
+    {!loading ? <CardQaComparison cardId={card.id} reports={reports} /> : null}
     <p className="card-qa-limit">Der Bericht belegt nur diesen Seitenaufruf und Fehler im kurzen Prüfzeitraum. Layout, Interaktion, andere Routen und Tests bleiben separat zu prüfen.</p>
   </section>;
 }
