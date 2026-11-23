@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { ClipboardItem, clipboard, Menu, session, shell, WebContentsView, type BrowserWindow, type Session } from 'electron';
-import type { BrowserBounds, BrowserCaptureResult, BrowserState, BrowserTabState } from '../shared/types';
-import { clampBrowserBounds, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
+import type { BrowserBounds, BrowserCaptureResult, BrowserDiagnostic, BrowserState, BrowserTabState } from '../shared/types';
+import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
 import { BrowserSessionPersistence, MAX_BROWSER_TABS } from './browser-persistence';
 
 const PARTITION = 'persist:jarvis-studio-browser';
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 
-interface Tab { id: string; view: WebContentsView; requestedUrl: string; restoredUrl: string | null; error: string | null }
+interface Tab { id: string; view: WebContentsView; requestedUrl: string; restoredUrl: string | null; error: string | null; diagnostics: BrowserDiagnostic[] }
 
 export class StudioBrowser {
   private readonly tabs: Tab[] = [];
@@ -45,6 +45,7 @@ export class StudioBrowser {
       canGoBack: active?.canGoBack ?? false,
       canGoForward: active?.canGoForward ?? false,
       error: active?.error ?? null,
+      diagnostics: this.tabs.find((tab) => tab.id === this.activeTabId)?.diagnostics.slice().reverse() ?? [],
     };
   }
 
@@ -89,6 +90,7 @@ export class StudioBrowser {
     tab.requestedUrl = url;
     tab.restoredUrl = null;
     tab.error = null;
+    tab.diagnostics = [];
     this.layout();
     this.schedulePersist();
     this.publish();
@@ -114,7 +116,8 @@ export class StudioBrowser {
   }
 
   reload(): BrowserState {
-    this.activeTab()?.view.webContents.reload();
+    const tab = this.activeTab();
+    if (tab) { tab.diagnostics = []; tab.error = null; tab.view.webContents.reload(); this.publish(); }
     return this.state();
   }
 
@@ -153,6 +156,12 @@ export class StudioBrowser {
     this.bounds = clampBrowserBounds(bounds, this.window.getContentSize());
     this.layout();
     return this.state();
+  }
+
+  diagnostic(id: string): BrowserDiagnostic {
+    const match = this.activeTab()?.diagnostics.find((entry) => entry.id === id);
+    if (!match) throw new Error('Der Browserfehler ist nicht mehr verfügbar. Seite neu laden und erneut prüfen.');
+    return { ...match };
   }
 
   dispose(): void {
@@ -194,7 +203,7 @@ export class StudioBrowser {
         partition: PARTITION,
       },
     });
-    const tab: Tab = { id: randomUUID(), view, requestedUrl: restoredUrl ?? '', restoredUrl, error: null };
+    const tab: Tab = { id: randomUUID(), view, requestedUrl: restoredUrl ?? '', restoredUrl, error: null, diagnostics: [] };
     const contents = view.webContents;
     contents.on('before-input-event', (event, input) => {
       if (tab.id === this.activeTabId && input.type === 'keyDown' && (input.control || input.meta) && input.key.toLowerCase() === 'k') {
@@ -214,16 +223,33 @@ export class StudioBrowser {
     });
     contents.on('will-navigate', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
     contents.on('will-redirect', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
-    contents.on('did-navigate', () => { tab.error = null; this.schedulePersist(); this.publish(); });
+    contents.on('did-navigate', () => { tab.error = null; tab.diagnostics = []; this.schedulePersist(); this.publish(); });
     contents.on('did-navigate-in-page', () => { this.schedulePersist(); this.publish(); });
     contents.on('page-title-updated', () => this.publish());
     contents.on('did-start-loading', () => this.publish());
     contents.on('did-stop-loading', () => this.publish());
-    contents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
-      if (isMainFrame && code !== -3) { tab.error = description; this.publish(); }
+    contents.on('console-message', (event) => {
+      if (event.level !== 'error') return;
+      this.addDiagnostic(tab, 'console', event.message, event.sourceId, event.lineNumber);
+    });
+    contents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+      if (isMainFrame && code !== -3) { tab.error = description; this.addDiagnostic(tab, 'load', `${description} (${code})`, url, null, url); this.publish(); }
     });
     this.tabs.push(tab);
     return tab;
+  }
+
+  private addDiagnostic(tab: Tab, kind: BrowserDiagnostic['kind'], rawMessage: string, sourceUrl: string, line: number | null, failedUrl?: string): void {
+    const pageUrl = failedUrl ?? (tab.view.webContents.getURL() || tab.requestedUrl);
+    if (!isLocalDevUrl(pageUrl)) return;
+    const message = rawMessage.trim().slice(0, 2_000);
+    if (!message) return;
+    const source = diagnosticSource(sourceUrl);
+    const sourceLine = Number.isSafeInteger(line) && line !== null && line > 0 ? line : null;
+    if (tab.diagnostics.some((entry) => entry.kind === kind && entry.message === message && entry.pageUrl === diagnosticSource(pageUrl) && entry.sourceUrl === source && entry.line === sourceLine)) return;
+    tab.diagnostics.push({ id: randomUUID(), kind, message, pageUrl: diagnosticSource(pageUrl)!, sourceUrl: source, line: sourceLine, capturedAt: new Date().toISOString() });
+    if (tab.diagnostics.length > 20) tab.diagnostics.shift();
+    this.publish();
   }
 
   private detach(tab: Tab): void {

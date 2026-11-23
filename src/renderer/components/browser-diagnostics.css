@@ -1,0 +1,13 @@
+.browser-diagnostics { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); padding: 9px 13px; font-size: 12px; }
+.browser-diagnostics summary { cursor: pointer; font-weight: 700; }
+.browser-diagnostics summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.browser-diagnostics p { margin: 10px 0; color: var(--muted); line-height: 1.45; }
+.browser-diagnostics form { display: grid; gap: 10px; max-width: 850px; }
+.browser-diagnostics label { display: grid; gap: 5px; color: var(--soft); font-weight: 600; }
+.browser-diagnostics select, .browser-diagnostics textarea { width: 100%; min-width: 0; color: var(--text); }
+.browser-diagnostics textarea { resize: vertical; }
+.browser-diagnostic-source { display: grid; gap: 4px; padding: 8px 10px; border-left: 3px solid var(--danger); background: var(--surface-2); overflow-wrap: anywhere; }
+.browser-diagnostic-source small { color: var(--muted); }
+.browser-diagnostic-action { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.browser-diagnostic-action label { min-width: 170px; flex: 1; }
+.browser-diagnostic-action button { white-space: nowrap; }

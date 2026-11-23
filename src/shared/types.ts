@@ -41,7 +41,8 @@ export interface ProjectSnapshot { project: Project; columns: Column[]; cards: C
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
 export interface BrowserTabState { id: string; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
-export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
+export interface BrowserDiagnostic { id: string; kind: 'console' | 'load'; message: string; pageUrl: string; sourceUrl: string | null; line: number | null; capturedAt: string }
+export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null; diagnostics: BrowserDiagnostic[] }
 export interface BrowserCaptureResult { width: number; height: number }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
@@ -144,6 +145,7 @@ export interface StudioAPI {
   browserCloseTab(id: string): Promise<BrowserState>;
   browserSetVisible(visible: boolean): Promise<BrowserState>;
   browserSetBounds(bounds: BrowserBounds | null): Promise<BrowserState>;
+  browserCreateDiagnosticCard(input: { projectId: string; columnId: string; diagnosticId: string; reproduction: string }): Promise<Card>;
   onBrowserState(callback: (state: BrowserState) => void): () => void;
   onBrowserSearchShortcut(callback: () => void): () => void;
 }

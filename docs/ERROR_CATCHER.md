@@ -1,0 +1,9 @@
+# Fehler-Catcher: erste Stufe
+
+1. Projekt wählen und im eingebetteten **Browser** eine lokale Vorschau auf `localhost`, `127.0.0.1` oder `[::1]` öffnen.
+2. Bei einem JavaScript-Konsolenfehler oder Hauptframe-Ladefehler erscheint ein Abschnitt **Fehler im lokalen Dev-Server erfasst**. Aufklappen, Fehler und Quelle prüfen, Reproduktionsschritte ergänzen und eine Spalte wählen.
+3. **Als Karte anlegen** speichert Zeitpunkt, Seite, mögliche Quelldatei mit Zeile, Fehlermeldung und Reproduktionsschritte im aktiven Projekt. Die neue Karte öffnet im Board. Der Klick startet keinen Agenten. Einen Fixlauf startet der Nutzer später bewusst an dieser Karte.
+
+Die Erfassung gilt nur für die eingebauten Browser-Tabs mit Loopback-Adresse. Externe Webseiten, Browser-Entwicklertools, Terminalausgaben und Dev-Server-Prozesse außerhalb dieses Browsers werden nicht überwacht. Warnungen und Info-Meldungen werden nicht als Fehler behandelt. Der Tab hält maximal 20 Fehlereinträge im Arbeitsspeicher; Navigation, Neuladen, Tab-Schließen oder App-Neustart verwerfen nicht übernommene Einträge. Query-Parameter und URL-Fragmente werden aus gespeicherten Quellen entfernt. Fehlermeldungen können dennoch Inhalte der lokalen App enthalten: vor dem Übernehmen lesen. Die erstellte Karte liegt lokal in SQLite und kann beim späteren Agentenstart Teil des Auftrags werden.
+
+Eine laufende To-do-Warteschlange sperrt die Übernahme in **To Do**, weil sie diese Karte andernfalls unmittelbar beanspruchen könnte. Eine andere Spalte bleibt möglich. Es gibt noch keinen automatischen Fix, keine Reproduktion durch einen QA-Agenten und keine automatische Prüfung, ob der Fehler nach dem Fix verschwunden ist.

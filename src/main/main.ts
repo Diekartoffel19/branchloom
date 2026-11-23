@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
+import { createDiagnosticCard } from './error-catcher';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
@@ -308,6 +309,10 @@ function installIpc(): void {
   bind('browserCloseTab', (id: string) => browser?.closeTab(id));
   bind('browserSetVisible', (visible: boolean) => browser?.setVisible(visible === true));
   bind('browserSetBounds', (bounds: { x: number; y: number; width: number; height: number } | null) => browser?.setBounds(bounds));
+  bind('browserCreateDiagnosticCard', (input: Parameters<StudioAPI['browserCreateDiagnosticCard']>[0]) => {
+    if (!browser) throw new Error('Browser nicht verfügbar.');
+    return createDiagnosticCard(db, input, browser.diagnostic(input.diagnosticId));
+  });
 }
 
 function createWindow(): void {

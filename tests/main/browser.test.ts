@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserWindow } from 'electron';
-import { clampBrowserBounds, isSafeBrowserUrl, normalizeBrowserAddress } from '../../src/main/browser-policy';
+import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, isSafeBrowserUrl, normalizeBrowserAddress } from '../../src/main/browser-policy';
 import { BrowserSessionPersistence } from '../../src/main/browser-persistence';
 
 const mocked = vi.hoisted(() => ({
@@ -110,9 +110,53 @@ describe('browser URL and bounds policy', () => {
     expect(clampBrowserBounds({ x: 0, y: 0, width: 0, height: 0 }, [900, 700])).toBeNull();
     expect(() => clampBrowserBounds({ x: Number.NaN, y: 0, width: 100, height: 100 }, [900, 700])).toThrow();
   });
+
+  it('limits diagnostic capture to loopback previews and removes URL secrets', () => {
+    expect(isLocalDevUrl('http://localhost:5173/app')).toBe(true);
+    expect(isLocalDevUrl('http://127.0.0.1:3000/')).toBe(true);
+    expect(isLocalDevUrl('http://[::1]:3000/')).toBe(true);
+    expect(isLocalDevUrl('https://localhost.evil.example/')).toBe(false);
+    expect(isLocalDevUrl('https://example.com/')).toBe(false);
+    expect(diagnosticSource('http://localhost:5173/app?token=secret#state')).toBe('http://localhost:5173/app');
+    expect(diagnosticSource('file:///private')).toBeNull();
+  });
 });
 
 describe('isolated embedded browser', () => {
+  it('captures bounded real console errors from local previews only, with source and tab isolation', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    await browser.navigate('http://localhost:5173/page?token=secret');
+    const local = mocked.views.at(-1) as { webContents: EventEmitter };
+    local.webContents.emit('console-message', { level: 'warning', message: 'ignore', sourceId: 'http://localhost:5173/a.ts', lineNumber: 1 });
+    expect(browser.state().diagnostics).toHaveLength(0);
+    local.webContents.emit('console-message', { level: 'error', message: 'TypeError: broken', sourceId: 'http://localhost:5173/app.ts?key=secret', lineNumber: 42 });
+    const issue = browser.state().diagnostics[0]!;
+    expect(issue).toMatchObject({ kind: 'console', message: 'TypeError: broken', pageUrl: 'http://localhost:5173/page', sourceUrl: 'http://localhost:5173/app.ts', line: 42 });
+    expect(browser.diagnostic(issue.id)).toEqual(issue);
+    local.webContents.emit('console-message', { level: 'error', message: 'TypeError: broken', sourceId: 'http://localhost:5173/app.ts?key=other', lineNumber: 42 });
+    expect(browser.state().diagnostics).toHaveLength(1);
+    browser.newTab();
+    expect(browser.state().diagnostics).toHaveLength(0);
+    expect(() => browser.diagnostic(issue.id)).toThrow('nicht mehr verfügbar');
+    await browser.navigate('https://external.example/');
+    const external = mocked.views.at(-1) as { webContents: EventEmitter };
+    external.webContents.emit('console-message', { level: 'error', message: 'Do not capture', sourceId: 'https://external.example/x.js', lineNumber: 2 });
+    expect(browser.state().diagnostics).toHaveLength(0);
+    browser.closeTab(browser.state().tabs[0]!.id);
+    expect(() => browser.diagnostic(issue.id)).toThrow('nicht mehr verfügbar');
+    browser.dispose();
+  });
+
+  it('records a local main-frame load failure and ignores cancelled navigation', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    await browser.navigate('http://127.0.0.1:5173/');
+    const view = mocked.views.at(-1) as { webContents: EventEmitter };
+    view.webContents.emit('did-fail-load', {}, -3, 'Cancelled', 'http://127.0.0.1:5173/', true);
+    expect(browser.state().diagnostics).toHaveLength(0);
+    view.webContents.emit('did-fail-load', {}, -102, 'ERR_CONNECTION_REFUSED', 'http://127.0.0.1:5173/', true);
+    expect(browser.state().diagnostics[0]).toMatchObject({ kind: 'load', message: 'ERR_CONNECTION_REFUSED (-102)', pageUrl: 'http://127.0.0.1:5173/' });
+    browser.dispose();
+  });
   it('navigates, attaches only while visible, denies permissions and blocks unsafe redirects', async () => {
     const window = fakeWindow();
     const events: string[] = [];

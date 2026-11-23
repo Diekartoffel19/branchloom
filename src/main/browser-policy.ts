@@ -17,6 +17,22 @@ export function normalizeBrowserAddress(address: string): string {
   return new URL(candidate).href;
 }
 
+/** Only a loopback preview is treated as a project dev server. */
+export function isLocalDevUrl(value: string): boolean {
+  if (!isSafeBrowserUrl(value)) return false;
+  const host = new URL(value).hostname.toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+}
+
+/** Keep the route needed for reproduction, but not query values or fragments. */
+export function diagnosticSource(value: string): string | null {
+  if (!isSafeBrowserUrl(value)) return null;
+  const url = new URL(value);
+  url.search = '';
+  url.hash = '';
+  return url.href;
+}
+
 export function clampBrowserBounds(input: BrowserBounds | null, size: readonly number[]): BrowserBounds | null {
   if (!input) return null;
   if (![input.x, input.y, input.width, input.height].every(Number.isFinite)) throw new Error('Ungültige Browsergröße.');

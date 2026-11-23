@@ -107,6 +107,7 @@ const studio: StudioAPI = {
   browserCloseTab: (id) => invoke('browserCloseTab', id),
   browserSetVisible: (visible) => invoke('browserSetVisible', visible),
   browserSetBounds: (bounds) => invoke('browserSetBounds', bounds),
+  browserCreateDiagnosticCard: (input) => invoke('browserCreateDiagnosticCard', input),
   onBrowserState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: BrowserState): void => callback(payload);
     ipcRenderer.on('studio:browser-state', listener);

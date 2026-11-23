@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Camera, ExternalLink, Globe2, Plus, RotateCw, X } from 'lucide-react';
-import type { BrowserState } from '../../shared/types';
+import type { BrowserDiagnostic, BrowserState, ProjectSnapshot } from '../../shared/types';
+import './browser-diagnostics.css';
 
-const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null };
+const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null, diagnostics: [] };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
-export function BrowserView({ active }: { active: boolean }) {
+export function BrowserView({ active, snapshot = null, onOpenCard }: { active: boolean; snapshot?: ProjectSnapshot | null; onOpenCard?: (cardId: string) => void }) {
   const [state, setState] = useState<BrowserState>(EMPTY);
   const [address, setAddress] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
+  const [reproduction, setReproduction] = useState('');
+  const [columnId, setColumnId] = useState('');
+  const [savingDiagnostic, setSavingDiagnostic] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const editing = useRef(false);
 
@@ -26,6 +31,14 @@ export function BrowserView({ active }: { active: boolean }) {
   useEffect(() => {
     if (!editing.current) setAddress(state.url);
   }, [state.url, state.activeTabId]);
+
+  useEffect(() => {
+    setSelectedDiagnosticId((old) => state.diagnostics.some((item) => item.id === old) ? old : state.diagnostics[0]?.id ?? null);
+  }, [state.diagnostics]);
+
+  useEffect(() => {
+    setColumnId((old) => snapshot?.columns.some((item) => item.id === old) ? old : snapshot?.columns.find((item) => item.name.trim().toLowerCase() === 'to do')?.id ?? snapshot?.columns[0]?.id ?? '');
+  }, [snapshot?.project.id, snapshot?.columns]);
 
   useEffect(() => {
     if (!window.studio) return;
@@ -91,6 +104,20 @@ export function BrowserView({ active }: { active: boolean }) {
     } catch (reason) { setError(messageOf(reason)); }
   }
 
+  async function createDiagnosticCard(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!snapshot || !selectedDiagnosticId || !columnId || savingDiagnostic) return;
+    setError('');
+    setNotice('');
+    setSavingDiagnostic(true);
+    try {
+      const card = await window.studio.browserCreateDiagnosticCard({ projectId: snapshot.project.id, columnId, diagnosticId: selectedDiagnosticId, reproduction });
+      setNotice('Karte angelegt. Ein Agent wurde dadurch nicht gestartet.');
+      onOpenCard?.(card.id);
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setSavingDiagnostic(false); }
+  }
+
   return <section className="browser-page" aria-label="Browser">
     <div className="browser-tabbar" role="tablist" aria-label="Browser-Tabs">
       {state.tabs.map((tab, index) => <div className={tab.id === state.activeTabId ? 'browser-tab active' : 'browser-tab'} key={tab.id}>
@@ -118,8 +145,25 @@ export function BrowserView({ active }: { active: boolean }) {
     </div>
     {error || state.error ? <div className="browser-error" role="alert">{error || state.error}</div> : null}
     {notice ? <div className="browser-notice" role="status">{notice}</div> : null}
+    {state.diagnostics.length ? <BrowserDiagnostics diagnostics={state.diagnostics} selectedId={selectedDiagnosticId} snapshot={snapshot} columnId={columnId} reproduction={reproduction} saving={savingDiagnostic} onSelect={setSelectedDiagnosticId} onColumn={setColumnId} onReproduction={setReproduction} onCreate={(event) => void createDiagnosticCard(event)} /> : null}
     <div className="browser-viewport" ref={viewport}>
       {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Browser</h2><p>Gib oben eine Webadresse ein. Webseiten laufen getrennt von den Rechten der App und der CLI-Agenten.</p></div> : null}
     </div>
   </section>;
+}
+
+export function BrowserDiagnostics({ diagnostics, selectedId, snapshot, columnId, reproduction, saving, onSelect, onColumn, onReproduction, onCreate }: {
+  diagnostics: BrowserDiagnostic[]; selectedId: string | null; snapshot: ProjectSnapshot | null; columnId: string; reproduction: string; saving: boolean;
+  onSelect: (id: string) => void; onColumn: (id: string) => void; onReproduction: (value: string) => void; onCreate: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return <details className="browser-diagnostics"><summary>{diagnostics.length} Fehler im lokalen Dev-Server erfasst</summary>
+      <p>Nur Konsolenfehler und Ladefehler von localhost werden erfasst. Der Verlauf bleibt bis zum Schließen des Tabs oder App-Neustart im Arbeitsspeicher. Eine Karte wird erst auf deinen Klick gespeichert.</p>
+      <form onSubmit={onCreate}>
+        <label>Fehler auswählen<select value={selectedId ?? ''} onChange={(event) => onSelect(event.target.value)}>{diagnostics.map((item) => <option key={item.id} value={item.id}>{item.kind === 'console' ? 'Konsole' : 'Laden'} · {item.message.slice(0, 100)}</option>)}</select></label>
+        {diagnostics.filter((item) => item.id === selectedId).map((item) => <div className="browser-diagnostic-source" key={item.id}><strong>{item.message}</strong><small>{item.pageUrl}{item.sourceUrl ? ` · ${item.sourceUrl}${item.line ? `:${item.line}` : ''}` : ''}</small></div>)}
+        <label>Reproduktionsschritte<textarea rows={2} maxLength={2_000} value={reproduction} onChange={(event) => onReproduction(event.target.value)} placeholder="Was hast du vor dem Fehler getan?" /></label>
+        <div className="browser-diagnostic-action"><label>Spalte<select value={columnId} disabled={!snapshot || saving} onChange={(event) => onColumn(event.target.value)}>{snapshot?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit" disabled={!snapshot || !columnId || saving}>{saving ? 'Speichere…' : 'Als Karte anlegen'}</button></div>
+        {!snapshot ? <small>Wähle zuerst ein Projekt, um eine Karte anzulegen.</small> : null}
+      </form>
+    </details>;
 }
