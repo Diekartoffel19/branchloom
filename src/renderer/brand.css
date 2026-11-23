@@ -1,0 +1,474 @@
+/* Branchloom: warm work surfaces, restrained accents and no decorative gradients.
+   Keep the old storage keys and browser partition so existing projects survive the rename. */
+:root,
+:root[data-theme='light'] {
+  font-family: 'Segoe UI Variable', 'Segoe UI', Arial, sans-serif;
+  color: #242521;
+  background: #f4f1eb;
+  --text: #242521;
+  --bg: #f4f1eb;
+  --sidebar: #e9e5dc;
+  --surface: #fffdf8;
+  --surface-2: #f1ece4;
+  --surface-3: #e9e2d8;
+  --border: #cec7bb;
+  --muted: #5a5e55;
+  --soft: #4f5a4b;
+  --accent: #8b4d30;
+  --accent-2: #6f3b25;
+  --danger: #a33d38;
+  --focus: #8b4d30;
+  --positive: #315e44;
+  --positive-bg: #e7f0e5;
+  --warning: #785320;
+  --warning-bg: #f7edda;
+  --danger-bg: #f8e8e5;
+}
+
+:root[data-theme='dark'] {
+  color: #f0efe7;
+  background: #1b1d1a;
+  --text: #f0efe7;
+  --bg: #1b1d1a;
+  --sidebar: #171916;
+  --surface: #252823;
+  --surface-2: #2d302b;
+  --surface-3: #363a33;
+  --border: #51564d;
+  --muted: #b0b6ab;
+  --soft: #c8cdc2;
+  --accent: #d2a574;
+  --accent-2: #e2bb8b;
+  --danger: #e39b92;
+  --focus: #e2bb8b;
+  --positive: #aad3ac;
+  --positive-bg: #263c2d;
+  --warning: #e4c18d;
+  --warning-bg: #413827;
+  --danger-bg: #462e2c;
+}
+
+:root[data-theme] body,
+:root[data-theme] .main-area { background: var(--bg); color: var(--text); }
+:root[data-theme] .sidebar { background: var(--sidebar); border-color: var(--border); }
+:root[data-theme] .topbar,
+:root[data-theme] .mobile-workspace { background: var(--surface); border-color: var(--border); }
+:root[data-theme] .brand-mark,
+:root[data-theme] .intro-icon,
+:root[data-theme] .topbar-icon {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  color: var(--accent);
+}
+
+.brand { gap: 10px; padding-bottom: 26px; letter-spacing: -.025em; }
+.brand strong { font-size: 17px; font-weight: 700; line-height: 1.2; }
+.brand-mark { border-radius: 8px; }
+.side-section-title,
+.eyebrow,
+.topbar-title small,
+.dialog-heading small { letter-spacing: 0; text-transform: none; font-weight: 600; }
+:root[data-theme] .side-section-title,
+:root[data-theme] .topbar-title small,
+:root[data-theme] .view-header p,
+:root[data-theme] .board-filter-count { color: var(--muted); }
+:root[data-theme] .sidebar-bottom { color: var(--muted); border-color: var(--border); }
+:root[data-theme] .sidebar-add,
+:root[data-theme] .text-button,
+:root[data-theme] .eyebrow { color: var(--accent); }
+:root[data-theme] .nav-item { color: var(--text); }
+:root[data-theme] .nav-item:hover { background: var(--surface-2); color: var(--text); }
+:root[data-theme] .nav-item.active {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: inset 3px 0 var(--accent);
+  color: var(--text);
+}
+
+:root[data-theme] input,
+:root[data-theme] textarea,
+:root[data-theme] select,
+:root[data-theme] .project-select {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme] input::placeholder,
+:root[data-theme] textarea::placeholder { color: var(--muted); }
+:root[data-theme] input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+:root[data-theme] input:focus,
+:root[data-theme] textarea:focus,
+:root[data-theme] select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent); }
+:root[data-theme] button:focus-visible,
+:root[data-theme] input:focus-visible,
+:root[data-theme] textarea:focus-visible,
+:root[data-theme] select:focus-visible,
+:root[data-theme] [role='button']:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:root[data-theme] .icon-button,
+:root[data-theme] .search-trigger { color: var(--text); }
+:root[data-theme] .icon-button:hover,
+:root[data-theme] .theme-toggle,
+:root[data-theme] .search-trigger,
+:root[data-theme] .search-trigger:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+:root[data-theme] .primary-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fffdf8;
+  box-shadow: none;
+}
+:root[data-theme='dark'] .primary-button { color: #211d17; }
+:root[data-theme] .primary-button:hover { background: var(--accent-2); border-color: var(--accent-2); }
+:root[data-theme] .secondary-button {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+:root[data-theme] .secondary-button:hover { background: var(--surface-2); border-color: var(--accent); }
+:root[data-theme] .danger-button { background: var(--surface); border-color: var(--danger); color: var(--danger); }
+:root[data-theme] .danger-button:hover { background: var(--surface-2); }
+.primary-button:active,
+.secondary-button:active,
+.danger-button:active { transform: scale(.98); }
+@media (prefers-reduced-motion: no-preference) {
+  .primary-button,
+  .secondary-button,
+  .danger-button { transition: background-color 140ms ease-out, border-color 140ms ease-out, transform 80ms ease-out; }
+}
+
+:root[data-theme] .board-column,
+:root[data-theme] .task-card,
+:root[data-theme] .workflow-card,
+:root[data-theme] .workflow-planner,
+:root[data-theme] .activity-item,
+:root[data-theme] .activity-stats > div,
+:root[data-theme] .panel,
+:root[data-theme] .memory-list,
+:root[data-theme] .memory-main,
+:root[data-theme] .memory-graph,
+:root[data-theme] .graph-panel,
+:root[data-theme] .browser-viewport,
+:root[data-theme] .dialog,
+:root[data-theme] .drawer-content {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: none;
+  color: var(--text);
+}
+:root[data-theme] .task-card:hover { border-color: var(--accent); }
+:root[data-theme] .board-column,
+:root[data-theme] .workflow-card,
+:root[data-theme] .panel { border-radius: 9px; }
+:root[data-theme] .task-card { border-radius: 7px; }
+:root[data-theme] .board-search,
+:root[data-theme] .search-input-wrap,
+:root[data-theme] .search-field,
+:root[data-theme] .card-move-form,
+:root[data-theme] .header-stat {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+:root[data-theme] .header-stat strong,
+:root[data-theme] .view-header code { color: var(--accent); }
+:root[data-theme] .view-header code { background: var(--surface-2); }
+:root[data-theme] .board-column .column-header,
+:root[data-theme] .column-footer,
+:root[data-theme] .drawer-header,
+:root[data-theme] .form-section { border-color: var(--border); }
+:root[data-theme] .column-indicator { background: var(--accent); box-shadow: none; }
+:root[data-theme] .count-pill,
+:root[data-theme] .workflow-list-heading span {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--muted);
+}
+:root[data-theme] .column-footer label,
+:root[data-theme] .empty-column { color: var(--muted); }
+:root[data-theme] .new-card-form,
+:root[data-theme] .proposal-preview,
+:root[data-theme] .workflow-route { background: var(--surface-2); border-color: var(--border); }
+:root[data-theme] .new-column-form { border-color: var(--border); }
+:root[data-theme] .new-column-form > span,
+:root[data-theme] .planner-head p,
+:root[data-theme] .planner-settings label,
+:root[data-theme] .planner-request label { color: var(--muted); }
+
+:root[data-theme] .board-bulk-actions,
+:root[data-theme] .board-bulk-confirm,
+:root[data-theme] .detected-item,
+:root[data-theme] .preset-item,
+:root[data-theme] .info-strip {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.board-bulk-actions label { white-space: nowrap; min-height: 36px; }
+:root[data-theme] .board-bulk-note,
+:root[data-theme] .board-bulk-card-select,
+:root[data-theme] .panel-subtitle,
+:root[data-theme] .agent-empty,
+:root[data-theme] .agent-empty p,
+:root[data-theme] .info-strip { color: var(--muted); }
+:root[data-theme] .detected-icon,
+:root[data-theme] .preset-avatar {
+  background: var(--surface-3);
+  color: var(--accent);
+}
+:root[data-theme] .panel-heading > div,
+:root[data-theme] .panel-heading h3 { color: var(--text); }
+:root[data-theme] .detected-item:hover,
+:root[data-theme] .preset-item:hover { background: var(--surface-3); border-color: var(--accent); }
+:root[data-theme] .detected-item span:not(.available-badge):not(.unavailable-badge),
+:root[data-theme] .preset-item small,
+:root[data-theme] .detected-item .agent-diagnostic-hint,
+:root[data-theme] .preset-item .agent-diagnostic-hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+:root[data-theme] .panel-subtitle,
+:root[data-theme] .info-strip p { font-size: 13px; line-height: 1.5; }
+:root[data-theme] .detected-item strong,
+:root[data-theme] .preset-item strong { font-size: 13px; }
+:root[data-theme] .available-badge { border-color: #7e9275; color: #3c5b3d; }
+:root[data-theme='dark'] .available-badge { color: #b8d7ad; }
+:root[data-theme] .unavailable-badge { border-color: var(--border); color: var(--muted); }
+
+/* Board details and card editing keep the same material language as the board. */
+:root[data-theme] .topbar-meta,
+:root[data-theme] .task-card-grip,
+:root[data-theme] .task-card-description,
+:root[data-theme] .task-card-footer,
+:root[data-theme] .run-meta,
+:root[data-theme] .column-agent,
+:root[data-theme] .field-label,
+:root[data-theme] .card-move-form label,
+:root[data-theme] .workflow-kicker { color: var(--muted); }
+:root[data-theme] .task-card-footer,
+:root[data-theme] .drawer-divider,
+:root[data-theme] .workflow-actions { border-color: var(--border); }
+:root[data-theme] .workflow-card p,
+:root[data-theme] .workflow-actions > span,
+:root[data-theme] .route-step strong,
+:root[data-theme] .route-step small,
+:root[data-theme] .workflow-kicker,
+:root[data-theme] .planner-settings label,
+:root[data-theme] .planner-request-actions span,
+:root[data-theme] .proposal-cards span,
+:root[data-theme] .proposal-footer span,
+:root[data-theme] .form-section > p,
+:root[data-theme] .field-help,
+:root[data-theme] .dialog-heading small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+:root[data-theme] .form-section > p,
+:root[data-theme] .field-help,
+:root[data-theme] .route-step small,
+:root[data-theme] .dialog-heading small { color: var(--muted); }
+:root[data-theme] .inline-note {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+:root[data-theme] .workflow-step-row-head .step-main,
+:root[data-theme] .workflow-step-row-head .approval-check { font-size: 12px !important; color: var(--text); }
+:root[data-theme] .workflow-card p,
+:root[data-theme] .workflow-actions > span,
+:root[data-theme] .route-step small,
+:root[data-theme] .queue-preview ol,
+:root[data-theme] .queue-preview .section-copy,
+:root[data-theme] .form-section > p { font-size: 13px; }
+:root[data-theme] .workflow-card .section-copy a { color: var(--accent); text-decoration-color: currentColor; }
+:root[data-theme] .card-move-trigger,
+:root[data-theme] .card-move-trigger:hover,
+:root[data-theme] .card-move-trigger[aria-expanded='true'] {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+:root[data-theme] .card-move-warning { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+:root[data-theme] .new-column-form > span,
+:root[data-theme] .task-card-archive-label { color: var(--muted); }
+:root[data-theme] .column-settings small,
+:root[data-theme] .card-metadata-fields small { color: var(--muted); }
+:root[data-theme] .card-label,
+:root[data-theme] .card-priority.low { background: var(--surface-2); border-color: var(--border); color: var(--muted); }
+:root[data-theme] .card-priority.medium { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+:root[data-theme] .card-priority.high { background: var(--surface-3); border-color: var(--accent); color: var(--accent); }
+:root[data-theme] .card-priority.urgent { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+:root[data-theme] .board-bulk-confirm { background: var(--warning-bg); border-color: var(--warning); }
+:root[data-theme] .card-order-actions > button:not(.card-move-trigger),
+:root[data-theme] .card-order-actions > button:not(.card-move-trigger):hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+:root[data-theme] .column-order-actions .icon-button { color: var(--text); }
+:root[data-theme] .column-delete-confirm { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+
+/* Workflow and planning: a plain work surface, with status colors only for state. */
+:root[data-theme] .feature-empty,
+:root[data-theme] .terminal-empty,
+:root[data-theme] .planner-hint,
+:root[data-theme] .planner-notice,
+:root[data-theme] .workflow-route,
+:root[data-theme] .route-number,
+:root[data-theme] .proposal-preview {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: none;
+}
+:root[data-theme] .planner-avatar,
+:root[data-theme] .activity-icon,
+:root[data-theme] .search-result-icon {
+  background: var(--surface-3);
+  border-color: var(--border);
+  color: var(--accent);
+}
+:root[data-theme] .feature-empty h3,
+:root[data-theme] .proposal-cards strong,
+:root[data-theme] .route-step strong { color: var(--text); }
+:root[data-theme] .feature-empty,
+:root[data-theme] .feature-empty p,
+:root[data-theme] .planner-request-actions span,
+:root[data-theme] .proposal-footer span,
+:root[data-theme] .proposal-preview > p,
+:root[data-theme] .proposal-cards li,
+:root[data-theme] .proposal-cards span,
+:root[data-theme] .proposal-route > span,
+:root[data-theme] .proposal-route small,
+:root[data-theme] .workflow-card p,
+:root[data-theme] .workflow-actions > span,
+:root[data-theme] .route-step,
+:root[data-theme] .route-step > svg { color: var(--muted); }
+:root[data-theme] .proposal-grid h4,
+:root[data-theme] .route-step.current,
+:root[data-theme] .route-step.current .route-number,
+:root[data-theme] .proposal-route svg { color: var(--accent); }
+:root[data-theme] .planner-request,
+:root[data-theme] .proposal-footer { border-color: var(--border); }
+:root[data-theme] .queue-preview { background: var(--surface-2); border-color: var(--border); }
+:root[data-theme] .queue-preview > strong { color: var(--text); }
+:root[data-theme] .queue-preview ol { color: var(--muted); }
+:root[data-theme] .state-badge,
+:root[data-theme] .activity-badge { background: var(--surface-2); border-color: var(--border); color: var(--muted); }
+:root[data-theme] .state-badge.running,
+:root[data-theme] .activity-badge.running,
+:root[data-theme] .activity-badge.finished { background: var(--positive-bg); border-color: var(--positive); color: var(--positive); }
+:root[data-theme] .state-badge.paused,
+:root[data-theme] .activity-badge.attention { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+:root[data-theme] .activity-badge.stopped { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+
+/* Memory uses plain link and graph colors instead of neon edges and a radial glow. */
+:root[data-theme] .memory-item { color: var(--text); }
+:root[data-theme] .memory-item:hover { background: var(--surface-2); }
+:root[data-theme] .memory-item.selected { background: var(--surface-3); border-color: var(--accent); }
+:root[data-theme] .memory-item span,
+:root[data-theme] .memory-editor-actions span,
+:root[data-theme] .list-empty,
+:root[data-theme] .graph-header > span,
+:root[data-theme] .graph-empty,
+:root[data-theme] .backlinks p,
+:root[data-theme] .memory-preview-empty { color: var(--muted); }
+:root[data-theme] .memory-item small,
+:root[data-theme] .memory-editor-top,
+:root[data-theme] .memory-modebar,
+:root[data-theme] .memory-wikilink,
+:root[data-theme] .backlinks h3 { color: var(--accent); }
+:root[data-theme] .memory-wikilink.missing { color: var(--muted); }
+:root[data-theme] .memory-title,
+:root[data-theme] .search-field,
+:root[data-theme] .backlinks { border-color: var(--border); }
+:root[data-theme] .memory-graph,
+:root[data-theme] .memory-markdown pre,
+:root[data-theme] .memory-markdown code { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+:root[data-theme] .memory-preview,
+:root[data-theme] .memory-markdown h1,
+:root[data-theme] .memory-markdown h2,
+:root[data-theme] .memory-markdown h3 { color: var(--text); }
+:root[data-theme] .memory-markdown blockquote { color: var(--muted); border-color: var(--accent); }
+:root[data-theme] .backlinks button,
+:root[data-theme] .memory-tag-filter button,
+:root[data-theme] .memory-preview-tags span { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+:root[data-theme] .memory-tag-filter button.active { background: var(--surface-3); border-color: var(--accent); color: var(--text); }
+:root[data-theme] .graph-edge { stroke: var(--muted); }
+:root[data-theme] .graph-node circle { fill: var(--surface-3); stroke: var(--accent); }
+:root[data-theme] .graph-node.selected circle,
+:root[data-theme] .graph-node:hover circle { fill: var(--accent); stroke: var(--text); }
+:root[data-theme] .graph-node text { fill: var(--text); }
+
+/* Activity, global search and browser chrome retain distinguishable active states. */
+:root[data-theme] .activity-stats svg,
+:root[data-theme] .activity-stats strong,
+:root[data-theme] .search-topline,
+:root[data-theme] .search-input-wrap,
+:root[data-theme] .browser-empty { color: var(--accent); }
+:root[data-theme] .activity-stats span,
+:root[data-theme] .activity-filters label,
+:root[data-theme] .activity-item p,
+:root[data-theme] .activity-meta,
+:root[data-theme] .activity-more,
+:root[data-theme] .activity-transcript-meta,
+:root[data-theme] .search-topline > span:nth-child(2),
+:root[data-theme] .search-results-title,
+:root[data-theme] .search-result-copy small,
+:root[data-theme] .search-footer,
+:root[data-theme] .search-no-results,
+:root[data-theme] .browser-empty p { color: var(--muted); }
+:root[data-theme] .activity-filters .activity-search,
+:root[data-theme] .terminal-controls form,
+:root[data-theme] .activity-transcript-output,
+:root[data-theme] .search-dialog,
+:root[data-theme] .browser-address,
+:root[data-theme] .browser-tab,
+:root[data-theme] .browser-tab-add { background: var(--surface); border-color: var(--border); color: var(--text); box-shadow: none; }
+:root[data-theme] .search-result { color: var(--text); }
+:root[data-theme] .search-result:hover,
+:root[data-theme] .search-result.active,
+:root[data-theme] .browser-tab.active,
+:root[data-theme] .browser-tab-close:hover,
+:root[data-theme] .browser-tab-add:hover { background: var(--surface-2); border-color: var(--accent); color: var(--text); }
+:root[data-theme] .browser-tab-close { color: var(--muted); }
+:root[data-theme] .browser-empty h2 { color: var(--text); }
+:root[data-theme] .browser-notice { background: var(--positive-bg); border-color: var(--positive); color: var(--positive); }
+:root[data-theme] .browser-error,
+:root[data-theme] .error-banner { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+:root[data-theme] .search-input-wrap,
+:root[data-theme] .search-footer { border-color: var(--border); }
+:root[data-theme] .activity-transcript-output {
+  background: var(--sidebar);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme] .session-terminal { background: #1b1d1a; border-color: var(--border); }
+:root[data-theme] .browser-tab button:focus-visible,
+:root[data-theme] .browser-tab-add:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+@media (max-width: 600px) {
+  :root[data-theme] .brand > .brand-mark { display: flex; }
+  .brand strong { display: none; }
+}
+
+@media (prefers-contrast: more) {
+  :root[data-theme='light'] { --border: #777166; --muted: #373b34; --soft: #373b34; --accent: #71391e; }
+  :root[data-theme='dark'] { --border: #999e92; --muted: #dadfd4; --soft: #dadfd4; --accent: #f2c28e; }
+}
+
+@media (max-width: 600px) {
+  .brand { padding: 0; }
+  :root[data-theme] .mobile-workspace { background: var(--surface); border-color: var(--border); }
+  :root[data-theme] .nav-item.active { box-shadow: inset 0 -3px var(--accent); }
+}

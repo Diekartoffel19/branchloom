@@ -6,7 +6,7 @@ module.exports = {
     ? { ignoreModules: ['better-sqlite3', 'node-pty'] }
     : {},
   packagerConfig: {
-    name: 'Jarvis Studio',
+    name: 'Branchloom',
     asar: false,
     ignore: [
       /^\/(?:\.git|\.github|\.githooks|\.venv|coverage|out|src|tests)(?:\/|$)/,

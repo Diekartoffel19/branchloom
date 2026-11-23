@@ -1,0 +1,16 @@
+.decision-page .view-header p { max-width: 70ch; }
+.decision-list { display: grid; gap: 10px; }
+.decision-item { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); }
+.decision-item-body { min-width: 0; }
+.decision-kind { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 650; color: var(--accent); }
+.decision-item h3 { margin: 0 0 7px; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.decision-item p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.decision-item .decision-context { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.decision-item > button { flex: none; }
+.decision-empty { max-width: 610px; padding: 28px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted); }
+.decision-empty svg { color: var(--accent); }
+.decision-empty h3 { margin: 12px 0 6px; color: var(--text); font-size: 17px; }
+.decision-empty p { margin: 0; font-size: 13px; line-height: 1.5; }
+.nav-count { margin-left: auto; min-width: 21px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+@media (max-width: 700px) { .decision-item { align-items: stretch; flex-direction: column; gap: 14px; }.decision-item > button { align-self: flex-start; } }
+@media (max-width: 600px) { .side-nav { justify-content: flex-start; overflow-x: auto; min-width: 0; }.side-nav .nav-item, .side-nav .nav-item:not(.active) { flex: 0 0 42px; }.nav-count { display: none; } }

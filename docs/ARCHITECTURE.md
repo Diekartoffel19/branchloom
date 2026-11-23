@@ -1,6 +1,6 @@
 # Architektur der ersten Desktop-Stufe
 
-Jarvis Studio ist eine eigenständige Electron-App. Der React-Renderer zeigt Board, Workflow-Planung, CLI-Sitzungen und Memory. Er erhält ausschließlich die in `src/shared/types.ts` beschriebene `window.studio`-Schnittstelle aus dem isolierten Preload. Datei-, Prozess- und Datenbankzugriff bleiben im Electron-Hauptprozess.
+Branchloom ist eine eigenständige Electron-App. Der React-Renderer zeigt Board, Workflow-Planung, CLI-Sitzungen und Memory. Er erhält ausschließlich die in `src/shared/types.ts` beschriebene `window.studio`-Schnittstelle aus dem isolierten Preload. Datei-, Prozess- und Datenbankzugriff bleiben im Electron-Hauptprozess.
 
 ## Datenfluss
 

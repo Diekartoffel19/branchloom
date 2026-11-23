@@ -1,6 +1,18 @@
 # Status
 
-Stand: 21.11.2026, 08:09 Uhr (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 23.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+
+## Aktueller Branchloom-Schritt
+
+- Jarvis Studio wird als **Branchloom** weiterentwickelt. Das neue öffentliche Repository ist `mschr703/branchloom`, Entwicklungs-Commits und Pushes erfolgen mit `mschr703CODEX`. Der Name ist in App-Fenster, Navigation, Paket, ZIP-Artefakt und neuen Exportnamen angepasst. Alte Projektpakete, Theme-Einstellung, Browser-Partition und `%APPDATA%\jarvis-studio` bleiben bewusst kompatibel. Das alte lokale Projekt namens „Jarvis Studio“ wird nicht automatisch umbenannt.
+- Die Oberfläche hat eine warme helle und neutralgraue dunkle Farbgrundlage, ruhige Akzente und sichtbare Fokusmarkierungen. Board und Agentenansicht wurden im nativen Electron-Fenster in beiden Designs angesehen. Der sichtbare Test zeigte, dass das vorhandene Projekt weiterhin geladen wird. Einzelne ältere Detailkomponenten und weitere Ansichten brauchen noch eine vollständige Designprüfung.
+- [PRODUCT_VISION.md](PRODUCT_VISION.md) hält die neue Zielrichtung und die gewünschte Ausbaufolge fest. Whiteboard, Live-Design, vollständige Decision Inbox, koordinierte parallele Agenten und Auto-QA bleiben überwiegend **offen**; erste Inbox- und Konfliktwarnungsstufen sind gesondert beschrieben. Eine Idee in der Vision ist kein Implementierungsnachweis.
+- Für den integrierten Branchloom-Stand bestanden **223 automatisierte Tests**, zwei optionale Live-Modelltests wurden übersprungen. `npm run typecheck`, `npm run build`, `npm run doctor`, `npm audit --audit-level=critical` ohne Funde und `npm run smoke:source` bestanden. Der Smoke prüfte Renderer, IPC, SQLite, lokales Terminal, Agenten-PTY, Board und Memory. Ein frischer Paket-Smoke und CI im neuen Repository stehen bis zum ersten Push noch aus.
+- Die native Agentendiagnose fand vor dem Launcher-Fix Antigravity CLI 1.5.13, aber `codex`, `claude` und `gemini` nicht. Der offizielle WinGet-Codex-CMD-Verweis wird jetzt eng geprüft und auf seine EXE aufgelöst, ohne die Batch-Datei auszuführen. 13 gezielte Tests und ein realer Versionsaufruf (`codex-cli 0.171.0`) bestanden; die erneute sichtbare Diagnose steht noch aus. Claude und Gemini sind auf diesem Laptop weiterhin nicht installiert. Anmeldungen und Modellaufrufe wurden hierbei nicht getestet.
+- Ein Workflow-Schritt kann nun ein eigenes Modell und einen eigenen Effort speichern. Leere Felder erben passende Spalten-/Profilwerte, ein anderer Schritt-Agent übernimmt nicht die Einstellungen des Spaltenagenten. Ältere JSON-Schritte werden beim Lesen ergänzt; die Queue kopiert die expliziten Schrittwerte in ihren Kartenlauf. Ein lokaler synthetischer PTY-Test bestätigte die Startargumente und den Abschluss. Dabei wurde ein Windows-ConPTY-OSC-Fenstertitel vor dem Abschlussmarker als bestehender Fehler entdeckt und mit Regressionstest behoben. 16 gezielte Tests, Typprüfung und Build bestanden; echte Modellaufrufe je Anbieter stehen aus. [Bedienung](WORKFLOW_STEPS.md).
+- **Entscheidungen** bündelt gespeicherte pausierte Workflows und die pausierte Queue des aktiven Projekts; ein Klick führt zur betroffenen Workflow- oder Queue-Ansicht. Die Inbox vergibt selbst keine Freigabe und startet nichts. Zehn gezielte Tests, Typprüfung und Build bestanden. Im isolierten synthetischen Electron-Profil wurden zwei Pausen, der Sprung zum Workflow und zur Queue sowie das Modell-/Effort-Formular in Hell/Dunkel sichtbar geprüft; keine Freigabe wurde ausgelöst. Agentenfragen und projektübergreifende Ereignisse bleiben offen. [Grenzen](DECISION_INBOX.md).
+- Für sichtbare Tests kann nur der **ungepackte** Entwicklerstart über `BRANCHLOOM_DEV_USER_DATA` einen absoluten isolierten Datenordner wählen. Normaler Start und Paket bleiben beim bisherigen Nutzerprofil; der isolierte Test schrieb keine Daten in das Nutzerprojekt.
+- Das erste [Konflikt-Radar](CONFLICT_RADAR.md) vergleicht auf ausdrücklichen Klick die aktuell geänderten Git-Pfade laufender Karten-Agenten desselben Projekts in getrennten Worktrees. Es liest auch aktive Sessions jenseits des normalen 200er Snapshots, prüft Worktree-Zuordnung und zeigt Überlappungen oder bei fehlender Sicherheit **Unvollständig**. Git-Aufrufe laufen asynchron mit Zeit-, Ausgabe-, Pfad- und Peer-Limits; kein Agent wird gestartet, gestoppt oder gemergt. Neun gezielte synthetische Tests, Typprüfung und Build bestanden. Ein sichtbarer Radar-Klick mit zwei echten gleichzeitigen CLI-Agenten steht noch aus; die Warnung erkennt nur Pfadüberschneidungen, keine semantischen Abhängigkeiten.
 
 ## Umgesetzt
 
@@ -85,8 +97,8 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Nächste Paritätsfunktion: Modell und Effort pro Workflow-Schritt unabhängig vom Spaltenstandard konfigurieren und den gewählten CLI-Start sichtbar verifizieren.
-2. Lokalen Trello-Import und Workflow-Route in einem echten sichtbaren UI-Durchlauf prüfen, sobald Rechnersteuerung wieder erlaubt ist.
-3. Langfristig sichere Sitzungswiederaufnahme nach CLI-/Netzausfall ohne doppelte externe Aktion entwickeln; aktuelle Pausenstrategie in [QUEUE.md](QUEUE.md) bleibt bis dahin maßgeblich.
+1. Kombinierte Suite, Public-Scan, ersten Push nach `mschr703/branchloom` und frischen Windows-Paket-Smoke für den neuen Stand abschließen. Den sicheren Konflikt-Radar-Pfad für parallele Worktrees dabei vollständig prüfen.
+2. Danach den lokalen Trello-Import und eine komplette Workflow-Route mit echtem CLI-Modellaufruf im sichtbaren UI-Durchlauf prüfen.
+3. Sichere Sitzungswiederaufnahme nach CLI-/Netzausfall ohne doppelte externe Aktion entwickeln; aktuelle Pausenstrategie in [QUEUE.md](QUEUE.md) bleibt bis dahin maßgeblich.
 
-Der persönliche Jarvis-Kern und seine privaten Module werden getrennt von Jarvis Studio betreut. [PARITY.md](PARITY.md) nennt die offenen Studio-Funktionen und Abnahmekriterien.
+Der persönliche Jarvis-Kern und seine privaten Module werden getrennt von Branchloom betreut. [PARITY.md](PARITY.md) nennt die offenen Studio-Funktionen und Abnahmekriterien.

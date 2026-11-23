@@ -10,7 +10,7 @@ export function readableSessionOutput(output: string): string {
 
 export function serializeSessionTranscript(session: Session, cardTitle: string, agentName: string): string {
   const lines = [
-    'Jarvis Studio · Agentenlauf',
+    'Branchloom · Agentenlauf',
     `Karte: ${cardTitle}`,
     `Agent: ${agentName}`,
     `Sitzung: ${session.id}`,
@@ -39,12 +39,12 @@ export function sessionMemoryDraft(session: Session, cardTitle: string, agentNam
 
 /** Only notes explicitly copied from Studio runs can offer a source link. */
 export function sourceSessionIdFromNote(note: Pick<MemoryNote, 'body' | 'tags'>): string | null {
-  if (!note.tags.includes('agentenlauf') || !note.body.startsWith('Jarvis Studio · Agentenlauf\n')) return null;
+  if (!note.tags.includes('agentenlauf') || !/^(?:Branchloom|Jarvis Studio) · Agentenlauf\n/.test(note.body)) return null;
   const header = note.body.slice(0, 4_000).split('\n\n', 1)[0] ?? '';
   const matches = [...header.matchAll(/^Sitzung: ([a-zA-Z0-9-]{1,80})$/gm)];
   return matches.at(-1)?.[1] ?? null;
 }
 
 export function sessionTranscriptFileName(sessionId: string): string {
-  return `jarvis-lauf-${sessionId.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 36) || 'unbekannt'}.txt`;
+  return `branchloom-lauf-${sessionId.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 36) || 'unbekannt'}.txt`;
 }

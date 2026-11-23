@@ -158,7 +158,7 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props)
 
   return <div className="standard-page memory-page">
     <div className="view-header">
-      <div><div className="eyebrow">VERKNÜPFTES WISSEN</div><h2>Dein Memory</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
+      <div><h2>Projektgedächtnis</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
       <div className="memory-header-actions">
         <input ref={fileInputRef} className="sr-only" type="file" accept=".md,text/markdown" aria-label="Markdown-Datei auswählen" onChange={(event) => void importMarkdown(event)} />
         <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} /> Markdown importieren</button>
@@ -206,7 +206,7 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props)
         </> : <div className="feature-empty memory-empty"><BrainCircuit size={30} /><h3>{notes.length ? 'Wähle eine Notiz' : 'Dein Wissen bekommt Struktur'}</h3><p>{notes.length ? 'Öffne eine Notiz links oder nutze die Karte, um Zusammenhänge zu erkunden.' : 'Lege deine erste Notiz an und verknüpfe später weitere mit doppelten eckigen Klammern.'}</p><button className="secondary-button" type="button" onClick={beginNew}>Notiz anlegen</button></div>}
       </div>
     </div>
-    <div className="graph-panel"><div className="graph-header"><div><div className="eyebrow">ZUSAMMENHÄNGE</div><h3>Knowledge Graph</h3></div><span>{notes.length} Knoten · {noteEdges(notes).length} Verbindungen</span></div><MemoryGraph notes={notes} selectedId={selectedId} onSelect={selectNote} /></div>
+    <div className="graph-panel"><div className="graph-header"><div><h3>Verknüpfungen</h3></div><span>{notes.length} Knoten · {noteEdges(notes).length} Verbindungen</span></div><MemoryGraph notes={notes} selectedId={selectedId} onSelect={selectNote} /></div>
   </div>;
 }
 

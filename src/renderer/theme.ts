@@ -1,5 +1,6 @@
 export type ThemePreference = 'dark' | 'light';
 
+// Preserve the pre-rename key so users keep their chosen appearance.
 export const THEME_STORAGE_KEY = 'jarvis-studio:theme';
 
 type ThemeStorage = Pick<Storage, 'getItem' | 'setItem'>;

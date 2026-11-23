@@ -279,7 +279,7 @@ export class StudioBrowser {
     });
     const activeIndex = this.tabs.findIndex((tab) => tab.id === this.activeTabId);
     try { this.persistence.save({ urls, activeIndex }); }
-    catch { console.error('[Jarvis Studio] Browser-Sitzung konnte nicht gespeichert werden.'); }
+    catch { console.error('[Branchloom] Browser-Sitzung konnte nicht gespeichert werden.'); }
   }
 
   private publish(): void { this.emit(this.state()); }

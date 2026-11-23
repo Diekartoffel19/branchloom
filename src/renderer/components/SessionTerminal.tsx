@@ -37,7 +37,8 @@ export function SessionTerminal({ session, ariaLabel = 'Interaktives Agententerm
       screenReaderMode: true,
       fontSize: 12,
       fontFamily: 'Cascadia Code, Consolas, monospace',
-      theme: { background: '#111b27', foreground: '#dceaf4', cursor: '#70d9c9', selectionBackground: '#315d66' },
+      // A stable neutral console stays legible in both Branchloom themes.
+      theme: { background: '#1b1d1a', foreground: '#f0efe7', cursor: '#d2a574', selectionBackground: '#67543d' },
       // Agent output may contain OSC 8 links. Never open a target supplied by
       // terminal output through the renderer's default browser handler.
       linkHandler: { activate: () => undefined },

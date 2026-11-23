@@ -2,13 +2,14 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
+import { reviewCardConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
@@ -24,8 +25,21 @@ let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let browser: StudioBrowser | null = null;
 const smoke = process.argv.includes('--studio-smoke');
-const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'jarvis-studio-smoke-')) : null;
-if (smokeDataDirectory) app.setPath('userData', smokeDataDirectory);
+const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
+const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
+if (smokeDataDirectory) {
+  app.setPath('userData', smokeDataDirectory);
+} else if (devDataDirectory) {
+  if (!isAbsolute(devDataDirectory)) throw new Error('BRANCHLOOM_DEV_USER_DATA muss ein absoluter Pfad sein.');
+  mkdirSync(devDataDirectory, { recursive: true });
+  app.setPath('userData', devDataDirectory);
+} else {
+  // Keep the existing Jarvis Studio profile when upgrading to Branchloom.
+  // Changing the Electron/package name must not make projects appear to vanish.
+  const dataDirectory = join(app.getPath('appData'), 'jarvis-studio');
+  mkdirSync(dataDirectory, { recursive: true });
+  app.setPath('userData', dataDirectory);
+}
 
 function mustStore(): StudioStore {
   if (!store) throw new Error('Store is not ready');
@@ -69,7 +83,7 @@ function installIpc(): void {
     const data = db.exportProjectPackage(projectId);
     const content = JSON.stringify(data, null, 2) + '\n';
     if (Buffer.byteLength(content, 'utf8') > PROJECT_PACKAGE_LIMIT) throw new Error('Projektpaket ist größer als 8 MiB.');
-    const choice = await dialog.showSaveDialog(window, { title: 'Projektpaket speichern', defaultPath: 'jarvis-studio-project.json', filters: [{ name: 'Jarvis Studio Projektpaket', extensions: ['json'] }] });
+    const choice = await dialog.showSaveDialog(window, { title: 'Projektpaket speichern', defaultPath: 'branchloom-project.json', filters: [{ name: 'Branchloom Projektpaket', extensions: ['json'] }] });
     if (choice.canceled || !choice.filePath) return null;
     try { writeFileSync(choice.filePath, content, { encoding: 'utf8', flag: 'wx' }); }
     catch (error) {
@@ -81,7 +95,7 @@ function installIpc(): void {
   bind('previewProjectPackage', async () => {
     if (!window || window.isDestroyed()) throw new Error('Das Importfenster ist nicht verfügbar.');
     previewedPackage = null;
-    const choice = await dialog.showOpenDialog(window, { title: 'Projektpaket auswählen', properties: ['openFile'], filters: [{ name: 'Jarvis Studio Projektpaket', extensions: ['json'] }] });
+    const choice = await dialog.showOpenDialog(window, { title: 'Projektpaket auswählen', properties: ['openFile'], filters: [{ name: 'Branchloom Projektpaket', extensions: ['json'] }] });
     if (choice.canceled || !choice.filePaths[0]) return null;
     const file = choice.filePaths[0];
     const { json, fingerprint } = packageContent(file);
@@ -190,6 +204,7 @@ function installIpc(): void {
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
   bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
+  bind('reviewCardConflicts', (cardId: string) => reviewCardConflicts(db, cardId, db.runningSessionsForProject(db.card(cardId).projectId)));
   bind('mergeCardWorktree', (input: { cardId: string; previewToken: string; confirm: boolean }) => mergeCardWorktree(db, input));
   bind('saveNote', (input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }) => db.saveNote(input));
   bind('deleteNote', (id: string) => db.deleteNote(id));
@@ -259,8 +274,8 @@ function createWindow(): void {
     minWidth: 420,
     minHeight: 650,
     show: !smoke,
-    title: 'Jarvis Studio',
-    backgroundColor: '#10151e',
+    title: 'Branchloom',
+    backgroundColor: '#f4f1eb',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -291,7 +306,7 @@ function createWindow(): void {
           for (let attempt = 0; attempt < 600 && !document.querySelector('.app-shell'); attempt++) {
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
-          if (!document.querySelector('.app-shell') || !document.body.textContent?.includes('JARVIS')) {
+          if (!document.querySelector('.app-shell') || !document.body.textContent?.includes('Branchloom')) {
             throw new Error('Renderer hat die Oberfläche nicht aufgebaut: ' + document.body.textContent?.slice(0, 200));
           }
           if (!window.studio) throw new Error('Preload-API fehlt.');
@@ -490,7 +505,7 @@ app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (!window) createWindow(); });
 }).catch((error: unknown) => {
-  console.error('[Jarvis Studio] startup failed', error);
+  console.error('[Branchloom] startup failed', error);
   app.quit();
 });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Moon, Plus, RefreshCw, Search, Settings2, Sparkles, Sun, TerminalSquare, Upload } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Inbox, Moon, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
 import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { WorkflowView } from './components/WorkflowView';
@@ -9,19 +9,23 @@ import { CommandTerminalView } from './components/CommandTerminalView';
 import { BrowserView } from './components/BrowserView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
+import { DecisionInbox } from './components/DecisionInbox';
 import { ProjectPackageDialog } from './components/ProjectPackageDialog';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
+import { decisionItems } from './decision-inbox';
 import './theme.css';
+import './brand.css';
 
-type View = 'board' | 'activity' | 'workflows' | 'memory' | 'agents' | 'terminal' | 'browser';
+type View = 'board' | 'activity' | 'workflows' | 'decisions' | 'memory' | 'agents' | 'terminal' | 'browser';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
 
 const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
   { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
+  { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
   { id: 'agents', name: 'Agenten', icon: Bot },
   { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
@@ -42,6 +46,7 @@ export function App() {
   const [notice, setNotice] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
+  const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const focusBeforeSearch = useRef<HTMLElement | null>(null);
@@ -52,8 +57,14 @@ export function App() {
     persistTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (view !== 'workflows' || queueNavigationToken === 0) return;
+    document.querySelector('[aria-label="Automatische Warteschlange"]')?.scrollIntoView({ block: 'center' });
+    setQueueNavigationToken(0);
+  }, [view, queueNavigationToken]);
+
   const loadProjects = useCallback(async () => {
-    if (!window.studio) throw new Error('Die Desktop-Verbindung ist nicht verfügbar. Bitte Jarvis Studio als App starten.');
+    if (!window.studio) throw new Error('Die Desktop-Verbindung ist nicht verfügbar. Bitte Branchloom als App starten.');
     const items = await window.studio.projects();
     setProjects(items);
     setProjectId((previous) => previous && items.some((item) => item.id === previous) ? previous : items[0]?.id ?? null);
@@ -122,6 +133,12 @@ export function App() {
   function navigateToResult(result: ProjectSearchResult) {
     navigateToEntity(result.kind, result.id);
     closeSearch();
+  }
+
+  function navigateToQueue() {
+    setNavigationTarget(null);
+    setView('workflows');
+    setQueueNavigationToken((value) => value + 1);
   }
 
   async function saveSessionAsNote(session: Session) {
@@ -216,11 +233,12 @@ export function App() {
 
   const activeView = views.find((item) => item.id === view)!;
   const ViewIcon = activeView.icon;
+  const decisionCount = snapshot?.project.id === projectId ? decisionItems(snapshot).length : 0;
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark"><Sparkles size={19} strokeWidth={2.4} /></span><span><strong>JARVIS</strong><small>STUDIO</small></span></div>
-      <div className="side-section-title">WORKSPACE</div>
+      <div className="brand"><span className="brand-mark"><GitBranch size={19} strokeWidth={2} /></span><strong>Branchloom</strong></div>
+      <div className="side-section-title">Projekte</div>
       <label className="sr-only" htmlFor="project-select">Projekt auswählen</label>
       <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => setProjectId(event.target.value || null)}>
         {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
@@ -229,17 +247,17 @@ export function App() {
       <button className="sidebar-add" type="button" onClick={() => setCreatingProject(true)}><Plus size={15} /> Projekt hinzufügen</button>
       <button className="sidebar-add sidebar-package" type="button" onClick={() => void previewProjectPackage()}><Upload size={15} /> Projekt importieren</button>
       <button className="sidebar-add sidebar-package" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()}><Download size={15} /> Projekt sichern</button>
-      <div className="side-section-title navigation-title">BEREICHE</div>
+      <div className="side-section-title navigation-title">Navigation</div>
       <nav className="side-nav" aria-label="Hauptnavigation">
-        {views.map(({ id, name, icon: Icon }) => <button key={id} type="button" className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => setView(id)} aria-current={view === id ? 'page' : undefined}><Icon size={18} /> {name}</button>)}
+        {views.map(({ id, name, icon: Icon }) => <button key={id} type="button" className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => setView(id)} aria-current={view === id ? 'page' : undefined} aria-label={id === 'decisions' && decisionCount ? `${name}: ${decisionCount} offen` : undefined}><Icon size={18} /> {name}{id === 'decisions' && decisionCount ? <span className="nav-count" aria-hidden="true">{decisionCount}</span> : null}</button>)}
       </nav>
       <div className="sidebar-bottom"><div className="status-dot" /><span>Lokaler Workspace</span><Settings2 size={16} /></div>
     </aside>
 
     <main className="main-area">
       <header className="topbar">
-        <div className="topbar-title"><span className="topbar-icon"><ViewIcon size={21} /></span><div><small>{snapshot?.project.name ?? 'JARVIS STUDIO'}</small><h1>{activeView.name}</h1></div></div>
-        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} Karten · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg/⌘ K)" aria-label="Projekt durchsuchen" disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Suche</span><kbd>⌘ K</kbd></button><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
+        <div className="topbar-title"><span className="topbar-icon"><ViewIcon size={21} /></span><div><small>{snapshot?.project.name ?? 'Branchloom'}</small><h1>{activeView.name}</h1></div></div>
+        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} ${snapshot.cards.length === 1 ? 'Karte' : 'Karten'} · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Suche</span><kbd>Strg K</kbd></button><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
       </header>
       <div className="mobile-workspace">
         <label className="sr-only" htmlFor="mobile-project-select">Projekt auswählen</label>
@@ -254,17 +272,18 @@ export function App() {
 
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
-      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><Sparkles size={30} /></div><h2>Dein Agenten-Workspace beginnt hier.</h2><p>Lege ein Projekt mit dem Ordner an, in dem deine Agenten arbeiten sollen. Danach kannst du Aufgaben auf dem Board planen, CLI-Agenten starten und Wissen verknüpfen.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Erstes Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
+      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area"><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area">
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
+        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
         {view === 'terminal' ? <CommandTerminalView projectId={snapshot.project.id} /> : null}
       </div>}
     </main>
 
-    {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>WORKSPACE</small><h2>Projekt hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><label>Absoluter Projektordner<input required value={newProject.path} onChange={(event) => setNewProject((old) => ({ ...old, path: event.target.value }))} placeholder="C:\\Projekte\\mein-projekt" /></label><p className="field-help">CLI-Agenten laufen in diesem Ordner und können Dateien verändern.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Projekt anlegen</button></div></form></div> : null}
+    {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>Projekt</small><h2>Projekt hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><label>Absoluter Projektordner<input required value={newProject.path} onChange={(event) => setNewProject((old) => ({ ...old, path: event.target.value }))} placeholder="C:\\Projekte\\mein-projekt" /></label><p className="field-help">CLI-Agenten laufen in diesem Ordner und können Dateien verändern.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Projekt anlegen</button></div></form></div> : null}
     {importPreview ? <ProjectPackageDialog preview={importPreview} target={importTarget} onTarget={setImportTarget} onClose={() => setImportPreview(null)} onImport={(event) => void importProjectPackage(event)} /> : null}
     {searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}
   </div>;

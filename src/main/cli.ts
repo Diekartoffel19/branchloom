@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative as relativePath, resolve } from 'node:path';
 import { spawn as spawnPty, type IPty } from 'node-pty';
 import type { AgentDetection, AgentPreset, Column, ColumnEffort, Session, SessionEvent } from '../shared/types';
 import { columnSettings } from '../shared/column-settings';
@@ -38,8 +38,8 @@ export function resolveExecutable(command: string, env: NodeJS.ProcessEnv = proc
 export interface AgentLauncher { executable: string; prefixArgs: string[] }
 
 /**
- * A narrowly recognized npm-style CMD shim is read as data, never executed.
- * Only its final Node/JS target is used. Any arbitrary batch script is refused.
+ * Narrowly recognized CMD shims are read as data, never executed.
+ * Only their verified native or Node/JS target is used.
  */
 export function resolveAgentLauncher(command: string, env: NodeJS.ProcessEnv = process.env): AgentLauncher | null {
   const executable = resolveExecutable(command, env);
@@ -49,6 +49,19 @@ export function resolveAgentLauncher(command: string, env: NodeJS.ProcessEnv = p
   let source: string;
   try { source = readFileSync(executable, 'utf8'); } catch { return null; }
   if (source.length > 32_000 || /\0/.test(source)) return null;
+  // The official Codex WinGet installation adds a two-line codex.cmd pointing
+  // at its native binary. Accept only that exact wrapper and package layout.
+  if (process.platform === 'win32' && env.LOCALAPPDATA && basename(executable).toLowerCase() === 'codex.cmd'
+    && resolve(dirname(executable)).toLowerCase() === resolve(env.LOCALAPPDATA, 'CodexCLI', 'bin').toLowerCase()) {
+    const wrapper = source.replace(/^\uFEFF/, '').trimEnd().match(/^@echo off\r?\n"([^"\r\n]+)" %\*$/i);
+    if (wrapper && isAbsolute(wrapper[1]!)) {
+      const target = resolve(wrapper[1]!);
+      const packageRoot = resolve(env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Packages');
+      const packagePath = relativePath(packageRoot, target);
+      if (/^OpenAI\.Codex_Microsoft\.WinGet\.Source_[^\\/]+[\\/]codex-[a-z0-9_-]+\.exe$/i.test(packagePath)
+        && existsSync(target) && statSync(target).isFile()) return { executable: target, prefixArgs: [] };
+    }
+  }
   const last = source.trimEnd().split(/\r?\n/).at(-1) ?? '';
   // Both npm's %~dp0 and pnpm/Yarn's %dp0% forms are common. The prefix of
   // the last line may contain cmd's endLocal boilerplate; it is never run.
@@ -161,6 +174,16 @@ export function columnLaunchOverrides(column: Pick<Column, 'agentId' | 'model' |
   return agent.id === column.agentId ? columnSettings(agent.kind, column.model, column.effort) : { model: null, effort: null };
 }
 
+/** A step replaces only the explicitly set field; null inherits the column/profile default. */
+export function stepLaunchOverrides(
+  column: Pick<Column, 'agentId' | 'model' | 'effort'>,
+  agent: AgentPreset,
+  step?: { model: string | null; effort: ColumnEffort | null },
+) {
+  const inherited = columnLaunchOverrides(column, agent);
+  return { model: step?.model ?? inherited.model, effort: step?.effort ?? inherited.effort };
+}
+
 /** A single explicit user-triggered agent run. No shell string or implicit restart. */
 export class SessionRunner {
   private readonly processes = new Map<string, IPty>();
@@ -173,7 +196,7 @@ export class SessionRunner {
     private readonly onFinished: (session: Session, finalMessage: string | null) => void,
   ) {}
 
-  start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot'; useWorktree?: boolean }): Session {
+  start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot'; useWorktree?: boolean; overrides?: { model: string | null; effort: ColumnEffort | null } }): Session {
     const card = this.store.card(input.cardId);
     if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     const project = this.store.project(card.projectId);
@@ -182,7 +205,7 @@ export class SessionRunner {
     if (!agentId) throw new Error('Choose an agent for this card or column');
     const agent = this.store.agent(agentId);
     if (!agent.enabled) throw new Error(`${agent.name} is disabled`);
-    const columnOverrides = columnLaunchOverrides(column, agent);
+    const launchOverrides = stepLaunchOverrides(column, agent, input.overrides);
     if (this.store.latestSession(card.id)?.state === 'running') throw new Error('An agent is already running for this card');
     if (this.store.projectQueue(project.id).state === 'running' && this.store.activeSessionForProject(project.id)) {
       throw new Error('In der aktiven Projektwarteschlange läuft bereits ein Agent.');
@@ -206,7 +229,7 @@ export class SessionRunner {
     if (finalFile) this.finalMessageFiles.set(row.id, finalFile);
     let child: IPty;
     try {
-      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, columnOverrides)], {
+      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)], {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,

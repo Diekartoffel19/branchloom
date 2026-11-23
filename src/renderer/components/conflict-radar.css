@@ -1,0 +1,21 @@
+.conflict-radar {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+.conflict-radar-overlap { border-left-color: var(--danger); }
+.conflict-radar-unknown { border-left-color: var(--focus); }
+.conflict-radar h4 { margin: 0; font-size: 13px; }
+.conflict-radar p { margin: 0; font-size: 12px; line-height: 1.5; }
+.conflict-radar ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+.conflict-radar li { font-size: 12px; line-height: 1.5; }
+.conflict-radar li strong { display: block; }
+.conflict-radar li span { color: var(--muted); }
+.conflict-radar-paths { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.conflict-radar-paths code { border: 1px solid var(--border); border-radius: 4px; background: var(--surface); padding: 2px 5px; overflow-wrap: anywhere; }
+.conflict-radar small { color: var(--muted); font-size: 11px; line-height: 1.4; }

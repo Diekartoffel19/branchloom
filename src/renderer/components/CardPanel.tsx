@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
+import type { ConflictRadarResult } from '../../shared/conflict-radar';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
+import { ConflictRadarNotice } from './ConflictRadarNotice';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 
@@ -26,14 +28,18 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
   const [worktreeReview, setWorktreeReview] = useState<WorktreeReview | null | undefined>(undefined);
   const [worktreeBusy, setWorktreeBusy] = useState(false);
   const [worktreeError, setWorktreeError] = useState('');
+  const [conflictRadar, setConflictRadar] = useState<ConflictRadarResult | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const [conflictError, setConflictError] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); }, [card.id]);
+  useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
   const session = sessions[0] ?? null;
+  useEffect(() => { setConflictRadar(null); }, [session?.id]);
   const sessionAgent = session ? snapshot.agents.find((item) => item.id === session.agentId) : null;
   const enabledAgents = snapshot.agents.filter((item) => item.enabled);
   const defaultAgentId = snapshot.columns.find((column) => column.id === card.columnId)?.agentId ?? enabledAgents[0]?.id ?? '';
@@ -51,6 +57,13 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
     try { setWorktreeReview(await window.studio.reviewCardWorktree(card.id)); }
     catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setWorktreeBusy(false); }
+  }
+
+  async function reviewConflicts() {
+    setConflictBusy(true); setConflictError(''); setConflictRadar(null);
+    try { setConflictRadar(await window.studio.reviewCardConflicts(card.id)); }
+    catch (reason) { setConflictError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setConflictBusy(false); }
   }
 
   async function mergeWorktree() {
@@ -156,8 +169,10 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
-        <button className="secondary-button" type="button" disabled={worktreeBusy} onClick={() => void reviewWorktree()}>{worktreeBusy ? 'Prüfe…' : 'Git-Stand prüfen'}</button>
+        <div className="agent-actions"><button className="secondary-button" type="button" disabled={worktreeBusy} onClick={() => void reviewWorktree()}>{worktreeBusy ? 'Prüfe…' : 'Git-Stand prüfen'}</button><button className="secondary-button" type="button" disabled={conflictBusy} onClick={() => void reviewConflicts()}>{conflictBusy ? 'Prüfe…' : 'Parallele Änderungen prüfen'}</button></div>
         {worktreeError ? <p className="inline-error" role="alert">{worktreeError}</p> : null}
+        {conflictError ? <p className="inline-error" role="alert">Konflikt-Radar: {conflictError}</p> : null}
+        {conflictRadar ? <ConflictRadarNotice result={conflictRadar} /> : null}
         {worktreeReview === null ? <p className="inline-note">Für diese Karte gibt es noch keinen Git-Worktree.</p> : null}
         {worktreeReview ? <div className="stacked-form"><p className="section-copy"><strong>{worktreeReview.branch}</strong><br />Worktree: <code>{worktreeReview.path}</code><br />Ziel: <code>{worktreeReview.targetPath}</code> ({worktreeReview.targetBranch ?? 'detached'})<br />Commits: {worktreeReview.ahead} voraus, {worktreeReview.behind} zurück.</p>
           {worktreeReview.sourceStatus.length ? <><strong>Nicht committiert im Worktree</strong><pre className="terminal-output">{worktreeReview.sourceStatus.join('\n')}</pre></> : <p className="section-copy">Worktree-Arbeitsbaum sauber.</p>}

@@ -37,6 +37,6 @@ jobs:
       - run: node scripts/check-package.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: jarvis-studio-windows-portable
+          name: branchloom-windows-portable
           path: out/make/zip/win32/x64/*.zip
           if-no-files-found: error

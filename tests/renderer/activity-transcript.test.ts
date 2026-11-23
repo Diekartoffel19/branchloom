@@ -12,6 +12,7 @@ describe('historical activity transcripts', () => {
   it('renders stored output as readable plain text without terminal control sequences', () => {
     expect(readableSessionOutput(session.output)).toBe('Fertig\nErgebnis');
     const text = serializeSessionTranscript(session, 'Aufgabe', 'Codex');
+    expect(text).toMatch(/^Branchloom · Agentenlauf\n/);
     expect(text).toContain('Karte: Aufgabe\nAgent: Codex');
     expect(text).toContain('Status: exited');
     expect(text).toContain('Fertig\nErgebnis');
@@ -19,7 +20,7 @@ describe('historical activity transcripts', () => {
   });
 
   it('uses a safe file name even for an invalid stored identifier', () => {
-    expect(sessionTranscriptFileName('../abc-123')).toBe('jarvis-lauf-abc-123.txt');
+    expect(sessionTranscriptFileName('../abc-123')).toBe('branchloom-lauf-abc-123.txt');
   });
 
   it('marks a shortened Memory copy and preserves the exact session source', () => {
@@ -33,9 +34,10 @@ describe('historical activity transcripts', () => {
     expect(draft.body).not.toContain('\x1b');
   });
 
-  it('links only a Studio transcript header, never an arbitrary mention in note text', () => {
+  it('links current and pre-rename transcripts but not an arbitrary mention in note text', () => {
     const draft = sessionMemoryDraft(session, 'Aufgabe', 'Codex');
     expect(sourceSessionIdFromNote(draft)).toBe('abc-123');
+    expect(sourceSessionIdFromNote({ ...draft, body: draft.body.replace(/^Branchloom/, 'Jarvis Studio') })).toBe('abc-123');
     expect(sourceSessionIdFromNote({ ...draft, tags: [] })).toBeNull();
     expect(sourceSessionIdFromNote({ ...draft, body: 'Other text\nSitzung: abc-123\n' })).toBeNull();
     expect(sourceSessionIdFromNote({ ...draft, body: 'Jarvis Studio · Agentenlauf\n\nAgent output\nSitzung: fake' })).toBeNull();

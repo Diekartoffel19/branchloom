@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
-import { detectAgents, readVersion, resolveExecutable } from '../../src/main/cli';
+import { detectAgents, readVersion, resolveAgentLauncher, resolveExecutable } from '../../src/main/cli';
 import type { AgentPreset } from '../../src/shared/types';
 
 describe('local agent diagnostics', () => {
@@ -52,6 +52,33 @@ describe('local agent diagnostics', () => {
       expect(resolveExecutable('agy', { PATH: '', Path: '', LOCALAPPDATA: root })).toBe(binary);
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform !== 'win32')('unwraps only the official Codex WinGet shim into its native executable', () => {
+    const localAppData = mkdtempSync(join(tmpdir(), 'branchloom-codex-shim-'));
+    try {
+      const shimDirectory = join(localAppData, 'CodexCLI', 'bin');
+      const packageDirectory = join(localAppData, 'Microsoft', 'WinGet', 'Packages', 'OpenAI.Codex_Microsoft.Winget.Source_fixture');
+      const target = join(packageDirectory, 'codex-x86_64-pc-windows-msvc.exe');
+      mkdirSync(shimDirectory, { recursive: true });
+      mkdirSync(packageDirectory, { recursive: true });
+      writeFileSync(target, 'synthetic executable placeholder');
+      const shim = join(shimDirectory, 'codex.cmd');
+      const env = { ...process.env, LOCALAPPDATA: localAppData };
+      const officialWrapper = `@echo off\r\n"${target}" %*\r\n`;
+      writeFileSync(shim, officialWrapper);
+      expect(resolveAgentLauncher(shim, env)).toEqual({ executable: target, prefixArgs: [] });
+
+      writeFileSync(shim, `${officialWrapper}echo SHOULD_NOT_RUN\r\n`);
+      expect(resolveAgentLauncher(shim, env)).toBeNull();
+      writeFileSync(shim, `@echo off\r\n"${process.execPath}" %*\r\n`);
+      expect(resolveAgentLauncher(shim, env)).toBeNull();
+      writeFileSync(shim, officialWrapper);
+      rmSync(target);
+      expect(resolveAgentLauncher(shim, env)).toBeNull();
+    } finally {
+      rmSync(localAppData, { recursive: true, force: true });
     }
   });
 });

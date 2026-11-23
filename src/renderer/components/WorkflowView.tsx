@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, GitBranch, Pause, Pencil, Play, Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import type { Card, Column, ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
+import { ArrowRight, GitBranch, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import type { Card, Column, ColumnEffort, ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
 import type { Mutate } from './shared';
 import { WorkflowPlanner } from './WorkflowPlanner';
+import { WorkflowStepRows } from './WorkflowStepRows';
 import '../queue-preview.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null }
@@ -41,6 +42,21 @@ export function stepAgentId(column: Column, overrides: Record<string, string>): 
   return (overrides[column.id] ?? column.agentId) || null;
 }
 
+export function stepsFromForm(
+  columns: Column[], selectedIds: string[], previousSteps: WorkflowStep[],
+  agentByColumn: Record<string, string>, modelByColumn: Record<string, string>,
+  effortByColumn: Record<string, string>, approvalIds: string[],
+): WorkflowStep[] {
+  return orderedStepColumns(columns, selectedIds, previousSteps).map((column) => ({
+    id: previousSteps.find((step) => step.columnId === column.id)?.id ?? crypto.randomUUID(),
+    columnId: column.id,
+    agentId: stepAgentId(column, agentByColumn),
+    model: modelByColumn[column.id]?.trim() || null,
+    effort: (effortByColumn[column.id] || null) as ColumnEffort | null,
+    requireApproval: approvalIds.includes(column.id),
+  }));
+}
+
 export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const hasTodoColumn = columns.some((column) => column.name.trim().toLocaleLowerCase('de-DE') === 'to do');
@@ -51,6 +67,8 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
   const [stepIds, setStepIds] = useState<string[]>([]);
   const [approvalIds, setApprovalIds] = useState<string[]>([]);
   const [agentByColumn, setAgentByColumn] = useState<Record<string, string>>({});
+  const [modelByColumn, setModelByColumn] = useState<Record<string, string>>({});
+  const [effortByColumn, setEffortByColumn] = useState<Record<string, string>>({});
   const [queueTemplateId, setQueueTemplateId] = useState(snapshot.queue.templateWorkflowId ?? '');
   const [skipWorkflowId, setSkipWorkflowId] = useState<string | null>(null);
   const [skipReason, setSkipReason] = useState('');
@@ -85,6 +103,8 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
     setStepIds([]);
     setApprovalIds([]);
     setAgentByColumn({});
+    setModelByColumn({});
+    setEffortByColumn({});
     setShowForm(true);
   }
 
@@ -95,20 +115,19 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
     setStepIds(workflow.steps.map((step) => step.columnId));
     setApprovalIds(workflow.steps.filter((step) => step.requireApproval).map((step) => step.columnId));
     setAgentByColumn(Object.fromEntries(workflow.steps.map((step) => [step.columnId, step.agentId ?? ''])));
+    setModelByColumn(Object.fromEntries(workflow.steps.map((step) => [step.columnId, step.model ?? ''])));
+    setEffortByColumn(Object.fromEntries(workflow.steps.map((step) => [step.columnId, step.effort ?? ''])));
     setShowForm(true);
   }
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const previousSteps = snapshot.workflows.find((workflow) => workflow.id === editingWorkflowId)?.steps ?? [];
-    const steps: WorkflowStep[] = orderedStepColumns(columns, stepIds, previousSteps).map((column) => ({
-      id: crypto.randomUUID(), columnId: column.id, agentId: stepAgentId(column, agentByColumn),
-      requireApproval: approvalIds.includes(column.id),
-    }));
+    const steps = stepsFromForm(columns, stepIds, previousSteps, agentByColumn, modelByColumn, effortByColumn, approvalIds);
     const created = editingWorkflowId
       ? await mutate(() => window.studio.updateDraftWorkflow({ id: editingWorkflowId, name: name.trim(), cardIds, steps }))
       : await mutate(() => window.studio.createWorkflow({ projectId: snapshot.project.id, name: name.trim(), cardIds, steps }));
-    if (created) { setShowForm(false); setEditingWorkflowId(null); setName(''); setCardIds([]); setStepIds([]); setApprovalIds([]); setAgentByColumn({}); }
+    if (created) { setShowForm(false); setEditingWorkflowId(null); setName(''); setCardIds([]); setStepIds([]); setApprovalIds([]); setAgentByColumn({}); setModelByColumn({}); setEffortByColumn({}); }
   }
 
   async function skipQueuedCard(event: React.FormEvent<HTMLFormElement>) {
@@ -125,7 +144,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
   }
 
   return <div className="standard-page">
-    <div className="view-header"><div><div className="eyebrow">AUTOMATION</div><h2>Workflows</h2><p>Beschreibe dein Ziel dem globalen Workflow-Agenten oder lege einen Ablauf selbst an.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Manuell anlegen</button></div>
+    <div className="view-header"><div><h2>Workflows</h2><p>Beschreibe dein Ziel dem Workflow-Agenten oder lege einen Ablauf selbst an.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Manuell anlegen</button></div>
 
     <WorkflowPlanner snapshot={snapshot} mutate={mutate} />
 
@@ -148,8 +167,8 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
     </section>
 
     <div className="workflow-list-heading"><h3>Gespeicherte Workflows</h3><span>{snapshot.workflows.length}</span></div>
-    {snapshot.workflows.length === 0 ? <div className="feature-empty"><GitBranch size={30} /><h3>Noch kein Workflow</h3><p>Plane einen Ablauf mit dem Workflow-Agenten oder lege Karten und Schritte manuell fest.</p><button className="secondary-button" type="button" onClick={newDraft}>Manuell anlegen</button></div> : <div className="workflow-list">{[...snapshot.workflows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((workflow) => <article className={openWorkflow?.id === workflow.id ? 'workflow-card search-target' : 'workflow-card'} id={`workflow-${workflow.id}`} key={workflow.id}><div className="workflow-card-top"><div><span className="workflow-kicker"><GitBranch size={14} /> WORKFLOW</span><h3>{workflow.name}</h3><p>{workflow.cardIds.length} Karten · {workflow.steps.length} Schritte</p></div><span className={`state-badge ${workflow.state}`}>{workflow.state === 'running' ? 'Läuft' : workflow.queueSkip ? 'Übersprungen' : workflow.state === 'paused' ? 'Pausiert' : workflow.state === 'done' ? 'Fertig' : 'Entwurf'}</span></div><div className="workflow-route">{workflow.steps.map((step, index) => <div className={index === workflow.currentStep && workflow.state === 'running' ? 'route-step current' : 'route-step'} key={step.id}><span className="route-number">{index + 1}</span><span><strong>{columns.find((column) => column.id === step.columnId)?.name ?? 'Entfernte Spalte'}</strong><small>{snapshot.agents.find((agent) => agent.id === step.agentId)?.name ?? 'Kein Agent'}{step.requireApproval ? ' · Freigabe' : ''}</small></span>{index < workflow.steps.length - 1 ? <ArrowRight size={16} /> : null}</div>)}</div><div className="workflow-actions"><span>{workflow.queueSkip ? `Übersprungen am ${new Date(workflow.queueSkip.at).toLocaleString()}: ${workflow.queueSkip.reason}` : workflow.state === 'paused' ? workflowPauseCopy(workflow.pauseReason).description : workflow.state === 'draft' ? 'Bereit für den ersten Start.' : workflow.state === 'running' ? `Schritt ${Math.min(workflow.currentStep + 1, workflow.steps.length)} von ${workflow.steps.length}` : 'Alle Schritte abgeschlossen.'}</span>{workflow.state === 'running' ? <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setWorkflowState({ id: workflow.id, state: 'paused' }))}><Pause size={14} /> Pausieren</button> : (workflow.state === 'draft' || workflow.state === 'paused') && !workflow.queueSkip ? <button className="primary-button small" type="button" onClick={() => void mutate(() => window.studio.setWorkflowState({ id: workflow.id, state: 'running' }))}><Play size={14} /> {workflow.state === 'paused' ? workflowPauseCopy(workflow.pauseReason).action : 'Starten'}</button> : null}{workflow.state === 'draft' ? <button className="secondary-button small" type="button" onClick={() => editDraft(workflow)}><Pencil size={14} /> Entwurf bearbeiten</button> : null}{workflow.state === 'draft' ? <button className="secondary-button small" type="button" onClick={() => setDeleteWorkflowId(workflow.id)}><Trash2 size={14} /> Entwurf löschen</button> : null}</div></article>)}</div>}
+    {snapshot.workflows.length === 0 ? <div className="feature-empty"><GitBranch size={30} /><h3>Noch kein Workflow</h3><p>Plane einen Ablauf mit dem Workflow-Agenten oder lege Karten und Schritte manuell fest.</p><button className="secondary-button" type="button" onClick={newDraft}>Manuell anlegen</button></div> : <div className="workflow-list">{[...snapshot.workflows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((workflow) => <article className={openWorkflow?.id === workflow.id ? 'workflow-card search-target' : 'workflow-card'} id={`workflow-${workflow.id}`} key={workflow.id}><div className="workflow-card-top"><div><span className="workflow-kicker"><GitBranch size={14} /> WORKFLOW</span><h3>{workflow.name}</h3><p>{workflow.cardIds.length} Karten · {workflow.steps.length} Schritte</p></div><span className={`state-badge ${workflow.state}`}>{workflow.state === 'running' ? 'Läuft' : workflow.queueSkip ? 'Übersprungen' : workflow.state === 'paused' ? 'Pausiert' : workflow.state === 'done' ? 'Fertig' : 'Entwurf'}</span></div><div className="workflow-route">{workflow.steps.map((step, index) => <div className={index === workflow.currentStep && workflow.state === 'running' ? 'route-step current' : 'route-step'} key={step.id}><span className="route-number">{index + 1}</span><span><strong>{columns.find((column) => column.id === step.columnId)?.name ?? 'Entfernte Spalte'}</strong><small>{snapshot.agents.find((agent) => agent.id === step.agentId)?.name ?? 'Kein Agent'}{step.model ? ` · ${step.model}` : ''}{step.effort ? ` · ${step.effort}` : ''}{step.requireApproval ? ' · Freigabe' : ''}</small></span>{index < workflow.steps.length - 1 ? <ArrowRight size={16} /> : null}</div>)}</div><div className="workflow-actions"><span>{workflow.queueSkip ? `Übersprungen am ${new Date(workflow.queueSkip.at).toLocaleString()}: ${workflow.queueSkip.reason}` : workflow.state === 'paused' ? workflowPauseCopy(workflow.pauseReason).description : workflow.state === 'draft' ? 'Bereit für den ersten Start.' : workflow.state === 'running' ? `Schritt ${Math.min(workflow.currentStep + 1, workflow.steps.length)} von ${workflow.steps.length}` : 'Alle Schritte abgeschlossen.'}</span>{workflow.state === 'running' ? <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setWorkflowState({ id: workflow.id, state: 'paused' }))}><Pause size={14} /> Pausieren</button> : (workflow.state === 'draft' || workflow.state === 'paused') && !workflow.queueSkip ? <button className="primary-button small" type="button" onClick={() => void mutate(() => window.studio.setWorkflowState({ id: workflow.id, state: 'running' }))}><Play size={14} /> {workflow.state === 'paused' ? workflowPauseCopy(workflow.pauseReason).action : 'Starten'}</button> : null}{workflow.state === 'draft' ? <button className="secondary-button small" type="button" onClick={() => editDraft(workflow)}><Pencil size={14} /> Entwurf bearbeiten</button> : null}{workflow.state === 'draft' ? <button className="secondary-button small" type="button" onClick={() => setDeleteWorkflowId(workflow.id)}><Trash2 size={14} /> Entwurf löschen</button> : null}</div></article>)}</div>}
 
-    {showForm ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}><form className="dialog wide" onSubmit={(event) => void create(event)}><div className="dialog-heading"><div><small>NEUER ABLAUF</small><h2>{editingWorkflowId ? 'Workflow-Entwurf bearbeiten' : 'Workflow erstellen'}</h2></div><button className="icon-button" type="button" onClick={() => setShowForm(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Zum Beispiel: Implementieren und prüfen" /></label><div className="form-section"><strong>Karten</strong><p>Wähle mindestens eine Karte für diesen Ablauf.</p><div className="option-grid">{snapshot.cards.length ? snapshot.cards.map((card) => <label className="check-option" key={card.id}><input type="checkbox" checked={cardIds.includes(card.id)} onChange={() => toggle(card.id, cardIds, setCardIds)} /><span>{card.title}</span></label>) : <span className="field-help">Lege zuerst eine Karte im Board an.</span>}</div></div><div className="form-section"><strong>Schritte</strong><p>Wähle Spalten, Agenten und optionale Freigaben. Ein Schritt ohne Agent bleibt manuell. {editingWorkflowId ? 'Die bestehende Schrittfolge bleibt erhalten; neu gewählte Spalten werden angehängt.' : 'Neue Routen folgen der Board-Reihenfolge.'}</p>{editingWorkflowId && stepIds.length ? <p className="inline-note">Reihenfolge: {orderedStepColumns(columns, stepIds, snapshot.workflows.find((workflow) => workflow.id === editingWorkflowId)?.steps).map((column) => column.name).join(' → ')}</p> : null}<div className="step-form-list">{columns.map((column) => <div className="step-form" key={column.id}><label className="step-main"><input type="checkbox" checked={stepIds.includes(column.id)} onChange={() => toggle(column.id, stepIds, setStepIds)} /> <span>{column.name}</span></label><select aria-label={`Agent für ${column.name}`} value={agentByColumn[column.id] ?? column.agentId ?? ''} disabled={!stepIds.includes(column.id)} onChange={(event) => setAgentByColumn((old) => ({ ...old, [column.id]: event.target.value }))}><option value="">Manuell</option>{snapshot.agents.filter((agent) => agent.enabled).map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select><label className="approval-check"><input type="checkbox" checked={approvalIds.includes(column.id)} disabled={!stepIds.includes(column.id)} onChange={() => toggle(column.id, approvalIds, setApprovalIds)} /><ShieldCheck size={14} /> Freigabe</label></div>)}</div></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setShowForm(false)}>Abbrechen</button><button className="primary-button" type="submit" disabled={cardIds.length === 0 || stepIds.length === 0}>{editingWorkflowId ? 'Änderungen speichern' : 'Workflow anlegen'}</button></div></form></div> : null}
+    {showForm ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}><form className="dialog wide" onSubmit={(event) => void create(event)}><div className="dialog-heading"><div><small>NEUER ABLAUF</small><h2>{editingWorkflowId ? 'Workflow-Entwurf bearbeiten' : 'Workflow erstellen'}</h2></div><button className="icon-button" type="button" onClick={() => setShowForm(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Zum Beispiel: Implementieren und prüfen" /></label><div className="form-section"><strong>Karten</strong><p>Wähle mindestens eine Karte für diesen Ablauf.</p><div className="option-grid">{snapshot.cards.length ? snapshot.cards.map((card) => <label className="check-option" key={card.id}><input type="checkbox" checked={cardIds.includes(card.id)} onChange={() => toggle(card.id, cardIds, setCardIds)} /><span>{card.title}</span></label>) : <span className="field-help">Lege zuerst eine Karte im Board an.</span>}</div></div><div className="form-section"><strong>Schritte</strong><p>Wähle Spalten, Agenten, Modell, Effort und optionale Freigaben. Ein Schritt ohne Agent bleibt manuell. {editingWorkflowId ? 'Die bestehende Schrittfolge bleibt erhalten; neu gewählte Spalten werden angehängt.' : 'Neue Routen folgen der Board-Reihenfolge.'}</p>{editingWorkflowId && stepIds.length ? <p className="inline-note">Reihenfolge: {orderedStepColumns(columns, stepIds, snapshot.workflows.find((workflow) => workflow.id === editingWorkflowId)?.steps).map((column) => column.name).join(' → ')}</p> : null}<WorkflowStepRows columns={columns} agents={snapshot.agents} selectedIds={stepIds} approvalIds={approvalIds} agentByColumn={agentByColumn} modelByColumn={modelByColumn} effortByColumn={effortByColumn} toggleStep={(id) => toggle(id, stepIds, setStepIds)} toggleApproval={(id) => toggle(id, approvalIds, setApprovalIds)} changeAgent={(id, agentId) => { setAgentByColumn((old) => ({ ...old, [id]: agentId })); setModelByColumn((old) => ({ ...old, [id]: '' })); setEffortByColumn((old) => ({ ...old, [id]: '' })); }} changeModel={(id, model) => setModelByColumn((old) => ({ ...old, [id]: model }))} changeEffort={(id, effort) => setEffortByColumn((old) => ({ ...old, [id]: effort }))} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setShowForm(false)}>Abbrechen</button><button className="primary-button" type="submit" disabled={cardIds.length === 0 || stepIds.length === 0}>{editingWorkflowId ? 'Änderungen speichern' : 'Workflow anlegen'}</button></div></form></div> : null}
   </div>;
 }

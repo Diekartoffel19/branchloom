@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import type { AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
+import { normalizedWorkflowStep, workflowStepSettings } from '../shared/workflow-step-settings';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
@@ -48,7 +49,7 @@ const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, c
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
 const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path });
 const commandTerminal = (row: CommandTerminalRow): CommandTerminal => ({ id: row.id, projectId: row.project_id, shell: row.shell, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output });
-const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
+const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json).map(normalizedWorkflowStep), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
 const note = (row: NoteRow): MemoryNote => ({ id: row.id, projectId: row.project_id, title: row.title, body: row.body, tags: parseArray<string>(row.tags_json), links: parseArray<string>(row.links_json), createdAt: row.created_at, updatedAt: row.updated_at });
 
 /** The only persisted state. The database lives in Electron userData, never inside a project or Git repository. */
@@ -109,9 +110,9 @@ export class StudioStore {
     // A process crash cannot leave an old PTY marked live. Restarting an agent
     // is a deliberate action; a possibly completed external write is never replayed.
     this.db.prepare("UPDATE sessions SET state = 'failed', ended_at = ?, output = substr(output || ?, -200000) WHERE state = 'running'")
-      .run(now(), '\n[Jarvis Studio restarted; this session was not replayed.]\n');
+      .run(now(), '\n[Branchloom restarted; this session was not replayed.]\n');
     this.db.prepare("UPDATE command_terminals SET state = 'failed', ended_at = ?, output = substr(output || ?, -100000) WHERE state = 'running'")
-      .run(now(), '\n[Jarvis Studio restarted; this terminal was not replayed.]\n');
+      .run(now(), '\n[Branchloom restarted; this terminal was not replayed.]\n');
     this.db.prepare("UPDATE workflows SET state = 'paused', updated_at = ? WHERE state = 'running'").run(now());
     this.db.prepare("UPDATE workflow_progress SET state = 'needs_review' WHERE state = 'running'").run();
     this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.', updated_at = ? WHERE state = 'running'").run(now());
@@ -207,6 +208,12 @@ export class StudioStore {
   activeSessionForProject(projectId: string): Session | null {
     const row = this.db.prepare("SELECT * FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1").get(projectId) as SessionRow | undefined;
     return row ? session(row) : null;
+  }
+  runningSessionsForProject(projectId: string): Session[] {
+    this.project(projectId);
+    // The radar needs identity and worktree binding, never the potentially
+    // 200 KiB transcript attached to each session.
+    return (this.db.prepare("SELECT id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, '' AS output, worktree_path FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC, id").all(projectId) as SessionRow[]).map(session);
   }
   queueCandidates(projectId: string, limit = 10): Card[] {
     if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Ungültige Vorschaugröße für die Warteschlange.');
@@ -575,21 +582,26 @@ export class StudioStore {
           : 'user';
     return { ...value, pauseReason };
   }
+  private validatedWorkflowSteps(projectId: string, steps: WorkflowStep[]): WorkflowStep[] {
+    return steps.map((step) => {
+      if (!step || typeof step !== 'object') throw new Error('Ungültiger Workflow-Schritt.');
+      if (this.column(step.columnId).projectId !== projectId) throw new Error('Workflow-Spalte gehört zu einem anderen Projekt.');
+      const agent = step.agentId ? this.agent(step.agentId) : null;
+      return { ...step, ...workflowStepSettings(agent?.kind ?? null, step.model, step.effort) };
+    });
+  }
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Workflow {
     this.project(input.projectId);
-    if (input.cardIds.length === 0 || input.steps.length === 0 || input.steps.length > 30) throw new Error('Workflow needs cards and 1-30 steps');
+    if (!Array.isArray(input.cardIds) || !Array.isArray(input.steps) || input.cardIds.length === 0 || input.steps.length === 0 || input.steps.length > 30) throw new Error('Workflow needs cards and 1-30 steps');
     if (new Set(input.cardIds).size !== input.cardIds.length) throw new Error('Workflow has duplicate cards');
     for (const cardId of input.cardIds) {
       const item = this.card(cardId);
       if (item.projectId !== input.projectId) throw new Error('Workflow card belongs to another project');
       if (item.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     }
-    for (const step of input.steps) {
-      if (this.column(step.columnId).projectId !== input.projectId) throw new Error('Workflow column belongs to another project');
-      if (step.agentId) this.agent(step.agentId);
-    }
+    const steps = this.validatedWorkflowSteps(input.projectId, input.steps);
     const stamp = now();
-    const value: Workflow = { id: randomUUID(), projectId: input.projectId, name: trimmed(input.name, 'Workflow name'), cardIds: input.cardIds, steps: input.steps, state: 'draft', currentStep: 0, createdAt: stamp, updatedAt: stamp };
+    const value: Workflow = { id: randomUUID(), projectId: input.projectId, name: trimmed(input.name, 'Workflow name'), cardIds: input.cardIds, steps, state: 'draft', currentStep: 0, createdAt: stamp, updatedAt: stamp };
     this.db.prepare('INSERT INTO workflows VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.name, json(value.cardIds), json(value.steps), value.state, value.currentStep, value.createdAt, value.updatedAt);
     return value;
   }
@@ -608,11 +620,8 @@ export class StudioStore {
         if (card.projectId !== old.projectId) throw new Error('Workflow-Karte gehört zu einem anderen Projekt.');
         if (card.archivedAt) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
       }
-      for (const step of input.steps) {
-        if (this.column(step.columnId).projectId !== old.projectId) throw new Error('Workflow-Spalte gehört zu einem anderen Projekt.');
-        if (step.agentId) this.agent(step.agentId);
-      }
-      this.db.prepare('UPDATE workflows SET name = ?, card_ids_json = ?, steps_json = ?, updated_at = ? WHERE id = ?').run(trimmed(input.name, 'Workflow name'), json(input.cardIds), json(input.steps), now(), old.id);
+      const steps = this.validatedWorkflowSteps(old.projectId, input.steps);
+      this.db.prepare('UPDATE workflows SET name = ?, card_ids_json = ?, steps_json = ?, updated_at = ? WHERE id = ?').run(trimmed(input.name, 'Workflow name'), json(input.cardIds), json(steps), now(), old.id);
       return this.workflow(old.id);
     })();
   }

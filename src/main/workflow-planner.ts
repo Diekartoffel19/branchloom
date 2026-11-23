@@ -69,7 +69,7 @@ export async function proposeWorkflow(
     writeFileSync(schemaPath, JSON.stringify(outputSchema(snapshot.columns.map((column) => column.id))));
     const available = snapshot.columns.map((column) => ({ id: column.id, name: column.name, autoStart: column.autoStart, agent: column.agentId ? store.agent(column.agentId).name : null }));
     const prompt = [
-      'You are the read-only workflow planning agent for Jarvis Studio.',
+      'You are the read-only workflow planning agent for Branchloom.',
       'Inspect this project when useful, but do not modify files or run external actions.',
       'Produce only a JSON object matching the output schema. The proposal is reviewed before anything is created.',
       'Split the request into concrete, reviewable cards. Choose a sensible route from the existing column IDs.',

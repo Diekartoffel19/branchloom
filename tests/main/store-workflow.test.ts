@@ -54,6 +54,7 @@ describe('durable store and workflow gate', () => {
     expect(hasCompletionMarker(`Prompt: ${DONE_MARKER}\nStill working`)).toBe(false);
     expect(hasCompletionMarker(`Finished\n${DONE_MARKER}\n`)).toBe(true);
     expect(hasCompletionMarker(`Finished\n${DONE_MARKER}\nFailed afterwards`)).toBe(false);
+    expect(hasCompletionMarker(`Finished\r\n\x1b]0;synthetic title\x07\x1b[?25h${DONE_MARKER}\r\n`)).toBe(true);
   });
 
   it('pauses on a missing gate and retries only after a deliberate resume', () => {

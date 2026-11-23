@@ -1,24 +1,24 @@
-# Jarvis Studio · technische Übergabe
+# Branchloom · technische Orientierung
 
-Stand: 22.11.2026. Diese Datei ist für eine neue Entwicklungsinstanz gedacht. **Vor jeder Änderung zuerst `git status`, `git log -1`, `AGENTS.md` und `docs/STATUS.md` lesen.** Der Laufzeitstand kann neuer sein als diese Momentaufnahme.
+Ursprünglicher Stand: 22.11.2026, vor der Umbenennung von Jarvis Studio zu Branchloom. Diese Codekarte ist eine Momentaufnahme. **Vor jeder Änderung zuerst `git status`, `git log -1`, `AGENTS.md`, [PRODUCT_VISION.md](PRODUCT_VISION.md) und `docs/STATUS.md` lesen.** Der Laufzeitstand kann neuer sein.
 
 ## Ziel und Grenze
 
-Jarvis Studio ist eine **eigenständige, öffentlich veröffentlichbare lokale Windows-App** für Projekte, Kanban-Boards, echte CLI-Agenten, Workflows, Terminal, Sprache, Browser und verknüpfte Notizen. Kangentic ist eine Referenz für gewünschte Produktabläufe, keine Codebasis oder Fork. **Geminis Auftrag beschränkt sich auf Jarvis Studio.** Der persönliche Jarvis-Assistent und seine privaten Module sind getrennte Projekte und bleiben beim bisherigen Codex-Mitarbeiter. Aus diesem Handover folgt kein Auftrag, deren Repositories zu ändern, zu migrieren oder zu pausieren.
+Branchloom ist eine **eigenständige, öffentlich veröffentlichbare lokale Windows-App** für Projekte, Kanban-Boards, echte CLI-Agenten, Workflows, Terminal, Sprache, Browser und verknüpfte Notizen. Die erweiterte Vision steht in [PRODUCT_VISION.md](PRODUCT_VISION.md). Kangentic ist Produkt- und gegebenenfalls lizenzgeprüfte Code-Referenz; Branchloom ist kein Fork. Der persönliche Jarvis-Assistent und seine privaten Module sind getrennte Projekte.
 
 Die Abnahme ist ausdrücklich **nicht** „Kangentic-Parität“: Die Matrix in [PARITY.md](PARITY.md) nennt implementierte Teilbereiche und fehlende Funktionen. [STATUS.md](STATUS.md) nennt nur geprüfte Resultate und Grenzen. Ein verdeckter Electron-Smoke beweist einen konkreten Laufpfad, ersetzt aber keine vollständige sichtbare Bedienungsabnahme.
 
 ## Repository, Start und Daten
 
-- Public GitHub: <https://github.com/mschr703CODEX/jarvis-studio>; Branch `main`. Keine Zugangsdaten oder persönlichen Daten in Git.
+- Public GitHub: <https://github.com/mschr703/branchloom>; Branch `main`. Entwicklungs-Commits und Pushes kommen von `mschr703CODEX`. Keine Zugangsdaten oder persönlichen Daten in Git.
 - Voraussetzungen: Windows 11, Node.js 24, Git. Agenten-CLIs müssen separat installiert und angemeldet sein. Für lokales `npm run make:win` braucht `node-gyp` Visual-Studio-C++-Build-Tools; die Windows-CI baut das portable ZIP auf einem passenden Runner.
 - Lokal: `npm ci`, `npm run doctor`, `npm run dev`. Produktionsmodus: `npm run build`, `npm start`. Beim ersten Start ein Projekt mit einem bestehenden absoluten Ordner anlegen.
 - `npm run dev` startet Vite nur auf `127.0.0.1:5181` und Electron. App-Zustand und SQLite liegen im Electron-`userData`-Ordner außerhalb des Repositories. Lokale Projektdateien, CLI-Anmeldungen und Browserprofile gehören nicht in Git.
-- Portables ZIP: GitHub Actions → neuester erfolgreicher `main`-Lauf → Artefakt `jarvis-studio-windows-portable`; entpacken, `Jarvis Studio.exe` starten. Noch kein Installer, keine Signatur und kein automatisches Update. Details: [RELEASE.md](RELEASE.md).
+- Portables ZIP: GitHub Actions → neuester erfolgreicher `main`-Lauf → Artefakt `branchloom-windows-portable`; entpacken, `Branchloom.exe` starten. Noch kein Installer, keine Signatur und kein automatisches Update. Details: [RELEASE.md](RELEASE.md).
 
 ## Aktueller belegter Stand
 
-Beim letzten in dieser Übergabe geprüften Stand war `main` sauber auf Commit `653c4c6`. [Windows-CI 44878890860](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44878890860) war vollständig grün: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, nativer Windows-ZIP-Bau, Paket-Smoke und Paket-Scan. Lokal bestanden beim letzten Code-Fix 201 Tests; zwei optionale Live-Modelltests blieben übersprungen. Ein vorheriges frisches CI-ZIP wurde zusätzlich auf dem Entwicklungslaptop entpackt und mit isoliertem App-Datenordner erfolgreich gegen die EXE geprüft. **Für einen späteren Commit alles neu verifizieren.**
+Vor der Umbenennung war der alte Studio-Stand auf Commit `653c4c6`; [Windows-CI 44878890860 im früheren Repository](https://github.com/mschr703CODEX/jarvis-studio/actions/runs/44878890860) war vollständig grün: Audit, Doctor, Typprüfung, Tests, Build, Public-Scan, nativer Windows-ZIP-Bau, Paket-Smoke und Paket-Scan. Lokal bestanden beim letzten Code-Fix 201 Tests; zwei optionale Live-Modelltests blieben übersprungen. Ein vorheriges frisches CI-ZIP wurde zusätzlich auf dem Entwicklungslaptop entpackt und mit isoliertem App-Datenordner erfolgreich gegen die EXE geprüft. **Das ist kein Nachweis für spätere Branchloom-Commits.**
 
 Nutzbare Teilabläufe:
 
@@ -65,4 +65,4 @@ Die [Architekturübersicht](ARCHITECTURE.md) beschreibt Renderer → Preload →
 3. Vor jedem öffentlichen Push Diff prüfen, `npm audit --audit-level=critical`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke:source` und `node scripts/check-public.mjs` ausführen. Nach dem Push Windows-CI einschließlich ZIP, Paket-Smoke und `check-package` prüfen. Nicht alle Live-Modelltests sind standardmäßig aktiv.
 4. `docs/STATUS.md` mit belegtem Ergebnis und exakt nächstem Schritt aktualisieren. Trello nach echten Fortschritten pflegen. Keine Karte als abgeschlossen markieren, solange ihre Abnahmekriterien fehlen. Keine Schlüssel, Nutzerpfade, persönlichen Board-Daten, Logs oder Profile ins öffentliche Repository schreiben.
 
-Das öffentliche Repository ist die technische Quelle für **Jarvis Studio**. Fragen oder Änderungen am persönlichen Jarvis und seinen Modulen gehören an den dafür zuständigen Codex-Mitarbeiter; Gemini konzentriert sich hier auf die Studio-App.
+Das öffentliche Repository ist die technische Quelle für **Branchloom**. Der persönliche Jarvis und seine privaten Module bleiben getrennt; die aktuelle Produktvision und der aktuelle Teststand haben Vorrang vor dieser historischen Orientierung.

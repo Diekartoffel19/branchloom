@@ -4,7 +4,7 @@ import { StudioStore } from './store';
 
 /** Last-line gate: the marker in the initial instruction or an earlier echo is not completion. */
 export function hasCompletionMarker(output: string): boolean {
-  const clean = output.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
+  const clean = output.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '').replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
   return clean.trimEnd().split('\n').at(-1)?.trim() === DONE_MARKER;
 }
 
@@ -105,7 +105,7 @@ export class WorkflowEngine {
         }
         try {
           const prompt = `Work on the following card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}\n\nWhen you have finished this step and checked your work, make ${DONE_MARKER} the exact final line of your response. If blocked or incomplete, explain why and omit the marker.`;
-          const session = this.runner.start({ cardId: card.id, agentId, prompt, mode: 'one-shot' });
+          const session = this.runner.start({ cardId: card.id, agentId, prompt, mode: 'one-shot', overrides: { model: step.model ?? null, effort: step.effort ?? null } });
           this.store.beginWorkflowCard(id, workflow.currentStep, card.id, session.id);
         } catch (error) {
           this.store.setWorkflowState(id, 'paused');

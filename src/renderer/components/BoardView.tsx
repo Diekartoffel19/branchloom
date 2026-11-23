@@ -144,7 +144,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   }
 
   return <div className="board-page">
-    <div className="view-header"><div><div className="eyebrow">DEIN ARBEITSFLUSS</div><h2>Alle Aufgaben auf einen Blick</h2><p>Ziehe Karten zwischen Spalten oder öffne eine Karte für Agenten und Details.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello-JSON importieren</button><div className="header-stat"><strong>{snapshot.cards.length - archivedCount}</strong><span>Aktive Karten</span></div></div></div>
+    <div className="view-header"><div><h2>Planen und ausführen</h2><p>Karten ordnen, Agenten zuweisen und Ergebnisse prüfen.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello-JSON importieren</button></div></div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
       <label className="board-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Karten suchen…" aria-label="Karten suchen" aria-describedby="board-filter-help" /></label>
       <label><span className="sr-only">Spalte filtern</span><select value={filterColumnId} onChange={(event) => setFilterColumnId(event.target.value)} aria-label="Spalte filtern"><option value="">Alle Spalten</option>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>

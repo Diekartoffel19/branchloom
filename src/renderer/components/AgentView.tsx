@@ -52,11 +52,11 @@ export function AgentView({ snapshot, mutate }: Props) {
   }
 
   return <div className="standard-page">
-    <div className="view-header"><div><div className="eyebrow">CLI-LAUFZEIT</div><h2>Agenten verbinden</h2><p>Installierte CLIs erkennen, Startargumente festlegen und auf Karten einsetzen.</p></div><button className="primary-button" type="button" onClick={() => setDraft({ ...emptyDraft })}><Plus size={17} /> Agent anlegen</button></div>
+    <div className="view-header"><div><h2>Agenten verbinden</h2><p>Installierte CLIs erkennen, Startargumente festlegen und auf Karten einsetzen.</p></div><button className="primary-button" type="button" onClick={() => setDraft({ ...emptyDraft })}><Plus size={17} /> Agent anlegen</button></div>
     <div className="agent-grid">
       <section className="panel">
         <div className="panel-heading"><div><Radar size={18} /><h3>Erkannte CLIs</h3></div><button className="icon-button" type="button" title="Erkennung erneut starten" aria-label="Erkennung erneut starten" disabled={detecting} onClick={() => void detect()}><RefreshCw size={16} className={detecting ? 'spin' : ''} /></button></div>
-        <p className="panel-subtitle">Jarvis Studio prüft die lokalen Programmdateien und bei bekannten CLIs die Version. Anmeldung und Modellzugang werden dabei nicht geprüft.</p>
+        <p className="panel-subtitle">Branchloom prüft die lokalen Programmdateien und bei bekannten CLIs die Version. Anmeldung und Modellzugang werden dabei nicht geprüft.</p>
         {detectError ? <p className="inline-error" role="alert">{detectError}</p> : null}
         <div className="detected-list">{detecting && detections.length === 0 ? <p className="list-empty">Suche nach CLIs…</p> : detections.filter((item) => !item.profileId).map((item) => <div className="detected-item" key={item.kind}><div className="detected-icon"><Terminal size={18} /></div><div><strong>{kindName(item.kind)}</strong><span>{item.version || item.command}</span><small className="agent-diagnostic-hint">{diagnosticHint(item)}</small></div><DiagnosticStatus item={item} />{item.available ? <button className="text-button" type="button" onClick={() => fromDetection(item)}>Einrichten</button> : null}</div>)}</div>
       </section>

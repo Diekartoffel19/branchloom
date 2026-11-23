@@ -9,7 +9,7 @@ const explicitExecutable = explicitIndex < 0 ? null : process.argv[explicitIndex
 if (explicitIndex >= 0 && !explicitExecutable) throw new Error('--executable braucht einen Pfad');
 const packaged = process.argv.includes('--package') || explicitExecutable !== null;
 const executable = explicitExecutable ?? (packaged
-  ? join(process.cwd(), 'out', 'Jarvis Studio-win32-x64', 'Jarvis Studio.exe')
+  ? join(process.cwd(), 'out', 'Branchloom-win32-x64', 'Branchloom.exe')
   : require('electron'));
 if (!existsSync(executable)) throw new Error(`Electron-Binary fehlt: ${executable}`);
 const args = packaged ? ['--studio-smoke'] : ['.', '--studio-smoke'];

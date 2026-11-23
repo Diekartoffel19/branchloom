@@ -34,7 +34,7 @@ export function checkPackagedApp(appDirectory) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const appDirectory = process.argv[2] ?? join(process.cwd(), 'out', 'Jarvis Studio-win32-x64', 'resources', 'app');
+  const appDirectory = process.argv[2] ?? join(process.cwd(), 'out', 'Branchloom-win32-x64', 'resources', 'app');
   try {
     const files = checkPackagedApp(appDirectory);
     console.log(`Paketprüfung bestanden (${files} App-Dateien ohne lokale Daten).`);

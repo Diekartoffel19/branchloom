@@ -1,6 +1,6 @@
 # Lokale Spracheingabe
 
-Jarvis Studio nimmt im Fenster einen kurzen Audioclip auf und gibt ihn über Electron IPC an einen lokalen Python-Prozess. Dieser liest die Bytes aus `stdin`, transkribiert mit Faster-Whisper auf der CPU und gibt nur den Text zurück. Die Aufnahme wird von diesem Pfad nicht als Datei gespeichert. Modell und Bibliothek müssen einmalig eingerichtet werden; ein laufender Modellaufruf lädt nichts aus dem Netz (`local_files_only=True`).
+Branchloom nimmt im Fenster einen kurzen Audioclip auf und gibt ihn über Electron IPC an einen lokalen Python-Prozess. Dieser liest die Bytes aus `stdin`, transkribiert mit Faster-Whisper auf der CPU und gibt nur den Text zurück. Die Aufnahme wird von diesem Pfad nicht als Datei gespeichert. Modell und Bibliothek müssen einmalig eingerichtet werden; ein laufender Modellaufruf lädt nichts aus dem Netz (`local_files_only=True`).
 
 ## Einrichtung unter Windows
 
