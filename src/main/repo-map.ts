@@ -66,7 +66,14 @@ export async function proposeRepoMap(projectPath: string): Promise<RepoMapPropos
   const gitTop = (await git(root, ['rev-parse', '--show-toplevel'])).trim();
   let top: string;
   try { top = realpathSync(gitTop); } catch { throw new Error('Git-Repository ist nicht verfügbar.'); }
-  if (top !== root) throw new Error('Repo-Analyse benötigt den Git-Wurzelordner als Projektordner.');
+  // Git and Node can spell the same Windows directory with different case or
+  // 8.3 path segments (notably RUNNER~1 on GitHub Actions). Compare the
+  // underlying directory identity instead of its display spelling.
+  const rootStat = statSync(root);
+  const topStat = statSync(top);
+  if (rootStat.dev !== topStat.dev || rootStat.ino !== topStat.ino) {
+    throw new Error('Repo-Analyse benötigt den Git-Wurzelordner als Projektordner.');
+  }
 
   const listed = (await git(root, ['ls-files', '--cached', '--full-name', '-z'])).split('\0').filter(Boolean);
   const trackedFileCount = listed.length;

@@ -2,13 +2,24 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { acceptRepoMap, previewRepoMap } from '../../src/main/repo-map-import';
 import { StudioStore } from '../../src/main/store';
 import { whiteboardSnapshot } from '../../src/main/whiteboard';
 
 const roots: string[] = [];
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+const stores: StudioStore[] = [];
+afterEach(() => {
+  // A failed assertion must still release SQLite before Windows can remove
+  // the synthetic repository and its database file.
+  for (const store of stores.splice(0)) store.close();
+  for (const root of roots.splice(0)) {
+    if (dirname(resolve(root)) !== resolve(tmpdir()) || !basename(root).startsWith('branchloom-repo-map-import-')) {
+      throw new Error('Unsafe synthetic test cleanup path');
+    }
+    rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  }
+});
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'branchloom-repo-map-import-'));
@@ -21,6 +32,7 @@ function fixture() {
   writeFileSync(join(repo, '.env'), 'TOKEN=synthetic-secret-content');
   execFileSync('git', ['-C', repo, 'add', '-A'], { stdio: 'ignore' });
   const store = new StudioStore(join(root, 'studio.sqlite'));
+  stores.push(store);
   const project = store.createProject({ name: 'Synthetic', path: repo });
   return { root, repo, store, project };
 }
@@ -43,7 +55,6 @@ describe('reviewed repo-to-whiteboard import', () => {
     expect(await acceptRepoMap(store, { projectId: project.id, fingerprint: proposal.fingerprint, nodeIds: selected }))
       .toMatchObject({ createdNodes: 0, reusedNodes: selected.length, createdEdges: 0, reusedEdges: proposal.edges.length });
     expect(execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf8' })).toBe(status);
-    store.close();
   });
 
   it('rejects an invalid or stale selection before touching the board', async () => {
@@ -55,7 +66,6 @@ describe('reviewed repo-to-whiteboard import', () => {
     execFileSync('git', ['-C', repo, 'add', '-A'], { stdio: 'ignore' });
     await expect(acceptRepoMap(store, { projectId: project.id, fingerprint: proposal.fingerprint, nodeIds: [proposal.nodes[0]!.id] })).rejects.toThrow('geändert');
     expect(whiteboardSnapshot(store, project.id)).toEqual({ nodes: [], edges: [] });
-    store.close();
   });
 
   it('rolls back all additions when the whiteboard node limit is exceeded', async () => {
@@ -66,6 +76,5 @@ describe('reviewed repo-to-whiteboard import', () => {
     store.db.transaction(() => { for (let i = 0; i < 499; i += 1) insert.run(`existing-${i}`, project.id, `Existing ${i}`, '', i, 0, stamp, stamp); })();
     await expect(acceptRepoMap(store, { projectId: project.id, fingerprint: proposal.fingerprint, nodeIds: proposal.nodes.map((node) => node.id) })).rejects.toThrow('Maximal 500');
     expect(whiteboardSnapshot(store, project.id).nodes).toHaveLength(499);
-    store.close();
   });
 });
