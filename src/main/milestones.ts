@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import type Database from 'better-sqlite3';
 import type { MilestoneCheckout, MilestoneComparison, ProjectMilestone } from '../shared/milestones';
@@ -10,6 +10,14 @@ type Row = { id: string; project_id: string; label: string; repository: string; 
 const map = (row: Row): ProjectMilestone => ({ id: row.id, projectId: row.project_id, label: row.label, repository: row.repository, branch: row.branch, commit: row.commit_hash, createdAt: row.created_at });
 const refName = (id: string): string => `refs/branchloom/milestones/${id}`;
 const within = (parent: string, child: string): boolean => { const rel = relative(parent, child); return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel)); };
+const sameDirectory = (first: string, second: string): boolean => {
+  const left = statSync(first, { bigint: true });
+  const right = statSync(second, { bigint: true });
+  if (left.ino !== 0n && right.ino !== 0n) return left.dev === right.dev && left.ino === right.ino;
+  const a = realpathSync.native(first);
+  const b = realpathSync.native(second);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+};
 
 export function installMilestones(db: Database.Database): void {
   db.exec(`CREATE TABLE IF NOT EXISTS project_milestones (
@@ -29,7 +37,7 @@ function repoFor(store: StudioStore, projectId: string): string {
   const project = store.project(projectId);
   const path = realpathSync(project.path);
   const root = realpathSync(git(path, 'rev-parse', '--show-toplevel'));
-  if (path !== root) throw new Error('Meilensteine benötigen derzeit einen Projektordner am Git-Repository-Stamm.');
+  if (!sameDirectory(path, root)) throw new Error('Meilensteine benötigen derzeit einen Projektordner am Git-Repository-Stamm.');
   return root;
 }
 
@@ -49,7 +57,7 @@ function milestone(store: StudioStore, projectId: string, id: string): ProjectMi
 
 function verifiedRepository(store: StudioStore, item: ProjectMilestone): string {
   const root = repoFor(store, item.projectId);
-  if (root !== item.repository) throw new Error('Das Projekt zeigt inzwischen auf ein anderes Repository.');
+  if (!sameDirectory(root, item.repository)) throw new Error('Das Projekt zeigt inzwischen auf ein anderes Repository.');
   let storedRef: string;
   try { storedRef = git(root, 'rev-parse', '--verify', refName(item.id)); }
   catch { throw new Error('Der lokale Meilenstein-Verweis fehlt oder zeigt auf einen anderen Commit.'); }
@@ -113,11 +121,11 @@ export function checkoutMilestone(store: StudioStore, input: { projectId: string
   const path = join(resolvedBase, `milestone-${item.id}`);
   if (existsSync(path)) {
     if (lstatSync(path).isSymbolicLink() || !within(resolvedBase, realpathSync(path))) throw new Error('Der bestehende Checkout-Pfad ist nicht sicher.');
-    if (realpathSync(git(path, 'rev-parse', '--show-toplevel')) !== realpathSync(path) || commonDir(path) !== commonDir(root)) throw new Error('Das bestehende Checkout gehört nicht zum Projekt-Repository.');
+    if (!sameDirectory(git(path, 'rev-parse', '--show-toplevel'), path) || !sameDirectory(commonDir(path), commonDir(root))) throw new Error('Das bestehende Checkout gehört nicht zum Projekt-Repository.');
     if (head(path) !== item.commit) throw new Error('Das bestehende Meilenstein-Checkout wurde auf einen anderen Commit verschoben.');
     return { path, commit: item.commit, reused: true, workingTreeClean: clean(path) };
   }
   git(root, 'worktree', 'add', '--detach', path, item.commit);
-  if (!within(resolvedBase, realpathSync(path)) || commonDir(path) !== commonDir(root) || head(path) !== item.commit) throw new Error('Das isolierte Checkout konnte nicht verifiziert werden.');
+  if (!within(resolvedBase, realpathSync(path)) || !sameDirectory(commonDir(path), commonDir(root)) || head(path) !== item.commit) throw new Error('Das isolierte Checkout konnte nicht verifiziert werden.');
   return { path, commit: item.commit, reused: false, workingTreeClean: clean(path) };
 }
