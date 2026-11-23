@@ -22,6 +22,7 @@ button.review-diff-line:hover, button.review-diff-line[aria-pressed='true'] { bo
 .review-diff-comment { padding: 9px 10px 9px 21px; border-left: 3px solid var(--accent); background: var(--surface-2); white-space: normal; max-width: 100%; }
 .review-diff-comment span { color: var(--muted); font-size: 10px; }
 .review-diff-comment p { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.review-diff-comment button { margin-top: 7px; font-size: 11px; }
 .review-diff-form { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); }
 .review-diff-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .review-diff-form textarea { width: 100%; box-sizing: border-box; }

@@ -4,6 +4,7 @@ import type { AgentDetection, ProjectSnapshot, WorkflowAgentSettings, WorkflowPr
 import type { ReviewedPlan } from '../../shared/plan-review';
 import type { Mutate } from './shared';
 import { PlanReviewPanel } from './PlanReviewPanel';
+import { ReviewRulesPanel } from './ReviewRulesPanel';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
 const emptySettings: WorkflowAgentSettings = { agentId: null, model: null, effort: null };
@@ -34,6 +35,7 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
   const [busy, setBusy] = useState<'save' | 'plan' | 'accept' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [rulesRevision, setRulesRevision] = useState(0);
   const currentProjectId = useRef(snapshot.project.id);
   currentProjectId.current = snapshot.project.id;
 
@@ -117,11 +119,12 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
     {selected && !selected.enabled ? <p className="inline-error" role="alert">Dieses Agentenprofil ist deaktiviert. Aktiviere es im Bereich „Agenten“.</p> : null}
     {unsupportedPlanner ? <p className="inline-error" role="alert">Die sichere, schreibgeschützte Workflow-Planung unterstützt derzeit nur Codex CLI. Andere CLI-Agenten können als Spaltenagenten arbeiten.</p> : null}
     {missingCli ? <p className="inline-error" role="alert">Die CLI für „{selected.name}“ ist auf diesem Gerät nicht installiert oder nicht erreichbar. Prüfe die Installation im Bereich „Agenten“.</p> : null}
-    <form className="planner-request" onSubmit={(event) => void plan(event)}><label htmlFor="workflow-request">Was soll erledigt werden?</label><textarea id="workflow-request" rows={4} maxLength={8000} value={request} disabled={busy !== null} onChange={(event) => { setRequest(event.target.value); setNotice(''); }} placeholder="Zum Beispiel: Plane die Umsetzung einer lokalen Suche mit Tests und Review." /><div className="planner-request-actions"><span>Beim Planen erhält Codex dein Ziel, den Projektnamen, Spalten mit Agent und Autostart-Status sowie das reguläre Projekt-README (maximal 12 KB). Andere Projektdateien werden nicht mitgegeben. Der Vorschlag legt noch nichts an.</span><button className="primary-button" type="submit" disabled={!loaded || busy !== null || !selected?.enabled || Boolean(unsupportedPlanner) || Boolean(missingCli) || !request.trim()}>{busy === 'plan' ? <LoaderCircle className="spin" size={15} /> : <ListTree size={15} />} Ablauf vorschlagen</button></div></form>
+    <form className="planner-request" onSubmit={(event) => void plan(event)}><label htmlFor="workflow-request">Was soll erledigt werden?</label><textarea id="workflow-request" rows={4} maxLength={8000} value={request} disabled={busy !== null} onChange={(event) => { setRequest(event.target.value); setNotice(''); }} placeholder="Zum Beispiel: Plane die Umsetzung einer lokalen Suche mit Tests und Review." /><div className="planner-request-actions"><span>Beim Planen erhält Codex dein Ziel, den Projektnamen, Spalten mit Agent und Autostart-Status, das reguläre Projekt-README (maximal 12 KB) und aktivierte Projektregeln aus Reviews (maximal 10 Regeln / 4 KB). Andere Projektdateien werden nicht mitgegeben. Der Vorschlag legt noch nichts an.</span><button className="primary-button" type="submit" disabled={!loaded || busy !== null || !selected?.enabled || Boolean(unsupportedPlanner) || Boolean(missingCli) || !request.trim()}>{busy === 'plan' ? <LoaderCircle className="spin" size={15} /> : <ListTree size={15} />} Ablauf vorschlagen</button></div></form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="planner-notice" role="status">{notice}</p> : null}
     {plans.length ? <label className="field-label">Gespeicherte Planvorschläge<select value={selectedPlanId ?? ''} onChange={(event) => { const next = plans.find((item) => item.id === event.target.value); setSelectedPlanId(event.target.value); if (next) setRequest(next.request); }}>{plans.map((item) => <option key={item.id} value={item.id}>{item.proposal.title} · {item.state === 'open' ? 'offen' : item.state === 'accepted' ? 'übernommen' : 'älter'}</option>)}</select></label> : null}
     {changedRequest ? <p className="inline-note" role="status">Der Auftrag wurde seit diesem Vorschlag bearbeitet. Plane erneut, bevor du ihn übernimmst.</p> : null}
-    {planDraft ? <><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} /></> : null}
+    {planDraft ? <><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} onRuleSaved={() => setRulesRevision((value) => value + 1)} /></> : null}
+    <ReviewRulesPanel projectId={snapshot.project.id} refreshKey={rulesRevision} />
   </section>;
 }

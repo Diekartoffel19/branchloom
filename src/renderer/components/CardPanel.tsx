@@ -218,7 +218,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
           <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
         </div> : null}
-        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={card.id} cardId={card.id} /></Suspense> : null}
+        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={card.id} cardId={card.id} projectId={card.projectId} /></Suspense> : null}
       </div>
     </aside>
   </div>;

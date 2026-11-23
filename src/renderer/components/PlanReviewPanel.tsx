@@ -5,7 +5,7 @@ import './plan-review.css';
 
 const errorText = (value: unknown): string => value instanceof Error ? value.message : String(value);
 
-export function PlanReviewPanel({ plan }: { plan: ReviewedPlan }) {
+export function PlanReviewPanel({ plan, onRuleSaved }: { plan: ReviewedPlan; onRuleSaved?: () => void }) {
   const [comments, setComments] = useState<PlanComment[]>([]);
   const [line, setLine] = useState<number | null>(null);
   const [body, setBody] = useState('');
@@ -41,6 +41,15 @@ export function PlanReviewPanel({ plan }: { plan: ReviewedPlan }) {
     } catch (reason) { setError(`Kopieren fehlgeschlagen: ${errorText(reason)}`); }
   }
 
+  async function promote(comment: PlanComment) {
+    setError(''); setNotice('');
+    try {
+      await window.studio.createReviewRuleFromComment({ projectId: plan.projectId, sourceKind: 'plan', sourceId: comment.id });
+      setNotice('Kommentar als Projektregel übernommen. Die Regel ist bei der nächsten Workflow-Planung aktiv.');
+      onRuleSaved?.();
+    } catch (reason) { setError(errorText(reason)); }
+  }
+
   return <section className="plan-review" aria-label="Plan kommentieren">
     <div className="plan-review-heading"><div><h4>Planstellen kommentieren</h4><p>Eine Zeile wählen und Feedback lokal speichern. Für eine Überarbeitung Feedback kopieren und bewusst in einen neuen Auftrag einfügen. Es wird nicht automatisch an einen Agenten gesendet.</p></div>
       <button className="secondary-button" type="button" disabled={comments.length === 0} onClick={() => void copyFeedback()}>Feedback kopieren</button></div>
@@ -54,6 +63,7 @@ export function PlanReviewPanel({ plan }: { plan: ReviewedPlan }) {
       </button>
       {comments.filter((comment) => comment.line === item.number).map((comment) => <div className="plan-review-comment" key={comment.id}>
         <small>{new Date(comment.createdAt).toLocaleString('de-DE')}</small><p>{comment.body}</p>
+        <button type="button" className="secondary-button" onClick={() => void promote(comment)}>Als Projektregel übernehmen</button>
       </div>)}
     </div>)}</div>
     {line !== null && plan.state === 'open' ? <form className="plan-review-form" onSubmit={(event) => void save(event)}>

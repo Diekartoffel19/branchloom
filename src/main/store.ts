@@ -16,6 +16,7 @@ import { installReviewComments } from './diff-review';
 import { installIdeas } from './ideas';
 import { installPlanReview } from './plan-review';
 import { installMilestones } from './milestones';
+import { installReviewRules } from './review-rules';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -110,6 +111,7 @@ export class StudioStore {
     installIdeas(this.db);
     installPlanReview(this.db);
     installMilestones(this.db);
+    installReviewRules(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

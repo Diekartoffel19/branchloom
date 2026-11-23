@@ -2,6 +2,7 @@ import type { ConflictRadarResult, ProjectConflictRadarResult } from './conflict
 import type { DraftTurn, TaskDraftReply } from './task-draft';
 import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
 import type { ChangelogPeriod, ProjectChangelog } from './changelog';
+import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -130,6 +131,10 @@ export interface StudioAPI {
   previewCardDiff(cardId: string): Promise<CardDiffPreview | null>;
   listReviewComments(cardId: string): Promise<ReviewComment[]>;
   createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
+  reviewRules(projectId: string): Promise<ReviewRule[]>;
+  createReviewRuleFromComment(input: CreateReviewRuleFromComment): Promise<ReviewRule>;
+  updateReviewRule(input: UpdateReviewRule): Promise<ReviewRule>;
+  deleteReviewRule(input: { projectId: string; id: string }): Promise<void>;
   reviewCardConflicts(cardId: string): Promise<ConflictRadarResult>;
   reviewProjectConflicts(projectId: string): Promise<ProjectConflictRadarResult>;
   mergeCardWorktree(input: { cardId: string; previewToken: string; confirm: boolean }): Promise<WorktreeReview>;

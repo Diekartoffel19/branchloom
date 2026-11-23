@@ -21,6 +21,9 @@ describe('workflow planner', () => {
     expect(html).toContain('Effort');
     expect(html).toContain('Projekt-README');
     expect(html).toContain('Andere Projektdateien werden nicht mitgegeben');
+    expect(html).toContain('aktivierte Projektregeln aus Reviews');
+    expect(html).toContain('Projektregeln aus Reviews');
+    expect(html).toContain('Noch keine Review-Regel übernommen');
     expect(html).not.toContain('Jarvis plant');
     expect(html).toContain('Noch kein CLI-Agent eingerichtet');
     expect(html).toMatch(/<button[^>]+disabled=""[^>]*>.*Ablauf vorschlagen/s);

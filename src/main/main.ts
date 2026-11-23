@@ -13,6 +13,7 @@ import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
+import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
 import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
@@ -255,6 +256,10 @@ function installIpc(): void {
   bind('previewCardDiff', (cardId: string) => previewCardDiff(db, cardId));
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
+  bind('reviewRules', (projectId: string) => listReviewRules(db, projectId));
+  bind('createReviewRuleFromComment', (input: Parameters<StudioAPI['createReviewRuleFromComment']>[0]) => createReviewRuleFromComment(db, input));
+  bind('updateReviewRule', (input: Parameters<StudioAPI['updateReviewRule']>[0]) => updateReviewRule(db, input));
+  bind('deleteReviewRule', (input: Parameters<StudioAPI['deleteReviewRule']>[0]) => deleteReviewRule(db, input));
   bind('reviewCardConflicts', (cardId: string) => reviewCardConflicts(db, cardId, db.runningSessionsForProject(db.card(cardId).projectId)));
   bind('reviewProjectConflicts', (projectId: string) => reviewProjectConflicts(db, projectId));
   bind('mergeCardWorktree', (input: { cardId: string; previewToken: string; confirm: boolean }) => mergeCardWorktree(db, input));

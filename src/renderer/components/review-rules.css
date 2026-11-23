@@ -1,0 +1,16 @@
+.review-rules { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 16px; display: grid; gap: 12px; }
+.review-rules-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.review-rules-head h4 { margin: 0 0 4px; font-size: 14px; }
+.review-rules-head p { margin: 0; max-width: 72ch; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.review-rules-head > span { color: var(--muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.review-rules-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.review-rules-list > li { padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
+.review-rules-source { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.review-rules-list p { margin: 9px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; }
+.review-rules-list form label { display: grid; gap: 6px; font-size: 12px; }
+.review-rules-list form textarea { width: 100%; }
+.review-rules-list form > div, .review-rules-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.review-rules-actions label { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; }
+.review-rules-actions input { accent-color: var(--accent); }
+.review-rules-actions button, .review-rules-list form button { font-size: 11px; }
+@media (max-width: 660px) { .review-rules-head { flex-direction: column; } }

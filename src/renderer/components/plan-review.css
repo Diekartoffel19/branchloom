@@ -13,6 +13,7 @@
 .plan-review-comment { padding: 8px 12px 9px 52px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
 .plan-review-comment small { color: var(--muted); font-size: 10px; }
 .plan-review-comment p { margin: 3px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.plan-review-comment button { margin-top: 7px; font-size: 11px; }
 .plan-review-form { display: grid; gap: 9px; }
 .plan-review-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
 .plan-review-form textarea { width: 100%; box-sizing: border-box; }

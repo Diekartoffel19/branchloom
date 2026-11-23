@@ -10,13 +10,14 @@ const anchorOf = (filePath: string, line: DiffLine): Anchor | null => line.kind 
   : (line.kind === 'added' || line.kind === 'context') && line.newLine !== null
     ? { filePath, side: 'new', line: line.newLine } : null;
 
-export function ReviewDiffPanel({ cardId }: { cardId: string }) {
+export function ReviewDiffPanel({ cardId, projectId }: { cardId: string; projectId?: string }) {
   const [preview, setPreview] = useState<CardDiffPreview | null | undefined>(undefined);
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [selected, setSelected] = useState<Anchor | null>(null);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [changed, setChanged] = useState(false);
   const request = useRef(0);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -55,6 +56,15 @@ export function ReviewDiffPanel({ cardId }: { cardId: string }) {
     } finally { setBusy(false); }
   }
 
+  async function promote(comment: ReviewComment) {
+    if (!projectId) return;
+    setError(''); setNotice('');
+    try {
+      await window.studio.createReviewRuleFromComment({ projectId, sourceKind: 'diff', sourceId: comment.id });
+      setNotice('Kommentar als Projektregel übernommen. Im Bereich Workflows kannst du die Regel bearbeiten oder deaktivieren.');
+    } catch (reason) { setError(errorText(reason)); }
+  }
+
   const current = preview ? comments.filter((item) => item.fingerprint === preview.fingerprint) : [];
   const older = preview ? comments.filter((item) => item.fingerprint !== preview.fingerprint) : comments;
 
@@ -63,6 +73,7 @@ export function ReviewDiffPanel({ cardId }: { cardId: string }) {
       <button type="button" className="secondary-button" disabled={busy} onClick={() => void load()}><RefreshCw size={14} /> Aktualisieren</button></div>
     {busy && preview === undefined ? <p role="status">Diff wird gelesen…</p> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
+    {notice ? <p className="inline-note" role="status">{notice}</p> : null}
     {changed ? <p className="review-diff-warning" role="status">Der Git-Stand hat sich geändert. Ältere Kommentare bleiben separat sichtbar; bitte prüfe die aktuelle Vorschau erneut.</p> : null}
     {preview === null ? <p className="inline-note">Für diese Karte gibt es noch keinen Git-Worktree.</p> : null}
     {preview ? <>
@@ -78,7 +89,7 @@ export function ReviewDiffPanel({ cardId }: { cardId: string }) {
               onClick={() => { setSelected(anchor); requestAnimationFrame(() => input.current?.focus()); }}>
               <span className="review-diff-number">{line.oldLine ?? ''}</span><span className="review-diff-number">{line.newLine ?? ''}</span><code>{line.kind === 'added' ? '+' : line.kind === 'removed' ? '-' : ' '}{line.text}</code><MessageSquarePlus size={13} aria-hidden="true" />
             </button> : <div className={`review-diff-line ${line.kind}`}><span className="review-diff-number" /><span className="review-diff-number" /><code>{line.text}</code></div>}
-            {attached.map((item) => <div className="review-diff-comment" key={item.id}><span>{new Date(item.createdAt).toLocaleString('de-DE')}</span><p>{item.body}</p></div>)}
+            {attached.map((item) => <div className="review-diff-comment" key={item.id}><span>{new Date(item.createdAt).toLocaleString('de-DE')}</span><p>{item.body}</p>{projectId ? <button type="button" className="secondary-button" onClick={() => void promote(item)}>Als Projektregel übernehmen</button> : null}</div>)}
           </div>;
         })}</div>
       </details>)}
@@ -86,7 +97,7 @@ export function ReviewDiffPanel({ cardId }: { cardId: string }) {
         <textarea ref={input} rows={3} maxLength={2_000} value={body} disabled={busy} onChange={(event) => setBody(event.target.value)} placeholder="Konkrete Frage oder Änderung…" /></label>
         <div><button className="secondary-button" type="button" disabled={busy} onClick={() => { setSelected(null); setBody(''); }}>Abbrechen</button><button className="primary-button" type="submit" disabled={busy || !body.trim()}>Kommentar speichern</button></div></form> : null}
       {older.length ? <details className="review-diff-history"><summary>{older.length} Kommentar{older.length === 1 ? '' : 'e'} zu älteren Diff-Ständen</summary>
-        {older.map((item) => <div className="review-diff-comment" key={item.id}><span>{item.filePath} · {item.side === 'new' ? 'neu' : 'alt'} {item.line} · {new Date(item.createdAt).toLocaleString('de-DE')}</span><p>{item.body}</p></div>)}</details> : null}
+        {older.map((item) => <div className="review-diff-comment" key={item.id}><span>{item.filePath} · {item.side === 'new' ? 'neu' : 'alt'} {item.line} · {new Date(item.createdAt).toLocaleString('de-DE')}</span><p>{item.body}</p>{projectId ? <button type="button" className="secondary-button" onClick={() => void promote(item)}>Als Projektregel übernehmen</button> : null}</div>)}</details> : null}
     </> : null}
   </section>;
 }
