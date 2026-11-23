@@ -55,6 +55,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const visibleColumns = filterColumnId ? columns.filter((column) => column.id === filterColumnId) : columns;
   const archivedCount = snapshot.cards.filter((card) => card.archivedAt).length;
   const selected = snapshot.cards.find((card) => card.id === selectedId) ?? null;
+  const requestedCardAvailable = Boolean(openCard && snapshot.cards.some((card) => card.id === openCard.id));
   const columnOrder = new Map(columns.map((column, index) => [column.id, index]));
   const selectableCards = visibleCards.filter((card) => !card.archivedAt).sort((a, b) => (columnOrder.get(a.columnId) ?? 0) - (columnOrder.get(b.columnId) ?? 0) || compareCardOrder(a, b));
   const selectedBulkCards = selectableCards.filter((card) => bulkIds.has(card.id));
@@ -65,7 +66,9 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   useEffect(() => { setBulkIds(new Set()); setConfirmBulkArchive(false); }, [snapshot.project.id, query, filterColumnId, visibility, filterPriority, filterLabel]);
   useEffect(() => { setBulkIds((previous) => new Set([...previous].filter((id) => selectableCards.some((card) => card.id === id)))); }, [snapshot.cards]);
   useEffect(() => { if (!columns.some((column) => column.id === bulkDestinationId)) setBulkDestinationId(columns[0]?.id ?? ''); }, [columns, bulkDestinationId]);
-  useEffect(() => { if (openCard && snapshot.cards.some((card) => card.id === openCard.id)) setSelectedId(openCard.id); }, [openCard?.id, openCard?.token, snapshot.project.id]);
+  // A cross-view navigation can arrive before the refreshed snapshot contains
+  // a newly created card. Open it when that card becomes available as well.
+  useEffect(() => { if (openCard && requestedCardAvailable) setSelectedId(openCard.id); }, [openCard?.id, openCard?.token, snapshot.project.id, requestedCardAvailable]);
   useEffect(() => {
     if (!focusMoved || snapshot.cards.find((card) => card.id === focusMoved.cardId)?.columnId !== focusMoved.columnId) return;
     const button = document.getElementById(`board-card-${focusMoved.cardId}`);

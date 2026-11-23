@@ -6,7 +6,7 @@ import './browser-diagnostics.css';
 const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null, diagnostics: [] };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
-export function BrowserView({ active, snapshot = null, onOpenCard }: { active: boolean; snapshot?: ProjectSnapshot | null; onOpenCard?: (cardId: string) => void }) {
+export function BrowserView({ active, snapshot = null, onOpenCard }: { active: boolean; snapshot?: ProjectSnapshot | null; onOpenCard?: (cardId: string) => Promise<void> | void }) {
   const [state, setState] = useState<BrowserState>(EMPTY);
   const [address, setAddress] = useState('');
   const [error, setError] = useState('');
@@ -113,7 +113,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
     try {
       const card = await window.studio.browserCreateDiagnosticCard({ projectId: snapshot.project.id, columnId, diagnosticId: selectedDiagnosticId, reproduction });
       setNotice('Karte angelegt. Ein Agent wurde dadurch nicht gestartet.');
-      onOpenCard?.(card.id);
+      await onOpenCard?.(card.id);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setSavingDiagnostic(false); }
   }
