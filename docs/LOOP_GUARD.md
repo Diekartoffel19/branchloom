@@ -1,0 +1,7 @@
+# Wiederholte Queue-Fehler
+
+Branchloom hält einen laufenden Queue-Workflow bereits nach dem ersten fehlgeschlagenen Agentenlauf zur Prüfung an. Nach einer bewussten Entscheidung kannst du ihn überspringen und die nächste Karte starten. Wenn die **drei zuletzt beendeten Queue-Agentenläufe** desselben Projekts mit demselben Agenten, demselben von null verschiedenen Exit-Code und derselben erkennbaren Fehlerzeile scheitern, zeigt die Warteschlange einen zusätzlichen Loop-Hinweis. Er erscheint auch in **Entscheidungen**. Die nächste Karte startet nicht selbstständig.
+
+Die Erkennung liest nur gespeicherte, der Queue zugeordnete Sitzungen. Sie verwendet höchstens die letzten 8 KB je Sitzungsprotokoll und vergleicht eine Fehlerzeile nach Entfernen von Terminal-Farbsteuerzeichen. Abweichende Fehlertexte, erfolgreiche, gestoppte und manuell gestartete Läufe lösen diesen Hinweis nicht aus. Fehlt eine klare Fehlerzeile, meldet Branchloom keinen Loop. Der Hinweis enthält den Exit-Code und einen kurzen Ausschnitt der wiederholten Zeile, damit du die zugehörigen Verläufe prüfen kannst.
+
+Der Hinweis ist keine Kostenschätzung und kein Beweis, dass der Agent inhaltlich dieselbe Arbeit getan hat. Es gibt derzeit keine verlässliche anbieterübergreifende Token- oder Kostenmessung. Die Warnung verändert weder Projektdateien noch die CLI-Berechtigungen. Nach Prüfung können einzelne blockierte Queue-Karten wie bisher nur mit einem Grund übersprungen und die Queue bewusst erneut gestartet werden.

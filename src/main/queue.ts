@@ -1,6 +1,7 @@
 import type { ProjectQueue, QueueState, Session, Workflow } from '../shared/types';
 import { StudioStore } from './store';
 import { WorkflowEngine } from './workflows';
+import { detectQueueFailureLoop } from './loop-guard';
 
 function pauseMessage(workflow: Workflow): string {
   if (workflow.pauseReason === 'approval') return 'Workflow wartet auf eine ausdrückliche Schrittfreigabe.';
@@ -39,7 +40,17 @@ export class ProjectQueueEngine {
     return this.store.saveProjectQueue({ projectId: input.projectId, state: input.state, templateWorkflowId, activeWorkflowId: current.activeWorkflowId, pauseReason: input.state === 'paused' ? 'Vom Nutzer pausiert; aktiven Workflow vor Fortsetzung prüfen.' : null });
   }
 
-  onSessionFinished(session: Session): void { this.pump(session.projectId); }
+  onSessionFinished(session: Session): void {
+    const current = this.store.projectQueue(session.projectId);
+    if (current.state === 'running' && current.activeWorkflowId === this.store.workflowForSession(session.id)?.id) {
+      const repeated = detectQueueFailureLoop(this.store, session.projectId);
+      if (repeated?.sessionIds[0] === session.id) {
+        this.pause(session.projectId, `Drei aufeinanderfolgende Queue-Agentenläufe scheiterten mit demselben Fehler (Exit-Code ${repeated.exitCode}). Letzter Fehler: ${repeated.excerpt}. Prüfe die drei Verläufe und setze die Warteschlange erst bewusst fort.`);
+        return;
+      }
+    }
+    this.pump(session.projectId);
+  }
   onBoardChanged(projectId: string): void { this.pump(projectId); }
 
   private pause(projectId: string, message: string): void {
