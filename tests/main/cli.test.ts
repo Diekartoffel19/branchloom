@@ -82,6 +82,25 @@ describe('real CLI PTY', () => {
     store.close();
   });
 
+  it('keeps a running card for review when the app closes', () => {
+    const { store, card, dbPath } = fixture();
+    const agent = store.saveAgent({ name: 'Shutdown fixture', kind: 'custom', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], model: null, enabled: true });
+    const events: SessionEvent[] = [];
+    const runner = new SessionRunner(store, (event) => events.push(event), () => undefined);
+    const session = runner.start({ cardId: card.id, agentId: agent.id, prompt: '' });
+    runner.dispose();
+    expect(store.session(session.id).state).toBe('failed');
+    expect(store.interruptedSessions(card.projectId).map((item) => item.sessionId)).toContain(session.id);
+    expect(store.session(session.id).output).toContain('not replayed');
+    expect(events.some((event) => event.state === 'stopped')).toBe(false);
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    try {
+      expect(reopened.interruptedSessions(card.projectId).map((item) => item.sessionId)).toEqual([session.id]);
+      expect(reopened.session(session.id).output.match(/not replayed/g)).toHaveLength(1);
+    } finally { reopened.close(); }
+  });
+
   it('allows parallel manual cards while the project queue is off', () => {
     const { store, card } = fixture();
     const second = store.createCard({ projectId: card.projectId, columnId: card.columnId, title: 'Another manual task' });

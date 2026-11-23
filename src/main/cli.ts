@@ -358,7 +358,19 @@ export class SessionRunner {
 
   dispose(): void {
     this.disposed = true;
-    for (const sessionId of [...this.processes.keys()]) this.stop(sessionId);
+    for (const [sessionId, child] of [...this.processes]) {
+      const pending = this.pendingFirstTurn.get(sessionId);
+      if (pending) clearTimeout(pending);
+      this.pendingFirstTurn.delete(sessionId);
+      this.processes.delete(sessionId);
+      // Closing the app is not an explicit user stop of this card. The child
+      // may already have made a change, so require review after the next start.
+      try { this.store.interruptSessionOnShutdown(sessionId); }
+      finally {
+        child.kill();
+        this.readAndClearFinalMessage(sessionId);
+      }
+    }
   }
 
   private readAndClearFinalMessage(sessionId: string): string | null {

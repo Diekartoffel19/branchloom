@@ -605,6 +605,15 @@ export class StudioStore {
     return this.session(id);
   }
 
+  interruptSessionOnShutdown(id: string): void {
+    const interruptedAt = now();
+    this.db.prepare(`UPDATE sessions
+      SET state = 'failed', ended_at = ?, interrupted_at = ?, exit_code = NULL,
+        output = substr(output || ?, -200000)
+      WHERE id = ? AND state = 'running'`)
+      .run(interruptedAt, interruptedAt, '\n[Branchloom closed while this session was running; this session was not replayed.]\n', id);
+  }
+
   workflow(id: string): Workflow { return this.hydrateWorkflow(required(this.db.prepare('SELECT * FROM workflows WHERE id = ?').get(id) as WorkflowRow | undefined, 'Workflow not found')); }
   private hydrateWorkflow(row: WorkflowRow): Workflow {
     const value = workflow(row);
