@@ -17,6 +17,7 @@ import { installIdeas } from './ideas';
 import { installPlanReview } from './plan-review';
 import { installMilestones } from './milestones';
 import { installReviewRules } from './review-rules';
+import { installReviewInbox } from './review-inbox';
 import { installCardQa } from './card-qa';
 import { installCardContext } from './card-context';
 
@@ -114,6 +115,7 @@ export class StudioStore {
     installPlanReview(this.db);
     installMilestones(this.db);
     installReviewRules(this.db);
+    installReviewInbox(this.db);
     installCardQa(this.db);
     installCardContext(this.db);
     installSessionSearch(this.db);

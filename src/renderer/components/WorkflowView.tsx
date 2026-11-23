@@ -6,7 +6,7 @@ import { WorkflowPlanner } from './WorkflowPlanner';
 import { WorkflowStepRows } from './WorkflowStepRows';
 import '../queue-preview.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null; openPlan?: { id: string; token: number } | null }
 
 export function workflowPauseCopy(reason: Workflow['pauseReason']): { description: string; action: string } {
   if (reason === 'approval') return { description: 'Freigabe erforderlich: Der nächste Schritt startet erst nach deiner Bestätigung.', action: 'Schritt freigeben' };
@@ -57,7 +57,7 @@ export function stepsFromForm(
   }));
 }
 
-export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
+export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan }: Props) {
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const hasTodoColumn = columns.some((column) => column.name.trim().toLocaleLowerCase('de-DE') === 'to do');
   const [showForm, setShowForm] = useState(false);
@@ -146,7 +146,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow }: Props) {
   return <div className="standard-page">
     <div className="view-header"><div><h2>Workflows</h2><p>Beschreibe dein Ziel dem Workflow-Agenten oder lege einen Ablauf selbst an.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Manuell anlegen</button></div>
 
-    <WorkflowPlanner snapshot={snapshot} mutate={mutate} />
+    <WorkflowPlanner snapshot={snapshot} mutate={mutate} openPlan={openPlan} />
 
     {skipWorkflowId ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSkipWorkflowId(null); }}><form className="dialog" onSubmit={(event) => void skipQueuedCard(event)}><div className="dialog-heading"><div><small>QUEUE-ENTSCHEIDUNG</small><h2>Karte überspringen</h2></div><button className="icon-button" type="button" onClick={() => setSkipWorkflowId(null)} aria-label="Schließen">×</button></div><p><strong>{skipCardTitle}</strong></p><p>Der bisherige Workflow und seine Sitzungsprotokolle bleiben erhalten. Diese Karte wird nicht automatisch erneut eingeplant. Danach bleibt die Queue angehalten, bis du sie ausdrücklich aktivierst.</p><label>Grund für das Überspringen<textarea autoFocus required minLength={3} maxLength={500} rows={3} value={skipReason} onChange={(event) => setSkipReason(event.target.value)} placeholder="Zum Beispiel: externer Dienst nicht erreichbar" /></label><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setSkipWorkflowId(null)}>Abbrechen</button><button className="primary-button" type="submit" disabled={skipReason.trim().length < 3}>Karte überspringen</button></div></form></div> : null}
     {deleteWorkflow ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleteWorkflowId(null); }}><div className="dialog" role="dialog" aria-modal="true" aria-label="Workflow-Entwurf löschen"><div className="dialog-heading"><div><small>ENTWURF ENTFERNEN</small><h2>Workflow-Entwurf löschen?</h2></div><button className="icon-button" type="button" onClick={() => setDeleteWorkflowId(null)} aria-label="Schließen">×</button></div><p><strong>{deleteWorkflow.name}</strong></p><p>Nur dieser ungestartete Ablauf wird entfernt. Seine Karten und Dateien bleiben erhalten. Freie To-Do-Karten können danach wieder von der Warteschlange aufgenommen werden.</p><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setDeleteWorkflowId(null)}>Abbrechen</button><button className="danger-button" type="button" onClick={() => void deleteDraftWorkflow()}>Entwurf endgültig löschen</button></div></div></div> : null}

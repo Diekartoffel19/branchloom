@@ -10,6 +10,12 @@
 .decision-kind { font-size: 12px; font-weight: 650; color: var(--accent); }
 .decision-meta time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .decision-item h3 { margin: 0 0 7px; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.decision-review-section { margin-top: 24px; }
+.decision-review-section > h3 { margin: 0 0 5px; font-size: 17px; }
+.decision-review-section > p { margin: 0 0 12px; max-width: 72ch; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.decision-review-item h4 { margin: 0 0 5px; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.decision-review-item.decision-item .decision-context { margin: 0 0 8px; }
+.decision-review-more { margin-top: 12px; }
 .decision-item p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
 .decision-item .decision-context { margin-top: 8px; color: var(--muted); font-size: 12px; }
 .decision-item .decision-next { margin-top: 10px; max-width: 70ch; }
@@ -19,6 +25,7 @@
 .decision-subaction { padding: 2px 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .decision-subaction:hover { color: var(--text); }
 .decision-subaction:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.decision-subaction:disabled { opacity: .55; cursor: wait; }
 .decision-no-match { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 13px; }
 .decision-empty { max-width: 610px; padding: 28px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted); }
 .decision-empty svg { color: var(--accent); }

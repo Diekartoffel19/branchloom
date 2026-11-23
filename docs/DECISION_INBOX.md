@@ -1,10 +1,14 @@
 # Decision Inbox
 
-Die Ansicht **Entscheidungen** zeigt offene Prüfungen aus dem aktiven Projekt. Aktuell nutzt sie ausschließlich gespeicherte Zustände aus dem Projekt-Snapshot:
+Die Ansicht **Entscheidungen** zeigt offene Prüfungen aus dem aktiven Projekt. Pausen und Unterbrechungen stammen aus gespeicherten Zuständen im Projekt-Snapshot:
 
 - pausierte Workflows mit Grund **Freigabe**, **manueller Schritt**, **Review** oder **vom Nutzer pausiert**;
 - eine pausierte To-Do-Warteschlange mit ihrem gespeicherten Pausengrund und, falls vorhanden, dem aktiven Workflow.
 - beim App-Neustart unterbrochene Karten-Agentensitzungen mit gespeicherter Ausgabe und noch offener Prüfung.
+
+Zusätzlich liest die Ansicht gespeicherte Planzeilen- und Diff-Kommentare aus der lokalen Datenbank. Sie zeigt nur Kommentare zu einem **offenen** Plan oder einer **nicht archivierten** Karte des aktiven Projekts, solange sie in der Inbox nicht ausdrücklich als geprüft markiert wurden. Jeder Eintrag nennt Kommentar, Quelle und Zeit. **Plan öffnen** wählt den gespeicherten Plan unter Workflows aus; **Karte öffnen** führt zur betroffenen Karte, wo der Diff-Kommentar zu finden ist. Ein Diff-Kommentar kann sich auf einen älteren Stand beziehen; die Karte zeigt ihn in ihrer Review-Historie. Die Inbox zeigt höchstens die neuesten 100 Kommentare und kennzeichnet die Begrenzung. Ältere Kommentare bleiben an ihren Quellen.
+
+**Als geprüft markieren** speichert nur eine lokale Inbox-Quittierung. Der Originalkommentar bleibt erhalten; es wird kein Feedback an einen Agenten gesendet, kein Plan angenommen, kein Workflow freigegeben und keine Karte verschoben. Ein ersetzter oder übernommener Plan sowie eine archivierte Karte verlassen die offene Inbox automatisch. Ein erneutes Öffnen des ursprünglichen Plans oder Reviews zeigt dessen Kommentare weiterhin. Noch keine beantworteten Agentenfragen, automatische Übernahme von QA-Berichten oder projektübergreifende Inbox.
 
 Bewusst übersprungene Queue-Workflows erscheinen nicht mehr als offene Freigabe. Laufende, fertige und ungestartete Workflows erzeugen ebenfalls keinen Inbox-Eintrag. Die Anzeige aktualisiert sich mit dem Projekt-Snapshot, auch nach einem Neustart.
 
@@ -14,6 +18,6 @@ Bei einer unterbrochenen Sitzung führen **Verlauf prüfen** und **Karte und Dat
 
 Jeder Eintrag nennt jetzt den gespeicherten Pausgrund, den betroffenen Schritt, die Spalte, den zugewiesenen Agenten und bis zu drei betroffene Karten, soweit diese Daten noch vorhanden sind. Ein Hinweis beschreibt den nächsten Prüfschritt; der Zeitstempel zeigt **die letzte gespeicherte Aktualisierung**, nicht den sicheren Beginn der Pause. Bei einer pausierten Queue mit aktivem Workflow gibt es neben dem Queue-Ziel einen Link zu diesem Workflow. Ab fünf Einträgen erscheinen eine Suche und ein Filter nach Pausart. Suche und Filter verändern keine gespeicherten Entscheidungen; bei weniger Einträgen bleiben sie sichtbar, solange eine Auswahl aktiv ist.
 
-Agentenfragen, Plan- und Diff-Kommentare sowie Freigaben aus anderen Projekten werden noch nicht aggregiert. Es gibt dafür bisher keine gespeicherte Quelle; die Inbox stellt keine solchen Ereignisse dar.
+Freigaben und Fragen aus anderen Projekten werden noch nicht aggregiert.
 
 Prüfung am 23.11.2026: In einem isolierten Electron-Profil mit fünf synthetisch pausierten Workflows und einer angehaltenen Queue wurden sechs Einträge angezeigt. Der Filter **Prüfung**, eine Kartennamensuche, der Zustand ohne Treffer sowie die Navigation zum korrekten Workflow, zur Queue und von der Queue zum aktiven Workflow wurden sichtbar geprüft. Dabei wurde keine Freigabe und kein Agentenlauf ausgelöst. Der allgemeine View-Wechsel behält derzeit gelegentlich die vorige Scrollposition; die Inbox setzt diese Position noch nicht selbst zurück.

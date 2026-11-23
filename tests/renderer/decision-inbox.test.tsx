@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { App } from '../../src/renderer/App';
-import { DecisionInbox } from '../../src/renderer/components/DecisionInbox';
+import { DecisionInbox, ReviewInboxList } from '../../src/renderer/components/DecisionInbox';
 import { decisionItems, filterDecisionItems } from '../../src/renderer/decision-inbox';
 import type { ProjectSnapshot, Workflow } from '../../src/shared/types';
 
@@ -68,7 +68,7 @@ describe('decision inbox', () => {
     const quiet = { ...snapshot, queue: { ...snapshot.queue, state: 'running' as const }, workflows: [{ ...approval, state: 'done' as const }] };
     expect(decisionItems(quiet)).toEqual([]);
     const html = renderToStaticMarkup(createElement(DecisionInbox, { snapshot: quiet, onOpenWorkflow: () => undefined, onOpenQueue: () => undefined }));
-    expect(html).toContain('Keine offenen Entscheidungen');
+    expect(html).toContain('Review-Kommentare werden geladen');
     expect(html).not.toContain('Freigabe prüfen');
   });
 
@@ -89,6 +89,23 @@ describe('decision inbox', () => {
   it('includes the decision view in the app navigation', () => {
     const html = renderToStaticMarkup(createElement(App));
     expect(html).toContain('Entscheidungen');
+  });
+
+  it('renders saved review sources as escaped text with navigation and acknowledgement, without approval controls', () => {
+    const html = renderToStaticMarkup(createElement(ReviewInboxList, {
+      items: [
+        { id: 'plan-comment', kind: 'plan', projectId: 'project', sourceId: 'plan', sourceTitle: 'Plan <script>', location: 'Planzeile 1', body: 'Prüfe <img>', createdAt: date },
+        { id: 'diff-comment', kind: 'diff', projectId: 'project', sourceId: 'card', sourceTitle: 'Karte prüfen', location: 'Diff src/test.ts:7', body: 'Fehlerfall prüfen', createdAt: date },
+      ], hasMore: true, busy: null,
+      onOpenPlan: () => undefined, onOpenCard: () => undefined, onAcknowledge: () => undefined,
+    }));
+    expect(html).toContain('Plan öffnen');
+    expect(html).toContain('Karte öffnen');
+    expect(html).toContain('Als geprüft markieren');
+    expect(html).toContain('Die neuesten 100 Kommentare');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('Schritt freigeben');
   });
 
   it('shows a persisted interruption with inspect and explicit review actions', () => {

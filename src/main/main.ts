@@ -15,6 +15,7 @@ import { CommandTerminalRunner } from './command-terminal';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
+import { acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
 import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
@@ -264,6 +265,8 @@ function installIpc(): void {
   bind('previewCardDiff', (cardId: string) => previewCardDiff(db, cardId));
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
+  bind('reviewInboxItems', (projectId: string) => reviewInboxItems(db, projectId));
+  bind('acknowledgeReviewInboxComment', (input: Parameters<StudioAPI['acknowledgeReviewInboxComment']>[0]) => acknowledgeReviewInboxComment(db, input));
   bind('reviewRules', (projectId: string) => listReviewRules(db, projectId));
   bind('createReviewRuleFromComment', (input: Parameters<StudioAPI['createReviewRuleFromComment']>[0]) => createReviewRuleFromComment(db, input));
   bind('updateReviewRule', (input: Parameters<StudioAPI['updateReviewRule']>[0]) => updateReviewRule(db, input));

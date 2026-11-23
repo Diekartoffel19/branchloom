@@ -58,6 +58,7 @@ export function App() {
   const [notice, setNotice] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
+  const [openPlan, setOpenPlan] = useState<{ id: string; token: number } | null>(null);
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
@@ -141,6 +142,7 @@ export function App() {
     setSnapshot(null);
     setSearchOpen(false);
     setNavigationTarget(null);
+    setOpenPlan(null);
     if (!projectId) return;
     let active = true;
     window.studio.snapshot(projectId).then((data) => {
@@ -340,8 +342,8 @@ export function App() {
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
-        {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
-        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} /> : null}
+        {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} /> : null}
+        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenPlan={(id) => { setOpenPlan((old) => ({ id, token: (old?.token ?? 0) + 1 })); setView('workflows'); }} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} /> : null}
         {view === 'whiteboard' ? <Suspense fallback={<div className="content-message">Whiteboard wird geladen…</div>}><WhiteboardView snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /></Suspense> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}

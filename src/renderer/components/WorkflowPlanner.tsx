@@ -6,7 +6,7 @@ import type { Mutate } from './shared';
 import { PlanReviewPanel } from './PlanReviewPanel';
 import { ReviewRulesPanel } from './ReviewRulesPanel';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openPlan?: { id: string; token: number } | null }
 const emptySettings: WorkflowAgentSettings = { agentId: null, model: null, effort: null };
 
 function errorMessage(reason: unknown): string {
@@ -25,7 +25,7 @@ export function ProposalPreview({ proposal, snapshot, onAccept, accepting, accep
   </section>;
 }
 
-export function WorkflowPlanner({ snapshot, mutate }: Props) {
+export function WorkflowPlanner({ snapshot, mutate, openPlan }: Props) {
   const [settings, setSettings] = useState<WorkflowAgentSettings>(emptySettings);
   const [loaded, setLoaded] = useState(false);
   const [detections, setDetections] = useState<AgentDetection[]>([]);
@@ -37,6 +37,7 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
   const [notice, setNotice] = useState('');
   const [rulesRevision, setRulesRevision] = useState(0);
   const currentProjectId = useRef(snapshot.project.id);
+  const handledPlanToken = useRef<number | null>(null);
   currentProjectId.current = snapshot.project.id;
 
   useEffect(() => {
@@ -56,6 +57,16 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
     }, (reason) => { if (active) setError(errorMessage(reason)); });
     return () => { active = false; };
   }, [snapshot.project.id]);
+
+  useEffect(() => {
+    if (!openPlan || handledPlanToken.current === openPlan.token) return;
+    const target = plans.find((item) => item.id === openPlan.id);
+    if (!target) return;
+    handledPlanToken.current = openPlan.token;
+    setSelectedPlanId(target.id);
+    setRequest(target.request);
+    requestAnimationFrame(() => document.getElementById('workflow-plan-review')?.scrollIntoView({ block: 'center' }));
+  }, [openPlan?.id, openPlan?.token, plans]);
 
   const planDraft = plans.find((item) => item.id === selectedPlanId) ?? null;
   const changedRequest = Boolean(planDraft && request.trim() !== planDraft.request);
@@ -124,7 +135,7 @@ export function WorkflowPlanner({ snapshot, mutate }: Props) {
     {notice ? <p className="planner-notice" role="status">{notice}</p> : null}
     {plans.length ? <label className="field-label">Gespeicherte Planvorschläge<select value={selectedPlanId ?? ''} onChange={(event) => { const next = plans.find((item) => item.id === event.target.value); setSelectedPlanId(event.target.value); if (next) setRequest(next.request); }}>{plans.map((item) => <option key={item.id} value={item.id}>{item.proposal.title} · {item.state === 'open' ? 'offen' : item.state === 'accepted' ? 'übernommen' : 'älter'}</option>)}</select></label> : null}
     {changedRequest ? <p className="inline-note" role="status">Der Auftrag wurde seit diesem Vorschlag bearbeitet. Plane erneut, bevor du ihn übernimmst.</p> : null}
-    {planDraft ? <><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} onRuleSaved={() => setRulesRevision((value) => value + 1)} /></> : null}
+    {planDraft ? <div id="workflow-plan-review"><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} onRuleSaved={() => setRulesRevision((value) => value + 1)} /></div> : null}
     <ReviewRulesPanel projectId={snapshot.project.id} refreshKey={rulesRevision} />
   </section>;
 }
