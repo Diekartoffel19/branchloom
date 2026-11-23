@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Inbox, Moon, Network, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, Globe2, Inbox, Lightbulb, Moon, Network, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
 import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
+import { IdeasView } from './components/IdeasView';
 import { WorkflowView } from './components/WorkflowView';
 import { MemoryView } from './components/MemoryView';
 import { AgentView } from './components/AgentView';
@@ -23,11 +24,12 @@ import './brand.css';
 
 const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
 
-type View = 'board' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'agents' | 'terminal' | 'browser';
+type View = 'board' | 'ideas' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'agents' | 'terminal' | 'browser';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
 
 const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
+  { id: 'ideas', name: 'Ideenraum', icon: Lightbulb },
   { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
   { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
@@ -324,6 +326,7 @@ export function App() {
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
+        {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} /> : null}
         {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} /> : null}

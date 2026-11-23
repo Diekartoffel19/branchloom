@@ -21,6 +21,7 @@ import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
+import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
 import { transcribeAudio } from './voice/transcribe';
 
 let window: BrowserWindow | null = null;
@@ -116,6 +117,10 @@ function installIpc(): void {
     return created;
   });
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
+  bind('ideas', (projectId: string) => listIdeas(db, projectId));
+  bind('saveIdea', (input: Parameters<StudioAPI['saveIdea']>[0]) => saveIdea(db, input));
+  bind('discussIdea', (input: Parameters<StudioAPI['discussIdea']>[0]) => discussIdea(db, input));
+  bind('convertIdeaToCard', (input: Parameters<StudioAPI['convertIdeaToCard']>[0]) => convertIdeaToCard(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
   bind('previewRepoMap', (projectId: string) => previewRepoMap(db, projectId));
   bind('acceptRepoMap', (input: Parameters<StudioAPI['acceptRepoMap']>[0]) => acceptRepoMap(db, input));
@@ -347,6 +352,11 @@ function createWindow(): void {
           if (saved.columns[2]?.id !== initial.columns[1].id) throw new Error('Spaltenreihenfolge wurde nicht gespeichert.');
           if (saved.columns[1]?.name !== 'Smoke-Umbenannt') throw new Error('Spaltenname wurde nicht gespeichert.');
           if (saved.columns.some((item) => item.id === removable.id)) throw new Error('Leere Spalte wurde nicht gelöscht.');
+          const idea = await window.studio.saveIdea({ projectId: project.id, title: 'Smoke-Idee', body: 'Synthetische Notiz', category: 'backlog', turns: [] });
+          if ((await window.studio.ideas(project.id))[0]?.id !== idea.id) throw new Error('Idee wurde nicht über IPC und SQLite gespeichert.');
+          const ideaCard = await window.studio.convertIdeaToCard({ projectId: project.id, ideaId: idea.id, columnId: saved.columns[1].id });
+          if (ideaCard.title !== idea.title || (await window.studio.ideas(project.id))[0]?.cardId !== ideaCard.id) throw new Error('Idee wurde nicht bewusst in eine Karte übernommen.');
+          if ((await window.studio.snapshot(project.id)).sessions.length !== 0) throw new Error('Ideenübernahme startete einen Agenten.');
           const candidates = await window.studio.queueCandidates(project.id);
           if (candidates.length !== 1 || candidates[0].id !== card.id) throw new Error('Queue-Vorschau wich von der freien To-Do-Karte ab.');
           const draft = await window.studio.createWorkflow({ projectId: project.id, name: 'Smoke-Entwurf', cardIds: [card.id], steps: [{ id: 'smoke-step', columnId: saved.columns[2].id, agentId: null, requireApproval: false }] });
@@ -401,6 +411,13 @@ function createWindow(): void {
               const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);
               const renderedColumns = [...document.querySelectorAll('.board-column .column-title h3')].map((item) => item.textContent);
               if (JSON.stringify(renderedColumns) !== JSON.stringify(storedColumns)) throw new Error('Gespeicherte Spaltenreihenfolge wurde nach Reload nicht gerendert.');
+              const ideasNavAfterReload = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Ideenraum'));
+              if (!ideasNavAfterReload) throw new Error('Ideenraum-Navigation fehlt.');
+              ideasNavAfterReload.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.ideas-list-item'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.ideas-list-item')?.textContent?.includes('Smoke-Idee')) throw new Error('Gespeicherte Idee wurde nach Reload nicht angezeigt.');
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.task-card'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const discussion = [...document.querySelectorAll('.board-header-actions button')].find((item) => item.textContent?.includes('Aufgabe besprechen'));
               if (!discussion) throw new Error('Aufgabenklärung fehlt im Board.');
               discussion.click();

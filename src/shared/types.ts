@@ -54,6 +54,10 @@ export interface StudioAPI {
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
+  ideas(projectId: string): Promise<import('./ideas').Idea[]>;
+  saveIdea(input: { projectId: string; id?: string; title: string; body: string; category: import('./ideas').IdeaCategory; turns: DraftTurn[] }): Promise<import('./ideas').Idea>;
+  discussIdea(input: { projectId: string; turns: DraftTurn[]; title: string; body: string; category: import('./ideas').IdeaCategory }): Promise<import('./ideas').IdeaReply>;
+  convertIdeaToCard(input: { projectId: string; ideaId: string; columnId: string }): Promise<Card>;
   whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
   previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;
   acceptRepoMap(input: { projectId: string; fingerprint: string; nodeIds: string[] }): Promise<import('./repo-map').RepoMapImportResult>;
