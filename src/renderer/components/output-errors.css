@@ -1,0 +1,11 @@
+.output-errors { margin: 18px 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.output-errors h3 { margin: 0 0 7px; font-size: 15px; }
+.output-errors p { margin: 0 0 11px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.output-errors form { display: grid; gap: 11px; }
+.output-errors label { display: grid; gap: 5px; font-size: 12px; font-weight: 650; }
+.output-errors select, .output-errors textarea { width: 100%; min-width: 0; }
+.output-errors .output-error-selected { padding: 9px 11px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--text); overflow-wrap: anywhere; }
+.output-errors .output-error-source { margin: -3px 0 0; }
+.output-error-action { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.output-error-action label { flex: 1 1 150px; }
+.output-errors small { color: var(--muted); line-height: 1.45; }

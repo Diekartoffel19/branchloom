@@ -9,6 +9,7 @@ import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa } from './card-qa';
 import { addCardContextReference, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
+import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
@@ -340,6 +341,8 @@ function installIpc(): void {
   bind('cardQaReports', (cardId: string) => cardQaReports(db, cardId));
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
+  bind('previewOutputErrors', (input: Parameters<StudioAPI['previewOutputErrors']>[0]) => previewOutputErrors(db, input));
+  bind('createOutputErrorCard', (input: Parameters<StudioAPI['createOutputErrorCard']>[0]) => createOutputErrorCard(db, input));
 }
 
 function createWindow(): void {
@@ -447,7 +450,7 @@ function createWindow(): void {
             if (!echoed) throw new Error('cmd-PTY gab keine Ausgabe zurück: ' + lastOutput.slice(-400));
             const agent = await window.studio.saveAgent({
               name: 'Smoke-Agent', kind: 'custom', command: ${JSON.stringify(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'))},
-              args: ['/C', 'echo JARVIS_STUDIO_AGENT_OK'], model: null, enabled: true,
+              args: ['/C', 'echo JARVIS_STUDIO_AGENT_OK && echo Error: BRANCHLOOM_OUTPUT_TEST'], model: null, enabled: true,
             });
             const session = await window.studio.startSession({ cardId: card.id, agentId: agent.id, prompt: '' });
             let agentFinished = false;
@@ -605,6 +608,19 @@ function createWindow(): void {
               contextPreviewButton.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-context-preview')?.textContent?.includes('BRANCHLOOM_CONTEXT_SMOKE'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-context-preview')?.textContent?.includes('BRANCHLOOM_CONTEXT_SMOKE')) throw new Error('Begrenzte Projektdatei-Vorschau wurde nicht angezeigt.');
+              const outputPanel = document.querySelector('.card-drawer .output-errors');
+              for (let attempt = 0; attempt < 100 && !outputPanel?.querySelector('form'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const outputForm = outputPanel?.querySelector('form');
+              if (!outputForm?.textContent?.includes('BRANCHLOOM_OUTPUT_TEST')) throw new Error('Gespeicherter Agentenfehler erschien nicht zur Auswahl.');
+              outputForm.querySelector('button[type="submit"]')?.click();
+              let outputCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                outputCard = (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.title.includes('BRANCHLOOM_OUTPUT_TEST'));
+                if (outputCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!outputCard?.description.includes('BRANCHLOOM_OUTPUT_TEST')) throw new Error('Ausgewählter Agentenfehler wurde nicht als Karte gespeichert.');
+              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Fehlerkarten-Anlage startete einen weiteren Agenten.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'))?.click();
               let edgeListButton;

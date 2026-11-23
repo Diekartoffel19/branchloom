@@ -1,13 +1,14 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { CircleStop, Play, TerminalSquare } from 'lucide-react';
-import type { CommandShell, CommandTerminal } from '../../shared/types';
+import type { Card, Column, CommandShell, CommandTerminal } from '../../shared/types';
+import { OutputErrorPanel } from './OutputErrorPanel';
 import '../command-terminal.css';
 
 const TerminalDisplay = lazy(async () => ({ default: (await import('./SessionTerminal')).SessionTerminal }));
 
 const shellName = (shell: CommandShell) => shell === 'powershell' ? 'PowerShell' : 'Eingabeaufforderung';
 
-export function CommandTerminalView({ projectId }: { projectId: string }) {
+export function CommandTerminalView({ projectId, columns, onOpenCard }: { projectId: string; columns: Column[]; onOpenCard: (card: Card) => void | Promise<void> }) {
   const [rows, setRows] = useState<CommandTerminal[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shell, setShell] = useState<CommandShell>('powershell');
@@ -70,7 +71,7 @@ export function CommandTerminalView({ projectId }: { projectId: string }) {
     <div className="command-terminal-layout">
       <section className="panel command-terminal-history" aria-label="Terminalverlauf"><h3>Letzte Terminals</h3>{rows.length ? rows.map((item) => <button className={item.id === selectedId ? 'command-terminal-history-item selected' : 'command-terminal-history-item'} key={item.id} type="button" onClick={() => setSelectedId(item.id)} aria-current={item.id === selectedId ? 'true' : undefined}><TerminalSquare size={16} /><span><strong>{shellName(item.shell)}</strong><small>{new Date(item.startedAt).toLocaleString('de-DE')} · {item.state}</small></span></button>) : <p>Noch kein Terminal gestartet.</p>}</section>
       <section className="panel command-terminal-screen" aria-label="Befehlsterminal">
-        {selected ? <><div className="command-terminal-screen-header"><div><strong>{shellName(selected.shell)}</strong><span>{selected.state === 'running' ? 'Läuft' : `Beendet: ${selected.state}${selected.exitCode !== null ? ` (${selected.exitCode})` : ''}`}</span></div>{selected.state === 'running' ? <button className="secondary-button small" type="button" disabled={busy} onClick={() => void stop()}><CircleStop size={15} /> Stoppen</button> : null}</div><Suspense fallback={<p>Terminal wird geladen…</p>}><TerminalDisplay session={selected} ariaLabel="Interaktives Befehlsterminal" onInput={(id, data) => window.studio.writeCommandTerminal({ terminalId: id, data })} onResize={(id, cols, rows) => window.studio.resizeCommandTerminal({ terminalId: id, cols, rows })} /></Suspense></> : <div className="feature-empty"><TerminalSquare size={28} /><h3>Terminal bereit</h3><p>Wähle PowerShell oder cmd und starte es bewusst. Die Ausgabe bleibt lokal gespeichert.</p></div>}
+        {selected ? <><div className="command-terminal-screen-header"><div><strong>{shellName(selected.shell)}</strong><span>{selected.state === 'running' ? 'Läuft' : `Beendet: ${selected.state}${selected.exitCode !== null ? ` (${selected.exitCode})` : ''}`}</span></div>{selected.state === 'running' ? <button className="secondary-button small" type="button" disabled={busy} onClick={() => void stop()}><CircleStop size={15} /> Stoppen</button> : null}</div><Suspense fallback={<p>Terminal wird geladen…</p>}><TerminalDisplay session={selected} ariaLabel="Interaktives Befehlsterminal" onInput={(id, data) => window.studio.writeCommandTerminal({ terminalId: id, data })} onResize={(id, cols, rows) => window.studio.resizeCommandTerminal({ terminalId: id, cols, rows })} /></Suspense>{selected.state !== 'running' ? <OutputErrorPanel key={selected.id} projectId={projectId} sourceKind="command" sourceId={selected.id} columns={columns} onCreated={onOpenCard} /> : null}</> : <div className="feature-empty"><TerminalSquare size={28} /><h3>Terminal bereit</h3><p>Wähle PowerShell oder cmd und starte es bewusst. Die Ausgabe bleibt lokal gespeichert.</p></div>}
       </section>
     </div>
   </div>;

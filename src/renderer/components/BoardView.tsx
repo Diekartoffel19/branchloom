@@ -179,7 +179,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
-    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={() => setSelectedId(null)} /> : null}
+    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={() => setSelectedId(null)} onOpenCard={setSelectedId} /> : null}
     {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); setSelectedId(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
   </div>;

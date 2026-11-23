@@ -7,15 +7,16 @@ import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
 import { CardQaPanel } from './CardQaPanel';
+import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void }
 
-export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -204,6 +205,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
           {session.state === 'running' ? <div className="terminal-controls"><form onSubmit={(event) => void send(event)}><input aria-label="Nachricht an Agent" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Nachricht an Agent senden…" /><button type="submit" className="icon-button" disabled={!message.trim()} aria-label="Senden"><Send size={17} /></button></form><button type="button" className="danger-button" onClick={() => void mutate(() => window.studio.stopSession(session.id))}><CircleStop size={15} /> Stoppen</button></div> : null}
           {sessionAgent?.kind === 'codex' && session.state !== 'running' && !card.archivedAt ? <div className="resume-controls"><p className="section-copy">Codex zeigt gespeicherte Gespräche aus diesem Ordner. Wähle das richtige Gespräch im Terminal aus; Studio wiederholt den alten Auftrag nicht automatisch.</p><button className="secondary-button" type="button" disabled={snapshot.queue.state === 'running'} onClick={() => void mutate(() => window.studio.resumeCodexSession({ sessionId: session.id }))}><RotateCcw size={15} /> Codex-Gespräch auswählen</button>{snapshot.queue.state === 'running' ? <p className="inline-note">Projektwarteschlange zuerst pausieren.</p> : null}</div> : null}
           {session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p>
+          {session.state !== 'running' ? <OutputErrorPanel key={session.id} projectId={card.projectId} sourceKind="session" sourceId={session.id} columns={snapshot.columns} onCreated={async (created) => { await mutate(async () => created); onOpenCard(created.id); }} /> : null}
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
         <CardQaPanel key={`qa-${card.id}`} card={card} />

@@ -4,6 +4,7 @@ import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff
 import type { ChangelogPeriod, ProjectChangelog } from './changelog';
 import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
 import type { ReviewInboxPage, AcknowledgeReviewInboxComment } from './review-inbox';
+import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -171,6 +172,8 @@ export interface StudioAPI {
   cardQaReports(cardId: string): Promise<CardQaReport[]>;
   runCardQa(input: { cardId: string; url: string }): Promise<CardQaReport>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
+  previewOutputErrors(input: { projectId: string; sourceKind: OutputErrorSourceKind; sourceId: string }): Promise<OutputErrorPreview>;
+  createOutputErrorCard(input: CreateOutputErrorCard): Promise<Card>;
   onBrowserState(callback: (state: BrowserState) => void): () => void;
   onBrowserSearchShortcut(callback: () => void): () => void;
 }
