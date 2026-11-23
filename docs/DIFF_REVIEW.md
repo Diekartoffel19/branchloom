@@ -1,0 +1,11 @@
+# Diff und Review-Kommentare
+
+In einer Karte mit Git-Worktree öffnet **Diff und Kommentare** eine lokale, lesende Vorschau. Sie vergleicht den gemeinsamen Git-Ausgangspunkt von Ziel und Karten-Branch mit dem aktuellen Zustand des Karten-Worktrees. Damit sind committete und verfolgte, auch noch nicht committete Änderungen sichtbar. Unversionierte Dateien sind nicht enthalten und müssen in Git separat geprüft werden. Der Aufruf führt keine Shell, keinen externen Diff-Treiber und keine Textkonvertierung aus.
+
+Die erste Vorschau ist bewusst begrenzt: höchstens 256 KiB Diff-Text, 60 Dateien und 1.200 angezeigte Zeilen. Bei Überschreitung stoppt sie mit einer Fehlermeldung, statt einen unvollständigen Diff als vollständiges Review auszugeben. Binärdateien erscheinen nur mit Git-Hinweis; es werden keine Textzeilen erfunden. Ungewöhnliche Pfade, die sich nicht eindeutig zuordnen lassen, erfordern ein manuelles Git-Review.
+
+Eine Zeile anklicken, einen Kommentar eingeben und **Kommentar speichern** wählen. Der Kommentar liegt in Branchlooms SQLite-Datenbank außerhalb des Projekt-Repositories; er wird nicht automatisch an einen Agenten, GitHub oder einen anderen Dienst gesendet. Vor dem Speichern berechnet der Hauptprozess den Diff erneut und weist eine veraltete Vorschau zurück. Kommentare tragen den Fingerabdruck des Diff-Textes und der Git-Commits sowie Datei, Seite und Zeile. Wird der Git-Stand später geändert, erscheinen frühere Kommentare getrennt als ältere Diff-Stände. Das ist noch keine stabile semantische Zuordnung über Rebase oder Umbenennung hinweg.
+
+**Aktualisieren** liest Diff und Kommentare erneut. Eine geänderte Vorschau wird sichtbar markiert. Bis zu 200 Kommentare pro Karte sind möglich; der Text ist auf 2.000 Zeichen begrenzt. Diese erste Stufe bietet keine Kommentarantworten, Review-Freigabe, automatischen Agenten-Rückkanal, Inline-Editierung oder GitHub-PR-Synchronisation. Der bestehende Fast-Forward-Merge ist davon unabhängig und behält seine eigenen Prüfungen und Bestätigung.
+
+Gezielte synthetische Prüfung: `npx vitest run tests/main/diff-review.test.ts`. Zusätzlich wurde eine synthetische Karte in einem isolierten Electron-Profil sichtbar geöffnet: Diff anzeigen, eine geänderte Zeile kommentieren, App neu starten und den gespeicherten Kommentar erneut anzeigen. Echte Projektdaten wurden dabei nicht verwendet.

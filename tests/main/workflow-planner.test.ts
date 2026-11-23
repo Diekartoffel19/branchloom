@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WorkflowProposal } from '../../src/shared/types';
 import { StudioStore } from '../../src/main/store';
-import { proposeWorkflow, type PlannerInvocation } from '../../src/main/workflow-planner';
+import { executePlanner, proposeWorkflow, type PlannerInvocation } from '../../src/main/workflow-planner';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -28,6 +28,8 @@ function fixture() {
 describe('global workflow agent', () => {
   it('persists settings, proposes without side effects, and accepts atomically', async () => {
     const { store, root, project, columns, agent, proposal } = fixture();
+    writeFileSync(join(root, 'README.md'), 'Only the README contains marker: PLAN-COPPER-83.\n');
+    writeFileSync(join(root, '.env'), 'PRIVATE_VALUE=not-for-planner\n');
     let invocation!: PlannerInvocation;
     const result = await proposeWorkflow(store, { projectId: project.id, request: 'Build a small feature' }, async (call) => {
       invocation = call;
@@ -36,15 +38,20 @@ describe('global workflow agent', () => {
     expect(result).toEqual(proposal);
     expect(store.snapshot(project.id).cards).toHaveLength(0);
     expect(store.snapshot(project.id).workflows).toHaveLength(0);
-    expect(invocation.cwd).toBe(root);
+    expect(invocation.cwd).not.toBe(root);
+    expect(invocation.cwd).toContain('jarvis-studio-plan-');
     expect(invocation.args).toContain('--sandbox');
     expect(invocation.args).toContain('read-only');
     expect(invocation.args).toContain('--ignore-user-config');
+    expect(invocation.args).toContain('--ephemeral');
     expect(invocation.args).toContain('gpt-6-sol');
     expect(invocation.args).toContain('model_reasoning_effort="high"');
     expect(invocation.args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
-    expect(invocation.args.at(-1)).toContain('Build a small feature');
-    expect(invocation.args.at(-1)).not.toContain('Another private project');
+    expect(invocation.args.at(-1)).toBe('-');
+    expect(invocation.stdin).toContain('Build a small feature');
+    expect(invocation.stdin).toContain('PLAN-COPPER-83');
+    expect(invocation.stdin).not.toContain('not-for-planner');
+    expect(invocation.stdin).not.toContain('Another private project');
 
     const workflow = store.acceptWorkflowProposal({ projectId: project.id, proposal: result });
     expect(workflow.cardIds).toHaveLength(2);
@@ -86,5 +93,12 @@ describe('global workflow agent', () => {
     const reopened = new StudioStore(join(root, 'studio.sqlite'));
     expect(reopened.workflowAgentSettings()).toEqual({ agentId: agent.id, model: 'gpt-6-sol', effort: 'high' });
     reopened.close();
+  });
+
+  it('handles a CLI exiting before a large stdin prompt is written', async () => {
+    const { store, root } = fixture();
+    await expect(executePlanner({ executable: process.execPath, args: ['-e', 'process.exit(2)'], cwd: root,
+      outputPath: join(root, 'no-output.json'), stdin: 'x'.repeat(1_000_000) })).rejects.toThrow('Workflow agent failed');
+    store.close();
   });
 });

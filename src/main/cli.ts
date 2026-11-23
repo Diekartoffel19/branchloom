@@ -139,7 +139,14 @@ function codexWorkflowProfileArgs(profileArgs: string[]): string[] {
       if (arg.slice(arg.indexOf('=') + 1) !== 'workspace-write') throw new Error('Codex-Workflows mit automatischer Freigabe benötigen die workspace-write-Sandbox.');
       continue;
     }
-    normalized.push(arg);
+    // A stored interactive profile may contain --cd, --add-dir or -c options
+    // that broaden an unattended run. Only these path-neutral flags carry over;
+    // model and effort are supplied by the validated step/column settings.
+    if (arg === '--ignore-user-config' || arg === '--skip-git-repo-check') {
+      normalized.push(arg);
+      continue;
+    }
+    throw new Error(`Unbeaufsichtigter Codex-Workflow unterstützt Profilargument ${arg} nicht. Modell und Effort in den Schritt-Einstellungen setzen.`);
   }
   return normalized;
 }

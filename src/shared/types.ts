@@ -1,5 +1,6 @@
-import type { ConflictRadarResult } from './conflict-radar';
+import type { ConflictRadarResult, ProjectConflictRadarResult } from './conflict-radar';
 import type { DraftTurn, TaskDraftReply } from './task-draft';
+import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -107,7 +108,11 @@ export interface StudioAPI {
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
   reviewCardWorktree(cardId: string): Promise<WorktreeReview | null>;
+  previewCardDiff(cardId: string): Promise<CardDiffPreview | null>;
+  listReviewComments(cardId: string): Promise<ReviewComment[]>;
+  createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
   reviewCardConflicts(cardId: string): Promise<ConflictRadarResult>;
+  reviewProjectConflicts(projectId: string): Promise<ProjectConflictRadarResult>;
   mergeCardWorktree(input: { cardId: string; previewToken: string; confirm: boolean }): Promise<WorktreeReview>;
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
   deleteNote(id: string): Promise<void>;

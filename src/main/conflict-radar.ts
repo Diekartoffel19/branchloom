@@ -1,13 +1,15 @@
 import { execFile } from 'node:child_process';
 import { lstat, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ConflictRadarPeer, ConflictRadarResult } from '../shared/conflict-radar';
+import type { ConflictRadarPeer, ConflictRadarResult, ProjectConflictIssue, ProjectConflictPair, ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { Session } from '../shared/types';
 import type { StudioStore } from './store';
 
 const MAX_PATHS = 5_000;
 const MAX_OUTPUT = 2 * 1024 * 1024;
 const CHECK_BUDGET_MS = 20_000;
+const MAX_PROJECT_RUNS = 20;
+const MAX_VISIBLE_PAIRS = 12;
 
 function git(cwd: string, args: string[], deadline: number): Promise<string> {
   const remaining = deadline - Date.now();
@@ -147,4 +149,77 @@ export async function reviewCardConflicts(store: StudioStore, cardId: string, ru
   }
   const state = peers.some((peer) => peer.state === 'overlap') ? 'overlap' : peers.some((peer) => peer.state === 'unknown') ? 'unknown' : 'clear';
   return { cardId, sessionId: current.id, checkedAt, state, ownChangedCount: ownPaths?.size ?? null, peers, reason: ownReason };
+}
+
+/** One bounded project-wide snapshot; each worktree is read once. */
+export async function reviewProjectConflicts(store: StudioStore, projectId: string): Promise<ProjectConflictRadarResult> {
+  const project = store.project(projectId);
+  const checkedAt = new Date().toISOString();
+  const running = store.runningSessionsForProject(projectId);
+  const base = { projectId, checkedAt, runningCount: running.length, pairCount: 0, pairs: [] as ProjectConflictPair[], issues: [] as ProjectConflictIssue[], reason: null as string | null };
+  if (running.length < 2) return { ...base, state: 'idle' };
+  if (running.length > MAX_PROJECT_RUNS) return { ...base, state: 'unknown', reason: `Mehr als ${MAX_PROJECT_RUNS} laufende Sitzungen; projektweite Prüfung wäre unvollständig.` };
+
+  const deadline = Date.now() + CHECK_BUDGET_MS;
+  let targetRoot: string;
+  let targetCommon: string;
+  try {
+    targetRoot = (await git(project.path, ['rev-parse', '--show-toplevel'], deadline)).trim();
+    targetCommon = (await git(targetRoot, ['rev-parse', '--path-format=absolute', '--git-common-dir'], deadline)).trim();
+  } catch (error) {
+    return { ...base, state: 'unknown', reason: error instanceof Error ? error.message : 'Projekt-Git-Status konnte nicht gelesen werden.' };
+  }
+
+  const inspected: Array<{ session: Session; title: string; path: string | null; paths: Set<string> | null }> = [];
+  const issues: ProjectConflictIssue[] = [];
+  const issueKeys = new Set<string>();
+  const addIssue = (cardId: string, cardTitle: string, reason: string) => {
+    const key = `${cardId}\0${reason}`;
+    if (!issueKeys.has(key)) { issueKeys.add(key); issues.push({ cardId, cardTitle, reason }); }
+  };
+  for (let start = 0; start < running.length; start += 4) {
+    const batch = running.slice(start, start + 4);
+    const results = await Promise.all(batch.map(async (session) => {
+      let title = 'Unbekannte Karte';
+      try { title = store.card(session.cardId).title; } catch { /* Report the Git issue below if present. */ }
+      try {
+        const path = await verifiedWorktree(store, session, targetRoot, targetCommon, deadline);
+        return { session, title, path, paths: await changedPaths(path, targetRoot, deadline), reason: null };
+      } catch (error) {
+        return { session, title, path: null, paths: null, reason: error instanceof Error ? error.message : 'Git-Prüfung fehlgeschlagen.' };
+      }
+    }));
+    for (const result of results) {
+      inspected.push(result);
+      if (result.reason) addIssue(result.session.cardId, result.title, result.reason);
+    }
+  }
+
+  const pairs: ProjectConflictPair[] = [];
+  let pairCount = 0;
+  let reason: string | null = null;
+  compare: for (let left = 0; left < inspected.length; left += 1) {
+    const a = inspected[left]!;
+    if (!a.paths || !a.path) continue;
+    for (let right = left + 1; right < inspected.length; right += 1) {
+      if (Date.now() >= deadline) { reason = 'Zeitlimit für den Vergleich aller Kartenpaare erreicht.'; break compare; }
+      const b = inspected[right]!;
+      if (!b.paths || !b.path) continue;
+      try {
+        if (await samePath(a.path, b.path)) {
+          addIssue(b.session.cardId, b.title, 'Zwei laufende Sitzungen teilen denselben Worktree.');
+          continue;
+        }
+      } catch {
+        addIssue(b.session.cardId, b.title, 'Worktree-Gleichheit konnte nicht geprüft werden.');
+        continue;
+      }
+      const commonPaths = overlap(a.paths, b.paths);
+      if (!commonPaths.length) continue;
+      pairCount += 1;
+      if (pairs.length < MAX_VISIBLE_PAIRS) pairs.push({ leftCardId: a.session.cardId, leftCardTitle: a.title,
+        rightCardId: b.session.cardId, rightCardTitle: b.title, commonPaths: commonPaths.slice(0, 12), commonCount: commonPaths.length });
+    }
+  }
+  return { ...base, state: pairCount ? 'overlap' : issues.length || reason ? 'unknown' : 'clear', pairCount, pairs, issues, reason };
 }

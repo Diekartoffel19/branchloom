@@ -14,17 +14,19 @@ liveIt('gets a read-only structured plan from installed Codex without creating c
   const store = new StudioStore(join(root, 'studio.sqlite'));
   try {
     execFileSync('git', ['init', root], { stdio: 'ignore' });
-    writeFileSync(join(root, 'README.md'), 'This synthetic project has a single README.\n');
+    const readme = 'This synthetic project documents the UI accent token PLAN-COPPER-83.\n';
+    writeFileSync(join(root, 'README.md'), readme);
     const project = store.createProject({ name: 'Synthetic project', path: root });
     const executable = resolveExecutable('codex');
     if (!executable) throw new Error('Codex CLI unavailable');
     const agent = store.saveAgent({ name: 'Codex planner', kind: 'codex', command: executable, args: [], model: null, enabled: true });
     store.saveWorkflowAgentSettings({ agentId: agent.id, model: null, effort: 'low' });
-    const proposal = await proposeWorkflow(store, { projectId: project.id, request: 'Plan one card to improve the synthetic README wording, then one card to review it. Do not change any file.' });
+    const proposal = await proposeWorkflow(store, { projectId: project.id, request: 'Plan one card to clarify the exact UI accent token from the README. Include that exact token in the first card description, then add one review card. Do not change any file.' });
     expect(proposal.cards.length).toBeGreaterThanOrEqual(1);
     expect(proposal.columnIds.length).toBeGreaterThanOrEqual(1);
+    expect(proposal.cards[0]?.description).toContain('PLAN-COPPER-83');
     expect(store.snapshot(project.id).cards).toHaveLength(0);
-    expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe('This synthetic project has a single README.\n');
+    expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe(readme);
   } finally {
     store.close();
     for (let retry = 0; retry < 30; retry += 1) {

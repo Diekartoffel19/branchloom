@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { changedPaths, reviewCardConflicts } from '../../src/main/conflict-radar';
+import { changedPaths, reviewCardConflicts, reviewProjectConflicts } from '../../src/main/conflict-radar';
 import { ensureCardWorktree } from '../../src/main/git-worktree';
 import { StudioStore } from '../../src/main/store';
 
@@ -44,6 +44,47 @@ function fixture() {
 }
 
 describe('conflict radar', () => {
+  it('checks all running worktrees once for a project-wide overlap, then clears', async () => {
+    const { store, project, first, second, firstTree, secondTree } = fixture();
+    try {
+      writeFileSync(join(firstTree.path, 'shared.txt'), 'first');
+      writeFileSync(join(secondTree.path, 'shared.txt'), 'second');
+      const warning = await reviewProjectConflicts(store, project.id);
+      expect(warning).toMatchObject({ state: 'overlap', runningCount: 2, pairCount: 1, issues: [] });
+      expect([warning.pairs[0]?.leftCardId, warning.pairs[0]?.rightCardId].sort()).toEqual([first.id, second.id].sort());
+      expect(warning.pairs[0]).toMatchObject({ commonPaths: ['shared.txt'], commonCount: 1 });
+      writeFileSync(join(secondTree.path, 'shared.txt'), 'base');
+      writeFileSync(join(secondTree.path, 'other.txt'), 'second');
+      const clear = await reviewProjectConflicts(store, project.id);
+      expect(clear).toMatchObject({ state: 'clear', runningCount: 2, pairCount: 0, pairs: [], issues: [] });
+    } finally { store.close(); }
+  });
+
+  it('keeps a project-wide warning incomplete when a running worktree is missing', async () => {
+    const { store, project, secondRun } = fixture();
+    store.finishSession(secondRun.id, 'stopped', null);
+    const agent = store.agents()[0]!;
+    store.createSession({ cardId: secondRun.cardId, agentId: agent.id });
+    const warning = await reviewProjectConflicts(store, project.id);
+    expect(warning.state).toBe('unknown');
+    expect(warning.issues).toEqual([expect.objectContaining({ cardId: secondRun.cardId, reason: expect.stringContaining('keinen isolierten Worktree') })]);
+    store.close();
+  });
+
+  it('never reports a partial check as clear above the project run limit', async () => {
+    const { store, project } = fixture();
+    const agent = store.agents()[0]!;
+    const columnId = store.snapshot(project.id).columns[0]!.id;
+    for (let index = 0; index < 19; index += 1) {
+      const card = store.createCard({ projectId: project.id, columnId, title: `Zusatzkarte ${index}` });
+      store.createSession({ cardId: card.id, agentId: agent.id });
+    }
+    const warning = await reviewProjectConflicts(store, project.id);
+    expect(warning).toMatchObject({ state: 'unknown', runningCount: 21, pairCount: 0, pairs: [] });
+    expect(warning.reason).toContain('Mehr als 20');
+    store.close();
+  });
+
   it('detects the same touched file in two active worktrees and clears when paths differ', async () => {
     const { store, project, first, firstTree, secondTree, repository } = fixture();
     writeFileSync(join(firstTree.path, 'shared.txt'), 'first');
@@ -138,6 +179,7 @@ describe('conflict radar', () => {
     const running = store.runningSessionsForProject(project.id);
     expect(running.map((item) => item.id).sort()).toEqual([firstRun.id, secondRun.id].sort());
     expect(running.every((item) => item.output === '')).toBe(true);
+    expect(await reviewProjectConflicts(store, project.id)).toMatchObject({ state: 'clear', runningCount: 2, pairCount: 0 });
     store.finishSession(firstRun.id, 'stopped', null);
     expect((await reviewCardConflicts(store, first.id, store.runningSessionsForProject(project.id))).state).toBe('idle');
     store.close();

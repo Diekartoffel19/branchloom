@@ -19,6 +19,9 @@ describe('workflow planner', () => {
     expect(html).toContain('GLOBALER WORKFLOW-AGENT');
     expect(html).toContain('Agent auswählen');
     expect(html).toContain('Effort');
+    expect(html).toContain('Projekt-README');
+    expect(html).toContain('Andere Projektdateien werden nicht mitgegeben');
+    expect(html).not.toContain('Jarvis plant');
     expect(html).toContain('Noch kein CLI-Agent eingerichtet');
     expect(html).toMatch(/<button[^>]+disabled=""[^>]*>.*Ablauf vorschlagen/s);
   });

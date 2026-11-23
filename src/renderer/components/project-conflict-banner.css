@@ -1,0 +1,32 @@
+.project-conflict-banner {
+  margin: 12px 28px 0;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  background: var(--warning-bg);
+  color: var(--text);
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.project-conflict-banner.has-overlap { border-left-color: var(--danger); background: var(--danger-bg); }
+.project-conflict-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.project-conflict-heading > div { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.project-conflict-heading strong { font-size: 13px; }
+.project-conflict-heading small,
+.project-conflict-footnote,
+.project-conflict-issues small { color: var(--muted); }
+.project-conflict-heading .secondary-button { min-height: 32px; padding: 5px 9px; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; }
+.project-conflict-reason,
+.project-conflict-issues p { margin: 0; }
+.project-conflict-pair { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.project-conflict-pair button,
+.project-conflict-issues button { border: 0; padding: 0; background: transparent; color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; text-align: left; overflow-wrap: anywhere; }
+.project-conflict-pair button:hover,
+.project-conflict-issues button:hover { color: var(--accent-2); }
+.project-conflict-pair code { max-width: min(100%, 35ch); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 5px; border: 1px solid var(--border); background: var(--surface); border-radius: 4px; }
+.project-conflict-issues { display: grid; gap: 3px; }
+.project-conflict-issues strong { font-size: 12px; }
+@media (max-width: 600px) { .project-conflict-banner { margin: 8px 12px 0; } .project-conflict-heading .secondary-button { width: 100%; justify-content: center; } }

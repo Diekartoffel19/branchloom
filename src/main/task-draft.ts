@@ -1,45 +1,15 @@
-import { closeSync, constants, fstatSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveAgentLauncher } from './cli';
 import { executePlanner, type PlannerExecutor } from './workflow-planner';
+import { readProjectReadmeContext } from './project-context';
 import { StudioStore } from './store';
 import type { DraftTurn, TaskDraftReply } from '../shared/task-draft';
 
 const MAX_TURNS = 12;
 const MAX_TRANSCRIPT = 16_000;
-const MAX_README_BYTES = 12_000;
-
-/** Only this small, ordinary project file is included in the explicit chat request. */
-export function taskDraftProjectContext(projectPath: string): string {
-  try {
-    const root = realpathSync(projectPath);
-    const file = join(root, 'README.md');
-    const descriptor = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-      const opened = fstatSync(descriptor);
-      const path = lstatSync(file);
-      if (!opened.isFile() || !path.isFile() || path.isSymbolicLink()
-        || opened.dev !== path.dev || opened.ino !== path.ino || opened.size > MAX_README_BYTES) {
-        return 'README.md unavailable or above the 12 KB limit.';
-      }
-      // The actual bytes read are capped too: a file may grow after fstat.
-      const bytes = Buffer.alloc(MAX_README_BYTES + 1);
-      let used = 0;
-      while (used < bytes.length) {
-        const length = readSync(descriptor, bytes, used, bytes.length - used, null);
-        if (length === 0) break;
-        used += length;
-      }
-      if (used > MAX_README_BYTES) return 'README.md unavailable or above the 12 KB limit.';
-      return `README.md (local file supplied by Branchloom, ${used} bytes):\n${bytes.subarray(0, used).toString('utf8')}`;
-    } finally {
-      closeSync(descriptor);
-    }
-  } catch {
-    return 'README.md unavailable or above the 12 KB limit.';
-  }
-}
+export const taskDraftProjectContext = readProjectReadmeContext;
 
 export function validateDraftTurns(value: unknown): DraftTurn[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_TURNS) throw new Error('The task conversation must have 1-12 turns');

@@ -1,6 +1,6 @@
 export const CONFLICT_RADAR_REFRESH_MS = 30_000;
 
-/** One immediate check and one bounded interval, only while the drawer has a running session. */
+/** One immediate check and a bounded interval while its caller is active. */
 export function startConflictRadarRefresh(running: boolean, check: () => void): () => void {
   if (!running) return () => undefined;
   check();

@@ -1,0 +1,7 @@
+# Workflow-Vorschlag mit Projektkontext
+
+Unter **Workflows → Globaler Workflow-Agent** wählst du einen aktiven Codex-CLI-Agenten, optional Modell und Effort, und beschreibst das Ziel. Erst ein Klick auf **Ablauf vorschlagen** ruft den Agenten auf. Der Aufruf erhält dein Ziel, den Projektnamen, die vorhandenen Spalten mit Namen, ID, Agentennamen und Autostart-Status sowie die reguläre `README.md` aus dem Projektstamm, sofern sie höchstens 12.000 Byte groß und kein Symlink ist. Fehlt sie oder überschreitet sie das Limit, erhält das Modell nur einen Hinweis. Andere Projektdateien und die Inhalte von Karten oder Agentenverläufen werden nicht mitgegeben.
+
+Codex startet in einem temporären Arbeitsordner außerhalb des Projekts mit fester Read-only-Sandbox, ignorierter Nutzerkonfiguration, `--ephemeral` und einem 90-Sekunden-Limit. Der Prompt geht über stdin. Damit hängt die Planung nicht davon ab, ob die Windows-Read-only-Sandbox dem CLI den Zugriff auf Projektdateien erlaubt. Das README wird als **nicht vertrauenswürdiger Projektinhalt** behandelt. Es gibt dem Modell Kontext, aber keine neuen Berechtigungen. Die Aufbewahrung beim Modellanbieter richtet sich nach dessen Dienst.
+
+Der Vorschlag zeigt Karten und Spaltenroute zur Prüfung. **Vorschlag übernehmen** legt Karten und einen Workflow-Entwurf an; es startet noch keinen Agentenlauf. Der Planer ändert keine Projektdatei. Ein echter Codex-Test mit einem Marker, der nur im synthetischen README stand, prüft die Kontextübergabe. Andere CLI-Agenten brauchen einen eigenen geprüften lesenden Adapter.

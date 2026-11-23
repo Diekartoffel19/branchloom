@@ -27,7 +27,7 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Ste
 | Theme-Playground | Farben, Schrift und Radien live testen; erst nach ausdrücklichem Übernehmen schreiben | Offen. Projekt-Tokens nicht blind ersetzen. |
 | Visuelle Vorlage | Screenshot als Inspiration aufnehmen und auf vorhandene Tokens abbilden | Offen. Rechte, Quellen und Originalität beachten. |
 | Performance/Barrierefreiheit | Preview markiert konkrete Kontrast-, Touch- und Ressourcenprobleme; Fix als überprüfbarer Diff | Offen. Messung vor Agentenaktion, erneute Messung danach. |
-| Plan- und Code-Review | Anmerkungen an Planstellen und Diff-Zeilen; Antwort zurück an den zuständigen Agenten | Offen. Kommentare müssen an eine stabile Version gebunden sein. |
+| Plan- und Code-Review | Anmerkungen an Planstellen und Diff-Zeilen; Antwort zurück an den zuständigen Agenten | Erste lokale Diff-Zeilenkommentare sind an Git-Commits und Diff-Fingerabdruck gebunden. Planstellen, Antwort an Agenten und Review-Freigabe bleiben offen. |
 | Visuelle Diffs | Vorher/Nachher für Desktop und Mobile direkt neben Codeänderung | Offen. Reproduzierbare URLs/Zustände und Screenshots nötig. |
 | Review-Gedächtnis | Wiederkehrende Kritik als überprüfbare Projektregel übernehmen | Offen. Mensch bestätigt Regel und Geltungsbereich. |
 | Auto-QA | Isolierter Browser prüft Console-Fehler und Layout vor Review-Inbox; Fehler zurück an Coding-Agent | Offen. Keine unkontrollierte Ausführung fremder Seiten oder automatischer Merge. |
@@ -35,7 +35,7 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Ste
 | Decision Inbox | Freigaben, Rückfragen und Reviews aus allen Agentenläufen zentral anzeigen | Erste Ansicht bündelt gespeicherte Workflow-/Queue-Pausen im aktiven Projekt mit Kontext, Suche und Filtern. Agentenfragen, Plan-/Diff-Kommentare und projektübergreifende Inbox bleiben offen. |
 | Sprache plus Kontext | Taste halten, UI-Element auswählen/markieren und Änderungswunsch sprechen | Offline-Transkript nach Aufnahmeende existiert; Live-Geste und Elementbezug offen. |
 | Duell-Modus | Zwei Agenten in getrennten Worktrees an derselben Aufgabe; Previews vergleichen, Gewinner bewusst auswählen | Offen. Braucht parallele Läufe, Ressourcenlimits, Review und Merge-Konfliktbehandlung. |
-| Konflikt-Radar | Früh warnen, wenn parallele Agenten dieselben Dateien oder Abhängigkeiten bearbeiten | Git-Pfadprüfung läuft manuell und bei geöffnetem Drawer mit laufender Karte etwa alle 30 Sekunden. Globale Frühwarnung bei geschlossenem Board und Abhängigkeitsanalyse bleiben offen. |
+| Konflikt-Radar | Früh warnen, wenn parallele Agenten dieselben Dateien oder Abhängigkeiten bearbeiten | Projektweite Git-Pfadwarnung erscheint auch ohne geöffneten Kartendrawer in allen Ansichten und verlinkt betroffene Karten. Zwei gleichzeitige synthetische CLI-Läufe wurden sichtbar geprüft. Abhängigkeitsanalyse zwischen verschiedenen Dateien bleibt offen. |
 | Fehler-Catcher | Dev-Server-/Konsolenfehler als Kontext für einen bewusst gestarteten Fixlauf anbieten | Offen. Fehlerquelle und Reproduktion speichern. |
 | Modell-Routing | Schwere Planung, schnelle kleine Änderungen und Kostengrenzen bewusst konfigurieren | Offen. Keine verdeckte Modell-/Kostenentscheidung. |
 | Loop- und Kostenbremse | Nutzungsdaten, wiederholte Fehler und Limits pro Task sichtbar machen und sicher pausieren | Offen. Anbieterabhängige Telemetrie nur bei belegbarer Quelle. |

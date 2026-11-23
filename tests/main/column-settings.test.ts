@@ -75,6 +75,11 @@ describe('column agent settings', () => {
     expect(buildAgentArgs(agent, 'Step', 'one-shot')).toEqual(['exec', '--approve-for-me', 'Step']);
     expect(() => buildAgentArgs({ ...agent, args: ['-s', 'read-only'] }, 'Step', 'one-shot')).toThrow('workspace-write');
     expect(() => buildAgentArgs({ ...agent, args: ['--dangerously-bypass-approvals-and-sandbox'] }, 'Step', 'one-shot')).toThrow('Sandbox-Bypass');
+    expect(() => buildAgentArgs({ ...agent, args: ['--cd', 'C:\\'] }, 'Step', 'one-shot')).toThrow('Profilargument --cd');
+    expect(() => buildAgentArgs({ ...agent, args: ['--add-dir', 'C:\\'] }, 'Step', 'one-shot')).toThrow('Profilargument --add-dir');
+    expect(() => buildAgentArgs({ ...agent, args: ['-c', 'sandbox_permissions=["disk-full-read-access"]'] }, 'Step', 'one-shot')).toThrow('Profilargument -c');
+    expect(buildAgentArgs({ ...agent, args: ['--ignore-user-config', '--skip-git-repo-check'] }, 'Step', 'one-shot'))
+      .toEqual(['exec', '--approve-for-me', '--ignore-user-config', '--skip-git-repo-check', 'Step']);
   });
 
   it('uses column overrides only for the matching card or workflow agent', () => {

@@ -1,0 +1,31 @@
+.review-diff { display: grid; gap: 12px; min-width: 0; color: var(--text); }
+.review-diff-head { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.review-diff-head h4 { margin: 0 0 5px; font-size: 14px; }
+.review-diff-head p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.review-diff-head button { flex: none; }
+.review-diff-meta { margin: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.review-diff-warning { margin: 0; padding: 9px 11px; border-left: 3px solid var(--warning); background: var(--warning-bg); color: var(--text); font-size: 12px; line-height: 1.4; }
+.review-diff-file { min-width: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); overflow: hidden; }
+.review-diff-file > summary { padding: 9px 11px; cursor: pointer; overflow-wrap: anywhere; font-family: 'Cascadia Code', Consolas, monospace; font-size: 11px; font-weight: 600; }
+.review-diff-file > summary:focus-visible, .review-diff-line:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.review-diff-lines { overflow-x: auto; border-top: 1px solid var(--border); }
+.review-diff-entry { min-width: max-content; }
+.review-diff-line { display: grid; grid-template-columns: 34px 34px minmax(0, 1fr) 16px; align-items: baseline; gap: 4px; width: 100%; min-height: 25px; padding: 2px 8px; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); background: var(--surface); color: var(--text); text-align: left; }
+button.review-diff-line { cursor: pointer; }
+button.review-diff-line:hover, button.review-diff-line[aria-pressed='true'] { box-shadow: inset 3px 0 var(--accent); }
+.review-diff-line.added { background: var(--positive-bg); }
+.review-diff-line.removed { background: var(--danger-bg); }
+.review-diff-line.hunk, .review-diff-line.meta { background: var(--surface-2); color: var(--muted); }
+.review-diff-number { color: var(--muted); text-align: right; font-family: 'Cascadia Code', Consolas, monospace; font-size: 10px; font-variant-numeric: tabular-nums; }
+.review-diff-line code { white-space: pre; font-family: 'Cascadia Code', Consolas, monospace; font-size: 11px; }
+.review-diff-line svg { align-self: center; color: var(--muted); }
+.review-diff-comment { padding: 9px 10px 9px 21px; border-left: 3px solid var(--accent); background: var(--surface-2); white-space: normal; max-width: 100%; }
+.review-diff-comment span { color: var(--muted); font-size: 10px; }
+.review-diff-comment p { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.review-diff-form { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); }
+.review-diff-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.review-diff-form textarea { width: 100%; box-sizing: border-box; }
+.review-diff-form > div { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.review-diff-history { border-top: 1px solid var(--border); padding-top: 9px; }
+.review-diff-history summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+.review-diff-history .review-diff-comment { margin-top: 8px; }

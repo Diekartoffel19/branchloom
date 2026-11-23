@@ -15,6 +15,9 @@ import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
 import { decisionItems } from './decision-inbox';
+import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
+import { ProjectConflictBanner } from './components/ProjectConflictBanner';
+import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import './theme.css';
 import './brand.css';
 
@@ -51,6 +54,10 @@ export function App() {
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
+  const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
+  const [projectRadarBusy, setProjectRadarBusy] = useState(false);
+  const radarGeneration = useRef(0);
+  const radarInFlight = useRef(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const viewAreaRef = useRef<HTMLDivElement>(null);
   const focusBeforeSearch = useRef<HTMLElement | null>(null);
@@ -82,6 +89,38 @@ export function App() {
     if (!projectId || !window.studio) return;
     setSnapshot(await window.studio.snapshot(projectId));
   }, [projectId]);
+
+  const checkProjectRadar = useCallback(async () => {
+    if (!projectId || radarInFlight.current) return;
+    const generation = radarGeneration.current;
+    radarInFlight.current = true;
+    setProjectRadarBusy(true);
+    try {
+      const result = await window.studio.reviewProjectConflicts(projectId);
+      if (generation === radarGeneration.current) setProjectRadar(result);
+    } catch (reason) {
+      if (generation === radarGeneration.current) setProjectRadar({ projectId, checkedAt: new Date().toISOString(), state: 'unknown', runningCount: null,
+        pairCount: 0, pairs: [], issues: [], reason: messageOf(reason) });
+    } finally {
+      if (generation === radarGeneration.current) { radarInFlight.current = false; setProjectRadarBusy(false); }
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    radarGeneration.current += 1;
+    radarInFlight.current = false;
+    setProjectRadar(null);
+    setProjectRadarBusy(false);
+    if (!projectId) return;
+    const stop = startConflictRadarRefresh(true, () => { void checkProjectRadar(); });
+    return () => { radarGeneration.current += 1; radarInFlight.current = false; stop(); };
+  }, [projectId, checkProjectRadar]);
+
+  const runningSessionKey = snapshot?.project.id === projectId
+    ? snapshot.sessions.filter((session) => session.state === 'running').map((session) => session.id).sort().join(':') : '';
+  useEffect(() => {
+    if (snapshot?.project.id === projectId) void checkProjectRadar();
+  }, [projectId, runningSessionKey, checkProjectRadar]);
 
   useEffect(() => {
     let active = true;
@@ -279,6 +318,8 @@ export function App() {
         <button className="icon-button" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()} aria-label="Projekt sichern" title="Projekt sichern"><Download size={18} /></button>
       </div>
 
+      {projectRadar?.projectId === projectId ? <ProjectConflictBanner result={projectRadar} busy={projectRadarBusy}
+        onRefresh={() => void checkProjectRadar()} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><BrowserView active={!creatingProject && !searchOpen} /></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
