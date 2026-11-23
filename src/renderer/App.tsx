@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, GitCommitHorizontal, Globe2, Inbox, Lightbulb, Moon, Network, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, Moon, Network, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
 import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
@@ -8,6 +8,7 @@ import { MemoryView } from './components/MemoryView';
 import { AgentView } from './components/AgentView';
 import { CommandTerminalView } from './components/CommandTerminalView';
 import { BrowserView } from './components/BrowserView';
+import { MilestonesView } from './components/MilestonesView';
 import { SearchPalette } from './components/SearchPalette';
 import { ActivityView } from './components/ActivityView';
 import { DecisionInbox } from './components/DecisionInbox';
@@ -25,7 +26,7 @@ import './brand.css';
 
 const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
 
-type View = 'board' | 'ideas' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'agents' | 'terminal' | 'browser' | 'changelog';
+type View = 'board' | 'ideas' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'changelog';
 type NavigationTarget = { kind: SearchKind; id: string; token: number };
 
 const views: { id: View; name: string; icon: typeof Columns3 }[] = [
@@ -37,6 +38,7 @@ const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
   { id: 'whiteboard', name: 'Whiteboard', icon: Network },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
+  { id: 'milestones', name: 'Zeitmaschine', icon: History },
   { id: 'agents', name: 'Agenten', icon: Bot },
   { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
   { id: 'browser', name: 'Browser', icon: Globe2 },
@@ -342,6 +344,7 @@ export function App() {
         {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} /> : null}
         {view === 'whiteboard' ? <Suspense fallback={<div className="content-message">Whiteboard wird geladen…</div>}><WhiteboardView snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /></Suspense> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
+        {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
         {view === 'terminal' ? <CommandTerminalView projectId={snapshot.project.id} /> : null}
       </div>}

@@ -58,6 +58,10 @@ export interface StudioAPI {
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
   projectChangelog(input: { projectId: string; period: ChangelogPeriod }): Promise<ProjectChangelog>;
+  listMilestones(projectId: string): Promise<import('./milestones').ProjectMilestone[]>;
+  createMilestone(input: { projectId: string; label: string }): Promise<import('./milestones').ProjectMilestone>;
+  compareMilestone(input: { projectId: string; milestoneId: string }): Promise<import('./milestones').MilestoneComparison>;
+  checkoutMilestone(input: { projectId: string; milestoneId: string; confirm: boolean }): Promise<import('./milestones').MilestoneCheckout>;
   ideas(projectId: string): Promise<import('./ideas').Idea[]>;
   saveIdea(input: { projectId: string; id?: string; title: string; body: string; category: import('./ideas').IdeaCategory; turns: DraftTurn[] }): Promise<import('./ideas').Idea>;
   discussIdea(input: { projectId: string; turns: DraftTurn[]; title: string; body: string; category: import('./ideas').IdeaCategory }): Promise<import('./ideas').IdeaReply>;

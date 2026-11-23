@@ -10,6 +10,7 @@ import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
+import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
@@ -135,6 +136,10 @@ function installIpc(): void {
   });
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
   bind('projectChangelog', (input: Parameters<StudioAPI['projectChangelog']>[0]) => projectChangelog(db, input.projectId, input.period));
+  bind('listMilestones', (projectId: string) => listMilestones(db, projectId));
+  bind('createMilestone', (input: Parameters<StudioAPI['createMilestone']>[0]) => createMilestone(db, input));
+  bind('compareMilestone', (input: Parameters<StudioAPI['compareMilestone']>[0]) => compareMilestone(db, input));
+  bind('checkoutMilestone', (input: Parameters<StudioAPI['checkoutMilestone']>[0]) => checkoutMilestone(db, input));
   bind('ideas', (projectId: string) => listIdeas(db, projectId));
   bind('saveIdea', (input: Parameters<StudioAPI['saveIdea']>[0]) => saveIdea(db, input));
   bind('discussIdea', (input: Parameters<StudioAPI['discussIdea']>[0]) => discussIdea(db, input));

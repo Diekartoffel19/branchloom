@@ -39,7 +39,7 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Ste
 | Fehler-Catcher | Dev-Server-/Konsolenfehler als Kontext für einen bewusst gestarteten Fixlauf anbieten | Erste lokale Stufe erfasst Konsolenfehler und Hauptframe-Ladefehler in Loopback-Browser-Tabs mit Quelle. Der Nutzer ergänzt Reproduktionsschritte und erstellt ausdrücklich eine Board-Karte; kein Agentenstart. Terminal-/Dev-Server-PTY-Fehler, automatische Zuordnung und Fixlauf sind offen. |
 | Modell-Routing | Schwere Planung, schnelle kleine Änderungen und Kostengrenzen bewusst konfigurieren | Offen. Keine verdeckte Modell-/Kostenentscheidung. |
 | Loop- und Kostenbremse | Nutzungsdaten, wiederholte Fehler und Limits pro Task sichtbar machen und sicher pausieren | Offen. Anbieterabhängige Telemetrie nur bei belegbarer Quelle. |
-| Zeitmaschine | Git-Stand plus Preview-Screenshot als benannte, wiederherstellbare Meilensteine | Offen. Zurücksetzen nur nach Diff- und Datenprüfung. |
+| Zeitmaschine | Git-Stand plus Preview-Screenshot als benannte, wiederherstellbare Meilensteine | Erste lokale Stufe: manuell markierte saubere Git-Commits, gespeicherte lokale Ref, Commit-Vergleich und ausdrücklich angelegtes isoliertes Checkout. Screenshots, Slider und Übernahme in den Haupt-Checkout bleiben offen. |
 | Worktree teilen | Temporäre Vorschau ausdrücklich teilen; externes Feedback in Inbox | Offen. Öffentliche Tunnel sind optional und brauchen sichtbare Freigaben. |
 | Changelog | Täglich/wöchentlich aus echten Commits, Tests und Reviews zusammenfassen | Erste lesende Git-Stufe: 24 Stunden oder sieben Tage, Commit-Hash, Zeit und Betreff aus aktuellem HEAD; bewusste Markdown-Kopie. Test-/Review-Zuordnung und automatische Berichte offen. |
 
