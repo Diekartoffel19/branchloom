@@ -19,6 +19,8 @@ export interface Column { id: string; projectId: string; name: string; position:
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
+export interface CardContextReference { id: string; cardId: string; projectId: string; kind: 'file' | 'url'; target: string; addedAt: string; available: boolean }
+export interface CardContextPreview { id: string; kind: 'file' | 'url'; target: string; text: string | null; truncated: boolean; note: string }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'antigravity' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
@@ -91,6 +93,10 @@ export interface StudioAPI {
   chooseCardAttachments(cardId: string): Promise<CardAttachment[] | null>;
   openCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
   removeCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
+  cardContextReferences(cardId: string): Promise<CardContextReference[]>;
+  addCardContextReference(input: { cardId: string; kind: 'file' | 'url'; target: string }): Promise<CardContextReference[]>;
+  previewCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextPreview>;
+  removeCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextReference[]>;
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;

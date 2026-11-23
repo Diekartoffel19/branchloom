@@ -1,0 +1,14 @@
+.card-context { display: grid; gap: 10px; }
+.card-context .section-heading, .card-context .section-copy { margin: 0; }
+.card-context-form { display: grid; gap: 8px; }
+.card-context-form label { display: grid; gap: 5px; color: var(--soft); font-size: 12px; font-weight: 600; }
+.card-context-form button { justify-self: start; }
+.card-context-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.card-context-list li { border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); padding: 9px 10px; min-width: 0; }
+.card-context-source { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.card-context-source svg { flex: none; margin-top: 1px; }
+.card-context-list small, .card-context-preview p { display: block; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.card-context-actions { display: flex; gap: 6px; margin-top: 7px; }
+.card-context-preview { margin-top: 9px; border-top: 1px solid var(--border); padding-top: 8px; }
+.card-context-preview p { margin: 0 0 6px; }
+.card-context-preview pre { margin: 0; padding: 8px; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); color: var(--text); font-size: 11px; }

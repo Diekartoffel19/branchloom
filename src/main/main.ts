@@ -8,6 +8,7 @@ import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, Studi
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, runCardQa } from './card-qa';
+import { addCardContextReference, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
@@ -185,6 +186,10 @@ function installIpc(): void {
     if (error) throw new Error(`Datei konnte nicht geöffnet werden: ${error}`);
   });
   bind('removeCardAttachment', (input: { cardId: string; attachmentId: string }) => db.removeCardAttachment(input));
+  bind('cardContextReferences', (cardId: string) => cardContextReferences(db, cardId));
+  bind('addCardContextReference', (input: Parameters<StudioAPI['addCardContextReference']>[0]) => addCardContextReference(db, input));
+  bind('previewCardContextReference', (input: Parameters<StudioAPI['previewCardContextReference']>[0]) => previewCardContextReference(db, input));
+  bind('removeCardContextReference', (input: Parameters<StudioAPI['removeCardContextReference']>[0]) => removeCardContextReference(db, input));
   bind('moveCard', (input: { id: string; columnId: string }) => {
     const before = db.card(input.id);
     const moved = db.moveCard(input);
@@ -362,6 +367,7 @@ function createWindow(): void {
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
   if (smoke) {
+    writeFileSync(join(smokeDataDirectory!, 'context.md'), '# BRANCHLOOM_CONTEXT_SMOKE\n');
     const failSmoke = (error: unknown) => {
       console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite/Board', error);
       app.exit(1);
@@ -529,6 +535,32 @@ function createWindow(): void {
               if (qaReport?.status !== 'failed' || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR'))) throw new Error('Lokale Karten-QA hat den Browserfehler nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('Karten-QA-Bericht wurde nicht sichtbar gerendert.');
+              const contextForm = document.querySelector('.card-drawer .card-context-form');
+              const contextInput = contextForm?.querySelector('input');
+              if (!contextForm || !contextInput) throw new Error('Karten-Kontextformular fehlt.');
+              qaValueSetter.call(contextInput, 'context.md');
+              contextInput.dispatchEvent(new Event('input', { bubbles: true }));
+              const contextButton = contextForm.querySelector('button[type="submit"]');
+              for (let attempt = 0; attempt < 100 && contextButton?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!contextButton || contextButton.disabled) throw new Error('Karten-Kontextschaltfläche wurde nicht aktiv.');
+              contextButton.click();
+              let contextRefs;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                contextRefs = await window.studio.cardContextReferences(qaCard.id);
+                if (contextRefs.length) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (contextRefs?.[0]?.target !== 'context.md') throw new Error('Projektdatei wurde nicht als Kartenkontext gespeichert.');
+              let contextPreviewButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                contextPreviewButton = document.querySelector('.card-context-list button.secondary-button');
+                if (contextPreviewButton) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!contextPreviewButton) throw new Error('Gespeicherter Kontextbezug wurde nicht im Kartendrawer angezeigt.');
+              contextPreviewButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-context-preview')?.textContent?.includes('BRANCHLOOM_CONTEXT_SMOKE'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-context-preview')?.textContent?.includes('BRANCHLOOM_CONTEXT_SMOKE')) throw new Error('Begrenzte Projektdatei-Vorschau wurde nicht angezeigt.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'))?.click();
               let edgeListButton;

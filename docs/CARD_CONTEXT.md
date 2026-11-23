@@ -1,0 +1,9 @@
+# Kontextbezüge an Karten
+
+Im Kartendrawer unter **Kontextbezüge** kann man einen relativen Pfad zu einer vorhandenen Projektdatei oder eine öffentliche HTTPS-Doku-Adresse eintragen und **Bezug hinzufügen** klicken. Bis zu 20 Bezüge pro Karte bleiben in der lokalen SQLite-Datenbank nach Neustart erhalten. Entfernen löscht nur den Bezug, nicht die Datei oder Webseite. Archivierte Karten zeigen die Bezüge weiterhin, lassen aber keine Änderungen zu.
+
+Projektpfade müssen innerhalb des echten Projektordners liegen. Absolute Pfade, Pfade nach außerhalb, fehlende Dateien und Symlinks als Datei oder nach außerhalb werden abgewiesen. Beim späteren Anzeigen und bei jeder Vorschau wird der Pfad erneut geprüft; verschobene oder ungültig gewordene Dateien sind als nicht verfügbar markiert. Bekannte Textformate bis 128 KB können nach einem ausdrücklichen Klick auf **Vorschau** gelesen werden. Die Anzeige enthält höchstens die ersten 4 KB und kennzeichnet eine Kürzung. Die Vorschau ist eine lokale Momentaufnahme.
+
+Doku-Adressen müssen HTTPS ohne eingebettete Zugangsdaten und mit einem öffentlichen Hostnamen verwenden. Lokale Hostnamen und IP-Adressen werden abgewiesen. Branchloom prüft dabei nur die Adresse: Es stellt keine Verbindung her, liest die Webseite nicht und zeigt bei **Vorschau** nur diesen Umstand an. Eine syntaktisch gültige Adresse beweist nicht, dass die Seite öffentlich erreichbar oder vertrauenswürdig ist.
+
+Die Bezüge werden **nicht** automatisch in Agentenprompts, Workflows, Projektpakete oder Git-Commits übernommen. Ein Agent mit Zugriff auf das Projekt kann Projektdateien unabhängig von dieser Funktion lesen. Drag-and-drop aus Whiteboard/Design, geprüfte Quellenfreigabe für Agenten und Webinhaltsvorschau bleiben offen. Beliebige Dateien außerhalb des Projekts lassen sich separat als [Kartenanhänge](ATTACHMENTS.md) verknüpfen; das ist keine Kartenkontextfreigabe.

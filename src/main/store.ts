@@ -18,6 +18,7 @@ import { installPlanReview } from './plan-review';
 import { installMilestones } from './milestones';
 import { installReviewRules } from './review-rules';
 import { installCardQa } from './card-qa';
+import { installCardContext } from './card-context';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -114,6 +115,7 @@ export class StudioStore {
     installMilestones(this.db);
     installReviewRules(this.db);
     installCardQa(this.db);
+    installCardContext(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

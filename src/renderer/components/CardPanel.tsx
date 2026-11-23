@@ -5,6 +5,7 @@ import type { ConflictRadarResult } from '../../shared/conflict-radar';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
+import { CardContextPanel } from './CardContextPanel';
 import { CardQaPanel } from './CardQaPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
@@ -185,6 +186,8 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         <div className="drawer-divider" />
         <CardAttachments key={card.id} card={card} />
+        <div className="drawer-divider" />
+        <CardContextPanel key={card.id} card={card} />
         <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
         <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>
