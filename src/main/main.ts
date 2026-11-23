@@ -1,11 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
+import { cardQaReports, runCardQa } from './card-qa';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
@@ -34,6 +36,7 @@ let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let browser: StudioBrowser | null = null;
+let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smoke = process.argv.includes('--studio-smoke');
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
@@ -326,6 +329,8 @@ function installIpc(): void {
     if (!browser) throw new Error('Browser nicht verfügbar.');
     return createDiagnosticCard(db, input, browser.diagnostic(input.diagnosticId));
   });
+  bind('cardQaReports', (cardId: string) => cardQaReports(db, cardId));
+  bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
 }
 
 function createWindow(): void {
@@ -361,7 +366,19 @@ function createWindow(): void {
       console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite/Board', error);
       app.exit(1);
     };
-    window.webContents.once('did-finish-load', () => {
+    const qaServerReady = new Promise<string>((resolve, reject) => {
+      smokeQaServer = createServer((_request, response) => {
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        response.end('<!doctype html><title>Branchloom QA Smoke</title><script>console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
+      });
+      smokeQaServer.once('error', reject);
+      smokeQaServer.listen(0, '127.0.0.1', () => {
+        const address = smokeQaServer?.address();
+        if (!address || typeof address === 'string') reject(new Error('QA-Smoke-Server hat keinen TCP-Port.'));
+        else resolve(`http://127.0.0.1:${address.port}/`);
+      });
+    });
+    window.webContents.once('did-finish-load', () => { void qaServerReady.then((qaUrl) => {
       const script = `
         (async () => {
           for (let attempt = 0; attempt < 600 && !document.querySelector('.app-shell'); attempt++) {
@@ -487,6 +504,29 @@ function createWindow(): void {
               openLinkedCard.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-drawer')?.textContent?.includes('Smoke-Karte')) throw new Error('Whiteboard-Kartenlink öffnete nicht die Karte.');
+              const qaForm = document.querySelector('.card-drawer .card-qa-form');
+              if (!qaForm) throw new Error('Karten-QA-Formular fehlt.');
+              const qaInput = qaForm.querySelector('input');
+              if (!qaInput) throw new Error('Karten-QA-URL-Feld fehlt.');
+              const qaValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!qaValueSetter) throw new Error('Browser-QA-Eingabe kann im Smoke nicht gesetzt werden.');
+              qaValueSetter.call(qaInput, ${JSON.stringify(qaUrl)});
+              qaInput.dispatchEvent(new Event('input', { bubbles: true }));
+              const qaButton = qaForm.querySelector('button[type="submit"]');
+              for (let attempt = 0; attempt < 100 && qaButton?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!qaButton || qaButton.disabled) throw new Error('Karten-QA-Schaltfläche wurde nicht aktiv.');
+              qaButton?.click();
+              let qaReport;
+              const qaCard = (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.title === 'Smoke-Karte');
+              if (!qaCard) throw new Error('QA-Smoke-Karte fehlt.');
+              for (let attempt = 0; attempt < 500; attempt++) {
+                qaReport = (await window.studio.cardQaReports(qaCard.id))[0];
+                if (qaReport) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (qaReport?.status !== 'failed' || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR'))) throw new Error('Lokale Karten-QA hat den Browserfehler nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('Karten-QA-Bericht wurde nicht sichtbar gerendert.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'))?.click();
               let edgeListButton;
@@ -634,7 +674,7 @@ function createWindow(): void {
         });
         smokeWindow.webContents.reload();
       }).catch(failSmoke);
-    });
+    }).catch(failSmoke); });
     window.webContents.once('did-fail-load', (_event, code, description) => {
       console.error(`STUDIO_SMOKE_FAILED (${code}): ${description}`);
       app.exit(1);
@@ -657,6 +697,8 @@ if (ownsSharedProfile) app.whenReady().then(() => {
 else app.quit();
 
 app.on('before-quit', () => {
+  smokeQaServer?.close();
+  smokeQaServer = null;
   browser?.dispose();
   browser = null;
   runner?.dispose();

@@ -5,6 +5,7 @@ import type { ConflictRadarResult } from '../../shared/conflict-radar';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
+import { CardQaPanel } from './CardQaPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 
@@ -201,6 +202,8 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
           {sessionAgent?.kind === 'codex' && session.state !== 'running' && !card.archivedAt ? <div className="resume-controls"><p className="section-copy">Codex zeigt gespeicherte Gespräche aus diesem Ordner. Wähle das richtige Gespräch im Terminal aus; Studio wiederholt den alten Auftrag nicht automatisch.</p><button className="secondary-button" type="button" disabled={snapshot.queue.state === 'running'} onClick={() => void mutate(() => window.studio.resumeCodexSession({ sessionId: session.id }))}><RotateCcw size={15} /> Codex-Gespräch auswählen</button>{snapshot.queue.state === 'running' ? <p className="inline-note">Projektwarteschlange zuerst pausieren.</p> : null}</div> : null}
           {session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p>
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
+        <div className="drawer-divider" />
+        <CardQaPanel key={card.id} card={card} />
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>

@@ -118,6 +118,8 @@ const studio: StudioAPI = {
   browserSetVisible: (visible) => invoke('browserSetVisible', visible),
   browserSetBounds: (bounds) => invoke('browserSetBounds', bounds),
   browserCreateDiagnosticCard: (input) => invoke('browserCreateDiagnosticCard', input),
+  cardQaReports: (cardId) => invoke('cardQaReports', cardId),
+  runCardQa: (input) => invoke('runCardQa', input),
   onBrowserState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: BrowserState): void => callback(payload);
     ipcRenderer.on('studio:browser-state', listener);

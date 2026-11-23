@@ -1,0 +1,18 @@
+.card-qa { display: grid; gap: 10px; }
+.card-qa .section-heading { margin: 0; }
+.card-qa .section-copy { margin: 0; }
+.card-qa-form { display: grid; gap: 8px; }
+.card-qa-form label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--soft); }
+.card-qa-form input { min-width: 0; width: 100%; }
+.card-qa-form button { justify-self: start; }
+.card-qa-reports { display: grid; gap: 6px; max-height: 340px; overflow: auto; }
+.card-qa-report { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; background: var(--surface-2); overflow-wrap: anywhere; }
+.card-qa-report summary { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: baseline; cursor: pointer; font-size: 12px; }
+.card-qa-report summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.card-qa-report time, .card-qa-source, .card-qa-limit { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.card-qa-source { margin: 9px 0 0; }
+.card-qa-state.passed { color: var(--accent); }
+.card-qa-state.failed, .card-qa-state.error { color: var(--danger); }
+.card-qa-findings { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 7px; font-size: 11px; }
+.card-qa-findings small { display: block; margin-top: 2px; color: var(--muted); }
+.card-qa-limit { margin: 0; }
