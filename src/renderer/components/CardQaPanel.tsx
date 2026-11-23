@@ -8,6 +8,27 @@ const statusOf = (report: CardQaReport): string => report.status === 'passed'
   ? 'Keine Konsolen- oder Ladefehler gefunden'
   : report.status === 'failed' ? `${report.diagnostics.length} Fehler gefunden` : 'Prüfung nicht abgeschlossen';
 
+function CardQaScreenshot({ cardId, reportId }: { cardId: string; reportId: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function open() {
+    if (busy) return;
+    if (dataUrl) { setDataUrl(null); return; }
+    setBusy(true); setError('');
+    try { setDataUrl(await window.studio.cardQaScreenshot({ cardId, reportId })); }
+    catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="card-qa-screenshot">
+    <button className="secondary-button small" type="button" disabled={busy} onClick={() => void open()}>{busy ? 'Lädt…' : dataUrl ? 'Screenshot schließen' : 'Screenshot ansehen'}</button>
+    {error ? <p className="inline-error" role="alert">{error}</p> : null}
+    {dataUrl ? <figure><img src={dataUrl} alt="Lokaler Screenshot der geprüften Seite" /><figcaption>Momentaufnahme dieser Route zum Prüfzeitpunkt. Kein Vorher/Nachher-Vergleich.</figcaption></figure> : null}
+  </div>;
+}
+
 export function CardQaPanel({ card }: { card: Card }) {
   const [url, setUrl] = useState('');
   const [reports, setReports] = useState<CardQaReport[]>([]);
@@ -51,6 +72,7 @@ export function CardQaPanel({ card }: { card: Card }) {
         <p className="card-qa-source"><strong>Seite:</strong> {report.requestedUrl}{report.finalUrl && report.finalUrl !== report.requestedUrl ? <> · <strong>Geladen:</strong> {report.finalUrl}</> : null}</p>
         {report.note ? <p className="inline-note">{report.note}</p> : null}
         {report.diagnostics.length ? <ol className="card-qa-findings">{report.diagnostics.map((item) => <li key={item.id}><strong>{item.kind === 'console' ? 'Konsole' : 'Laden'}:</strong> {item.message}{item.sourceUrl ? <small>{item.sourceUrl}{item.line ? `:${item.line}` : ''}</small> : null}</li>)}</ol> : null}
+        {report.screenshotAvailable ? <CardQaScreenshot cardId={card.id} reportId={report.id} /> : null}
       </details>)}
     </div>}
     <p className="card-qa-limit">Der Bericht belegt nur diesen Seitenaufruf und Fehler im kurzen Prüfzeitraum. Layout, Interaktion, andere Routen und Tests bleiben separat zu prüfen.</p>

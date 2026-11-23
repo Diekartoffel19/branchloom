@@ -7,7 +7,7 @@ import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
-import { cardQaReports, runCardQa } from './card-qa';
+import { cardQaReports, cardQaScreenshot, runCardQa } from './card-qa';
 import { addCardContextReference, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
@@ -339,6 +339,7 @@ function installIpc(): void {
   });
   bind('cardQaReports', (cardId: string) => cardQaReports(db, cardId));
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
+  bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
 }
 
 function createWindow(): void {

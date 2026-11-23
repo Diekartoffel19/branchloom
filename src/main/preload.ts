@@ -126,6 +126,7 @@ const studio: StudioAPI = {
   browserCreateDiagnosticCard: (input) => invoke('browserCreateDiagnosticCard', input),
   cardQaReports: (cardId) => invoke('cardQaReports', cardId),
   runCardQa: (input) => invoke('runCardQa', input),
+  cardQaScreenshot: (input) => invoke('cardQaScreenshot', input),
   onBrowserState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: BrowserState): void => callback(payload);
     ipcRenderer.on('studio:browser-state', listener);

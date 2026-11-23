@@ -9,18 +9,45 @@ const MAX_FINDINGS = 20;
 const MAX_REPORTS = 20;
 const LOAD_TIMEOUT_MS = 15_000;
 const SETTLE_MS = 900;
+const MAX_SCREENSHOT_BYTES = 1_000_000;
+const MAX_SCREENSHOTS = 100;
+const SCREENSHOT_WIDTH = 960;
+const SCREENSHOT_HEIGHT = 600;
+const SCREENSHOT_TIMEOUT_MS = 3_000;
 const activeCards = new Set<string>();
 
-type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; note: string | null };
-const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], note: row.note });
+type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; note: string | null; screenshot_available: number };
+const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], note: row.note, screenshotAvailable: row.screenshot_available === 1 });
+const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
+
+async function captureBounded(contents: Electron.WebContents): Promise<Buffer> {
+  let timeout: NodeJS.Timeout | null = null;
+  try {
+    const capture = await Promise.race([
+      contents.capturePage(),
+      new Promise<never>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error('capture timeout')), SCREENSHOT_TIMEOUT_MS); }),
+    ]);
+    const size = capture.getSize();
+    if (size.width < 1 || size.height < 1) throw new Error('empty');
+    const scale = Math.min(1, SCREENSHOT_WIDTH / size.width, SCREENSHOT_HEIGHT / size.height);
+    const image = scale < 1 ? capture.resize({ width: Math.max(1, Math.floor(size.width * scale)), height: Math.max(1, Math.floor(size.height * scale)) }) : capture;
+    const bytes = image.toPNG();
+    if (!bytes.length || bytes.length > MAX_SCREENSHOT_BYTES) throw new Error('size');
+    return bytes;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 export function installCardQa(db: Database.Database): void {
   db.exec(`CREATE TABLE IF NOT EXISTS card_qa_reports (
     id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     requested_url TEXT NOT NULL, final_url TEXT, started_at TEXT NOT NULL,
-    ended_at TEXT NOT NULL, status TEXT NOT NULL, diagnostics_json TEXT NOT NULL, note TEXT
+    ended_at TEXT NOT NULL, status TEXT NOT NULL, diagnostics_json TEXT NOT NULL, note TEXT, screenshot_png BLOB
   ); CREATE INDEX IF NOT EXISTS card_qa_reports_card ON card_qa_reports(card_id, ended_at DESC);`);
+  const columns = db.pragma('table_info(card_qa_reports)') as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === 'screenshot_png')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN screenshot_png BLOB');
 }
 
 export function normalizeCardQaUrl(value: string): string {
@@ -32,15 +59,25 @@ export function normalizeCardQaUrl(value: string): string {
 
 export function cardQaReports(store: StudioStore, cardId: string): CardQaReport[] {
   store.card(cardId);
-  return (store.db.prepare(`SELECT * FROM card_qa_reports WHERE card_id = ? ORDER BY ended_at DESC, rowid DESC LIMIT ${MAX_REPORTS}`).all(cardId) as ReportRow[]).map(reportFromRow);
+  return (store.db.prepare(`SELECT ${reportColumns} FROM card_qa_reports WHERE card_id = ? ORDER BY ended_at DESC, rowid DESC LIMIT ${MAX_REPORTS}`).all(cardId) as ReportRow[]).map(reportFromRow);
 }
 
-function persist(store: StudioStore, report: CardQaReport): CardQaReport {
+export function cardQaScreenshot(store: StudioStore, input: { cardId: string; reportId: string }): string {
+  store.card(input.cardId);
+  const row = store.db.prepare('SELECT screenshot_png FROM card_qa_reports WHERE id = ? AND card_id = ?').get(input.reportId, input.cardId) as { screenshot_png: Buffer | null } | undefined;
+  if (!row) throw new Error('QA-Bericht gehört nicht zu dieser Karte.');
+  if (!Buffer.isBuffer(row.screenshot_png) || !row.screenshot_png.length || row.screenshot_png.length > MAX_SCREENSHOT_BYTES) throw new Error('Für diesen QA-Bericht ist kein gültiger Screenshot verfügbar.');
+  return `data:image/png;base64,${row.screenshot_png.toString('base64')}`;
+}
+
+function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | null): CardQaReport {
   store.db.transaction(() => {
-    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.note);
+    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, screenshot_png)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.note, screenshot);
     store.db.prepare(`DELETE FROM card_qa_reports WHERE card_id = ? AND id NOT IN (
       SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY ended_at DESC, rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
+    store.db.prepare(`UPDATE card_qa_reports SET screenshot_png = NULL WHERE id IN (
+      SELECT id FROM card_qa_reports WHERE screenshot_png IS NOT NULL ORDER BY ended_at DESC, rowid DESC LIMIT -1 OFFSET ${MAX_SCREENSHOTS})`).run();
   })();
   return report;
 }
@@ -68,6 +105,7 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
   let finalUrl: string | null = null;
   let note: string | null = null;
   let status: CardQaReport['status'] = 'error';
+  let screenshot: Buffer | null = null;
   try {
     qaWindow = new BrowserWindow({ show: false, width: 1280, height: 800, webPreferences: {
       nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
@@ -111,6 +149,11 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
       status = 'error'; note = 'Die Vorschau wurde nicht auf der erwarteten lokalen Origin geladen.';
     } else {
       status = diagnostics.length ? 'failed' : 'passed';
+      try {
+        screenshot = await captureBounded(contents);
+      } catch {
+        note = 'Screenshot konnte nicht aufgenommen oder innerhalb des 1-MB-Limits gespeichert werden.';
+      }
     }
   } catch (reason) {
     note = (reason instanceof Error ? reason.message : String(reason)).replaceAll(url, diagnosticSource(url)!);
@@ -121,5 +164,5 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
     activeCards.delete(card.id);
   }
-  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note });
+  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null }, screenshot);
 }
