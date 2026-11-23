@@ -185,9 +185,9 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
         <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         <div className="drawer-divider" />
-        <CardAttachments key={card.id} card={card} />
+        <CardAttachments key={`attachments-${card.id}`} card={card} />
         <div className="drawer-divider" />
-        <CardContextPanel key={card.id} card={card} />
+        <CardContextPanel key={`context-${card.id}`} card={card} />
         <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
         <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>
@@ -206,7 +206,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
           {session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p>
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
-        <CardQaPanel key={card.id} card={card} />
+        <CardQaPanel key={`qa-${card.id}`} card={card} />
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
@@ -224,7 +224,7 @@ export function CardPanel({ card, snapshot, mutate, onClose }: Props) {
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
           <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
         </div> : null}
-        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={card.id} cardId={card.id} projectId={card.projectId} /></Suspense> : null}
+        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} /></Suspense> : null}
       </div>
     </aside>
   </div>;
