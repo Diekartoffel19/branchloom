@@ -2,7 +2,37 @@ import type { WireframeElement } from '../../shared/card-wireframe';
 
 export type WireframeAlignment = 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bottom' | 'distribute-x' | 'distribute-y';
 
+export interface WireframeDuplication { elements: WireframeElement[]; selectedIds: string[] }
+
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+/** Duplicate the current artboard selection in front of existing layers. The entire group shifts together. */
+export function duplicateWireframeSelection(
+  elements: WireframeElement[], ids: readonly string[], canvasWidth: number, canvasHeight: number,
+  makeId: () => string,
+): WireframeDuplication | null {
+  const chosen = new Set(ids);
+  const selected = elements.filter((item) => chosen.has(item.id));
+  if (!selected.length || elements.length + selected.length > 40) return null;
+  const used = new Set(elements.map((item) => item.id));
+  const minDx = -Math.min(...selected.map((item) => item.x));
+  const maxDx = Math.min(...selected.map((item) => canvasWidth - item.x - item.width));
+  const minDy = -Math.min(...selected.map((item) => item.y));
+  const maxDy = Math.min(...selected.map((item) => canvasHeight - item.y - item.height));
+  // Prefer a small down-right offset; at the edge, place the copy up-left.
+  const dx = maxDx > 0 ? Math.min(16, maxDx) : Math.max(-16, minDx);
+  const dy = maxDy > 0 ? Math.min(16, maxDy) : Math.max(-16, minDy);
+  const copies = selected.map((item) => {
+    let id = makeId();
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id) || used.has(id)) {
+      let suffix = 1;
+      do { id = `copy-${item.id.slice(0, 40)}-${suffix++}`; } while (used.has(id));
+    }
+    used.add(id);
+    return { ...item, id, x: item.x + dx, y: item.y + dy, ...(item.style ? { style: { ...item.style } } : {}) };
+  });
+  return { elements: [...elements, ...copies], selectedIds: copies.map((item) => item.id) };
+}
 
 /** Move selected elements as one group, preserving their spacing and canvas bounds. */
 export function moveWireframeSelection(

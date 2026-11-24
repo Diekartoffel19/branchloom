@@ -72,6 +72,7 @@
 .task-wireframe-properties { display: grid; gap: 10px; }
 .task-wireframe-properties label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 11px; }
 .task-wireframe-properties input, .task-wireframe-properties select { min-height: 33px; padding: 6px 8px; font-size: 12px; }
+.task-wireframe-properties .task-wireframe-duplicate { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .task-wireframe-property-kind { padding: 8px 0 2px; border-top: 1px solid var(--border); font-size: 12px; font-weight: 650; }
 .task-wireframe-geometry { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .task-wireframe-style { display: grid; gap: 9px; min-width: 0; margin: 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--border); }
