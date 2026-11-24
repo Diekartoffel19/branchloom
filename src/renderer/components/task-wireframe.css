@@ -78,6 +78,8 @@
 .task-wireframe-view-controls output { min-width: 40px; color: var(--text); text-align: center; font-variant-numeric: tabular-nums; }
 .task-wireframe-view-controls button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-canvas-viewport { max-height: 640px; overflow: auto; padding: 2px; scrollbar-color: var(--border) transparent; }
+.task-wireframe-canvas-viewport.pan-ready, .task-wireframe-canvas-viewport.pan-ready .task-wireframe-canvas, .task-wireframe-canvas-viewport.pan-ready .task-wireframe-element { cursor: grab; }
+.task-wireframe-canvas-viewport.pan-active, .task-wireframe-canvas-viewport.pan-active .task-wireframe-canvas, .task-wireframe-canvas-viewport.pan-active .task-wireframe-element { cursor: grabbing; user-select: none; }
 .task-wireframe-canvas-viewport:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-canvas-scale { position: relative; }
 .task-wireframe-canvas-hint { display: flex; align-items: center; gap: 4px; margin: 7px 0 0; font-size: 11px; color: var(--muted); }

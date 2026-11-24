@@ -1657,6 +1657,48 @@ function createWindow(): void {
               activeShrinkView.click();
               for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '100 %'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '100 %') throw new Error('Wireframe-Zoom kehrte nicht zur Ausgangsstufe zurück.');
+              const navigationView = wireframe.querySelector('.task-wireframe-canvas-viewport');
+              if (!(navigationView instanceof HTMLElement)) throw new Error('Wireframe-Ansicht für direkte Navigation fehlt.');
+              const pointerRect = activeStage.getBoundingClientRect();
+              const pointerX = pointerRect.left + pointerRect.width / 2;
+              const pointerY = pointerRect.top + Math.min(pointerRect.height / 2, 100);
+              navigationView.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -1, clientX: pointerX, clientY: pointerY }));
+              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '125 %'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const zoomedRect = activeStage.getBoundingClientRect();
+              if (wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '125 %' || Math.abs(zoomedRect.left + zoomedRect.width / 2 - pointerX) > 4) throw new Error('Strg + Mausrad zoomte nicht um den Zeiger: ' + JSON.stringify({ zoom: wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim(), anchorBefore: pointerX, anchorAfter: zoomedRect.left + zoomedRect.width / 2 }));
+              navigationView.scrollLeft = Math.max(1, (navigationView.scrollWidth - navigationView.clientWidth) / 2);
+              const scrollBeforePan = navigationView.scrollLeft;
+              const originalViewCapture = navigationView.setPointerCapture.bind(navigationView);
+              const originalViewHasCapture = navigationView.hasPointerCapture.bind(navigationView);
+              const originalViewRelease = navigationView.releasePointerCapture.bind(navigationView);
+              let viewCaptured = false;
+              navigationView.setPointerCapture = () => { viewCaptured = true; };
+              navigationView.hasPointerCapture = () => viewCaptured;
+              navigationView.releasePointerCapture = () => { viewCaptured = false; };
+              try {
+                navigationView.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 73, pointerType: 'mouse', button: 1, buttons: 4, clientX: pointerX, clientY: pointerY }));
+                navigationView.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 73, pointerType: 'mouse', button: 1, buttons: 4, clientX: pointerX + 35, clientY: pointerY }));
+                if (!viewCaptured || navigationView.scrollLeft >= scrollBeforePan - 20 || wireframe.querySelector('.task-wireframe-marquee')) throw new Error('Mittlere Maustaste verschob die Ansicht nicht unabhängig vom Auswahlrahmen: ' + JSON.stringify({ captured: viewCaptured, before: scrollBeforePan, after: navigationView.scrollLeft }));
+                navigationView.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 73, pointerType: 'mouse', button: 1, buttons: 0, clientX: pointerX + 35, clientY: pointerY }));
+                if (viewCaptured) throw new Error('Ansichtsverschiebung gab den Zeiger nicht frei.');
+                navigationView.scrollLeft = Math.max(1, (navigationView.scrollWidth - navigationView.clientWidth) / 2);
+                const selectedBeforePan = [...wireframe.querySelectorAll('.task-wireframe-element[aria-pressed="true"]')].map((item) => item.getAttribute('data-wireframe-id'));
+                activeStage.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ' ', code: 'Space' }));
+                const beforeSpacePan = navigationView.scrollLeft;
+                activeStage.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 74, pointerType: 'mouse', button: 0, buttons: 1, clientX: pointerX, clientY: pointerY }));
+                activeStage.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 74, pointerType: 'mouse', button: 0, buttons: 1, clientX: pointerX + 30, clientY: pointerY }));
+                activeStage.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 74, pointerType: 'mouse', button: 0, buttons: 0, clientX: pointerX + 30, clientY: pointerY }));
+                activeStage.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ' ', code: 'Space' }));
+                if (navigationView.scrollLeft >= beforeSpacePan - 20 || wireframe.querySelector('.task-wireframe-marquee') || JSON.stringify(selectedBeforePan) !== JSON.stringify([...wireframe.querySelectorAll('.task-wireframe-element[aria-pressed="true"]')].map((item) => item.getAttribute('data-wireframe-id')))) throw new Error('Leertaste + Ziehen verschob die Ansicht nicht ohne Auswahländerung.');
+              } finally {
+                navigationView.setPointerCapture = originalViewCapture;
+                navigationView.hasPointerCapture = originalViewHasCapture;
+                navigationView.releasePointerCapture = originalViewRelease;
+              }
+              activeShrinkView.click();
+              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '100 %'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '100 %') throw new Error('Ansicht kehrte nach direkter Navigation nicht zur Ausgangsstufe zurück.');
               undo.click();
               for (let attempt = 0; attempt < 100 && element.style.fontSize !== ''; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (element.style.fontSize !== '') throw new Error('Stiländerung ließ sich nicht rückgängig machen.');
