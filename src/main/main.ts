@@ -1031,8 +1031,11 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !document.querySelector('.cross-project-inbox')?.textContent?.includes('BRANCHLOOM_LIVE_GLOBAL_INBOX'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.cross-project-inbox')?.textContent?.includes('BRANCHLOOM_LIVE_GLOBAL_INBOX') || !(await window.studio.globalInboxItems()).items.some((item) => item.id === 'plan:' + liveGlobalComment.id)) throw new Error('Globale Inbox lud neuen gespeicherten Kommentar nicht sichtbar nach.');
               if (originalVisibility) Object.defineProperty(document, 'visibilityState', originalVisibility); else delete document.visibilityState;
-              globalPlan.querySelector('button.secondary-button')?.click();
-              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const refreshedGlobalPlan = [...document.querySelectorAll('.cross-project-inbox .decision-item')].find((item) => item.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE'));
+              const refreshedPlanButton = refreshedGlobalPlan?.querySelector('button.secondary-button');
+              if (!refreshedPlanButton?.isConnected) throw new Error('Plan-Knopf fehlt nach der Aktualisierung der globalen Inbox.');
+              refreshedPlanButton.click();
+              for (let attempt = 0; attempt < 200 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht.');
               if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Globale Inbox startete einen Agenten.');
               [...document.querySelectorAll('.sidebar-add')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
