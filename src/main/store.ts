@@ -10,7 +10,7 @@ import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
-import { parseProjectPackage, type ProjectPackageV1 } from './project-package';
+import { parseProjectPackage, type ProjectPackage } from './project-package';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
@@ -186,12 +186,20 @@ export class StudioStore {
     return result;
   }
 
-  exportProjectPackage(projectId: string): ProjectPackageV1 {
+  exportProjectPackage(projectId: string): ProjectPackage {
     const snapshot = this.snapshot(projectId);
+    const criterionRows = this.db.prepare(`SELECT a.card_id, a.text FROM card_acceptance_criteria a
+      JOIN cards c ON c.id = a.card_id WHERE c.project_id = ? ORDER BY a.position, a.created_at, a.id`).all(projectId) as Array<{ card_id: string; text: string }>;
+    const criteriaByCard = new Map<string, string[]>();
+    for (const row of criterionRows) {
+      const list = criteriaByCard.get(row.card_id) ?? [];
+      list.push(row.text);
+      criteriaByCard.set(row.card_id, list);
+    }
     return {
-      format: 'jarvis-studio-project', version: 1, name: snapshot.project.name,
+      format: 'jarvis-studio-project', version: 2, name: snapshot.project.name,
       columns: snapshot.columns.map((item) => ({ id: item.id, name: item.name, position: item.position })),
-      cards: snapshot.cards.map((item) => ({ id: item.id, columnId: item.columnId, title: item.title, description: item.description, priority: item.priority, labels: item.labels, position: item.position, archived: item.archivedAt !== null })),
+      cards: snapshot.cards.map((item) => ({ id: item.id, columnId: item.columnId, title: item.title, description: item.description, priority: item.priority, labels: item.labels, position: item.position, archived: item.archivedAt !== null, criteria: criteriaByCard.get(item.id) ?? [] })),
       notes: snapshot.notes.map((item) => ({ title: item.title, body: item.body, tags: item.tags, links: item.links })),
       workflows: snapshot.workflows.map((item) => ({ name: item.name, cardIds: item.cardIds, steps: item.steps.map((step) => ({ columnId: step.columnId, requireApproval: step.requireApproval })) })),
     };
@@ -216,6 +224,10 @@ export class StudioStore {
         const id = randomUUID();
         cardIds.set(item.id, id);
         insertCard.run(id, created.id, columnIds.get(item.columnId)!, item.title, item.description, item.position, stamp, stamp, item.archived ? stamp : null, item.priority, json(item.labels));
+      }
+      const insertCriterion = this.db.prepare('INSERT INTO card_acceptance_criteria (id, card_id, text, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)');
+      for (const item of data.cards) for (const [position, text] of (item.criteria ?? []).entries()) {
+        insertCriterion.run(randomUUID(), cardIds.get(item.id)!, text, position + 1, stamp, stamp);
       }
       for (const item of data.notes) this.saveNote({ projectId: created.id, title: item.title, body: item.body, tags: item.tags, links: item.links });
       const insertWorkflow = this.db.prepare('INSERT INTO workflows (id, project_id, name, card_ids_json, steps_json, state, current_step, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)');

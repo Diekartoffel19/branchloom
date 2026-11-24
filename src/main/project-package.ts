@@ -3,12 +3,12 @@ import { cardLabels, cardPriority } from '../shared/card-metadata';
 
 export const PROJECT_PACKAGE_LIMIT = 8 * 1024 * 1024;
 
-export interface ProjectPackageV1 {
+export interface ProjectPackage {
   format: 'jarvis-studio-project';
-  version: 1;
+  version: 1 | 2;
   name: string;
   columns: Array<{ id: string; name: string; position: number }>;
-  cards: Array<{ id: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; archived: boolean }>;
+  cards: Array<{ id: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; archived: boolean; criteria?: string[] }>;
   notes: Array<{ title: string; body: string; tags: string[]; links: string[] }>;
   workflows: Array<{ name: string; cardIds: string[]; steps: Array<{ columnId: string; requireApproval: boolean }> }>;
 }
@@ -38,12 +38,13 @@ function unique(values: string[], label: string): void {
 }
 
 /** Parse a user-selected, untrusted JSON package. No path or executable setting is accepted. */
-export function parseProjectPackage(json: string): ProjectPackageV1 {
+export function parseProjectPackage(json: string): ProjectPackage {
   if (Buffer.byteLength(json, 'utf8') > PROJECT_PACKAGE_LIMIT) throw new Error('Projektpaket ist größer als 8 MiB.');
   let raw: unknown;
   try { raw = JSON.parse(json) as unknown; } catch { throw new Error('Projektpaket enthält kein gültiges JSON.'); }
   const root = object(raw, 'Projektpaket');
-  if (root.format !== 'jarvis-studio-project' || root.version !== 1) throw new Error('Unbekanntes Projektpaket-Format oder Version.');
+  if (root.format !== 'jarvis-studio-project' || (root.version !== 1 && root.version !== 2)) throw new Error('Unbekanntes Projektpaket-Format oder Version.');
+  const version = root.version;
   const name = string(root.name, 'Projektname', 200).trim();
   const columns = list(root.columns, 'Spalten', 100).map((item) => {
     const row = object(item, 'Spalte');
@@ -57,7 +58,8 @@ export function parseProjectPackage(json: string): ProjectPackageV1 {
     const columnId = string(row.columnId, 'Karten-Spalte', 100);
     if (!columnIds.has(columnId)) throw new Error('Karte verweist auf eine fehlende Spalte.');
     if (typeof row.archived !== 'boolean') throw new Error('Kartenarchivstatus ist ungültig.');
-    return { id: string(row.id, 'Karten-ID', 100), columnId, title: string(row.title, 'Kartentitel', 200).trim(), description: string(row.description, 'Kartenbeschreibung', 30_000, true), priority: cardPriority(row.priority), labels: cardLabels(row.labels), position: index(row.position, 'Kartenposition'), archived: row.archived };
+    const criteria = version === 1 ? [] : list(row.criteria, 'Abnahmekriterien', 30).map((value) => string(value, 'Abnahmekriterium', 500).trim());
+    return { id: string(row.id, 'Karten-ID', 100), columnId, title: string(row.title, 'Kartentitel', 200).trim(), description: string(row.description, 'Kartenbeschreibung', 30_000, true), priority: cardPriority(row.priority), labels: cardLabels(row.labels), position: index(row.position, 'Kartenposition'), archived: row.archived, criteria };
   });
   unique(cards.map((item) => item.id), 'Karten');
   const cardIds = new Set(cards.map((item) => item.id));
@@ -82,5 +84,5 @@ export function parseProjectPackage(json: string): ProjectPackageV1 {
     if (!steps.length) throw new Error('Workflow enthält keine Schritte.');
     return { name: string(row.name, 'Workflow-Name', 200).trim(), cardIds: ids, steps };
   });
-  return { format: 'jarvis-studio-project', version: 1, name, columns, cards, notes, workflows };
+  return { format: 'jarvis-studio-project', version, name, columns, cards, notes, workflows };
 }
