@@ -7,7 +7,7 @@ import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from '
 import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
-import type { DesignInspectionState, DesignSelection } from './design-inspection';
+import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 
@@ -195,6 +195,8 @@ export interface StudioAPI {
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
   designSelections(projectId: string): Promise<DesignSelection[]>;
   designInspectionState(): Promise<DesignInspectionState>;
+  designInspectionApplyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState>;
+  designInspectionResetThemePreview(projectId: string): Promise<DesignInspectionState>;
   designInspectionStart(input: { projectId: string; url: string }): Promise<DesignInspectionState>;
   designInspectionArm(projectId: string): Promise<DesignInspectionState>;
   designInspectionSelectSelector(input: { projectId: string; selector: string }): Promise<DesignSelection>;

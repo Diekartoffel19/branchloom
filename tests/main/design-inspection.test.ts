@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('electron', () => ({ WebContentsView: class {} }));
 
 import { StudioStore } from '../../src/main/store';
-import { designSelections, normalizeDesignSelection, normalizeDesignUrl, saveDesignSelection } from '../../src/main/design-inspection';
+import { designSelections, normalizeDesignSelection, normalizeDesignUrl, normalizeThemePreviewValue, saveDesignSelection } from '../../src/main/design-inspection';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -24,6 +24,10 @@ function fixture() {
 const raw = { selector: 'html > body > button#save', tag: 'BUTTON', text: ' Save\n draft ', styles: { color: 'rgb(33, 44, 55)', padding: '8px', unknown: 'ignored' }, tokens: [{ name: '--ink', value: ' #223344 ' }] };
 
 describe('local design inspection evidence', () => {
+  it('permits only literal request-free color and radius preview values', () => {
+    for (const value of ['#abc', '#aabbcc', '#aabbccdd', '0px', '12.5px', '99.99px']) expect(normalizeThemePreviewValue(value)).toBe(value);
+    for (const value of ['#abcd', '#abcde', '100px', '-1px', '1em', 'var(--ink)', 'url(https://example.com)', '@import x', 'red', '#fff; color: red', '1px\ncolor:red']) expect(() => normalizeThemePreviewValue(value)).toThrow();
+  });
   it('allows only explicit loopback URLs and sanitizes selected data', () => {
     expect(normalizeDesignUrl('http://127.0.0.1:5173/page?token=local')).toBe('http://127.0.0.1:5173/page?token=local');
     for (const url of ['https://example.com/', 'https://localhost.evil.test/', 'file:///etc/passwd', 'http://user:pass@localhost:5173/']) expect(() => normalizeDesignUrl(url)).toThrow();

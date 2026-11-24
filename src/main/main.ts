@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -55,6 +56,7 @@ if (smokeDataDirectory) {
   mkdirSync(join(smokeDataDirectory, 'src'));
   writeFileSync(join(smokeDataDirectory, 'src', 'widget.ts'), 'export const widget = 1;');
   writeFileSync(join(smokeDataDirectory, 'screen.ts'), "import './src/widget';");
+  writeFileSync(join(smokeDataDirectory, 'src', 'theme.css'), ':root { --smoke-ink: #243b32; }\n');
 } else if (devDataDirectory) {
   if (!isAbsolute(devDataDirectory)) throw new Error('BRANCHLOOM_DEV_USER_DATA muss ein absoluter Pfad sein.');
   mkdirSync(devDataDirectory, { recursive: true });
@@ -361,6 +363,8 @@ function installIpc(): void {
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
   bind('designInspectionState', () => designInspector?.state());
+  bind('designInspectionApplyThemePreview', (input: Parameters<StudioAPI['designInspectionApplyThemePreview']>[0]) => designInspector?.applyThemePreview(input));
+  bind('designInspectionResetThemePreview', (projectId: string) => designInspector?.resetThemePreview(projectId));
   bind('designInspectionStart', (input: Parameters<StudioAPI['designInspectionStart']>[0]) => designInspector?.start(input));
   bind('designInspectionArm', (projectId: string) => designInspector?.arm(projectId));
   bind('designInspectionSelectSelector', (input: Parameters<StudioAPI['designInspectionSelectSelector']>[0]) => designInspector?.selectSelector(input.projectId, input.selector));
@@ -995,6 +999,9 @@ function createWindow(): void {
             })()
           `;
           void smokeWindow.webContents.executeJavaScript(boardScript).then(async () => {
+            execFileSync('git', ['init', '-q', smokeDataDirectory!], { windowsHide: true });
+            execFileSync('git', ['-C', smokeDataDirectory!, 'add', '--', 'src/theme.css'], { windowsHide: true });
+            execFileSync('git', ['-C', smokeDataDirectory!, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic smoke theme'], { windowsHide: true });
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Design');
               if (!nav) throw new Error('Design-Navigation fehlt.');
@@ -1047,6 +1054,35 @@ function createWindow(): void {
             })()`);
             for (let attempt = 0; attempt < 100 && designSelections(smokeStore, smokeProject.id).length < 2; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
             if (designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('CSS-Selektor-Auswahl speicherte keinen zweiten Beleg.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              document.querySelector('.theme-tokens-head button')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-list button:last-child'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const item = [...document.querySelectorAll('.theme-tokens-list li')].find((node) => node.textContent?.includes('--smoke-ink'));
+              if (!item) throw new Error('Versionierter Smoke-Token fehlt im sichtbaren Design-Panel.');
+              [...item.querySelectorAll('button')].find((button) => button.textContent?.includes('Testen'))?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-preview input'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const field = document.querySelector('.theme-tokens-preview input');
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!field || !setter) throw new Error('Theme-Playground-Eingabe fehlt.');
+              setter.call(field, '#aabbcc');
+              field.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && document.querySelector('.theme-tokens-preview button[type="submit"]')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              document.querySelector('.theme-tokens-preview button[type="submit"]')?.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.designInspectionState()).themePreview; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.designInspectionState()).themePreview?.value !== '#aabbcc') throw new Error('Theme-Vorschau wurde nicht angewendet: ' + document.querySelector('.theme-tokens-preview')?.textContent);
+              return true;
+            })()`);
+            const changedTheme = await designInspector!.smokeThemeValue('#design-smoke-target', '--smoke-ink');
+            if (changedTheme.inline !== '#aabbcc' || changedTheme.computed !== 'rgb(170, 187, 204)') throw new Error('Theme-Vorschau änderte den berechneten Stil nicht: ' + JSON.stringify(changedTheme));
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              [...document.querySelectorAll('.theme-tokens-preview button')].find((button) => button.textContent?.includes('Zurücksetzen'))?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.designInspectionState()).themePreview; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.designInspectionState()).themePreview) throw new Error('Theme-Vorschau blieb nach Zurücksetzen aktiv.');
+              return true;
+            })()`);
+            const resetTheme = await designInspector!.smokeThemeValue('#design-smoke-target', '--smoke-ink');
+            if (resetTheme.inline || resetTheme.computed !== 'rgb(36, 59, 50)') throw new Error('Theme-Vorschau wurde nicht rückgängig gemacht: ' + JSON.stringify(resetTheme));
+            if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n' || designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('Theme-Vorschau änderte Quelldatei oder gespeicherte Auswahl.');
             await smokeWindow.webContents.executeJavaScript(`[...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click()`);
             for (let attempt = 0; attempt < 100 && designInspector?.state().ready; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
             if (designInspector?.state().ready) throw new Error('Design-Vorschau blieb nach Ansichtswechsel offen.');

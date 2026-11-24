@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type Database from 'better-sqlite3';
 import type { BrowserBounds } from '../shared/types';
-import type { DesignInspectionState, DesignSelection } from '../shared/design-inspection';
+import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from '../shared/design-inspection';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import type { StudioStore } from './store';
+import { scanThemeTokens } from './theme-tokens';
 
 const MAX_SELECTIONS = 20;
 const STYLE_KEYS = ['color', 'backgroundColor', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'borderRadius', 'padding', 'display'] as const;
@@ -71,6 +72,15 @@ export function normalizeDesignUrl(value: string): string {
   return url;
 }
 
+/** Only literal, request-free values may cross into a preview page as CSS. */
+export function normalizeThemePreviewValue(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 32) throw new Error('Nutze einen Hex-Farbwert oder einen Radius von 0 bis 99 px.');
+  const trimmed = value.trim();
+  if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) return trimmed;
+  if (/^(?:0|[1-9][0-9]?)(?:\.[0-9]{1,2})?px$/.test(trimmed)) return trimmed;
+  throw new Error('Nutze einen Hex-Farbwert oder einen Radius von 0 bis 99 px.');
+}
+
 const inspectScript = (targetExpression: string): string => `(() => {
   const node = ${targetExpression};
   if (!(node instanceof Element)) return null;
@@ -107,6 +117,9 @@ export class DesignInspector {
   private busy = false;
   private ready = false;
   private attached = false;
+  private pageGeneration = 0;
+  private themeBusy = false;
+  private themePreview: { name: string; value: string; path: string; line: number; original: string; priority: string } | null = null;
   private readonly preventDownload = (event: Electron.Event): void => event.preventDefault();
   private readonly resize = (): void => this.layout();
 
@@ -114,7 +127,7 @@ export class DesignInspector {
     window.on('resize', this.resize);
   }
 
-  state(): DesignInspectionState { return { projectId: this.projectId, sourceUrl: this.sourceUrl ? diagnosticSource(this.sourceUrl) : null, ready: this.ready, armed: this.armed }; }
+  state(): DesignInspectionState { return { projectId: this.projectId, sourceUrl: this.sourceUrl ? diagnosticSource(this.sourceUrl) : null, ready: this.ready, armed: this.armed, themePreview: this.themePreview ? { name: this.themePreview.name, value: this.themePreview.value, path: this.themePreview.path, line: this.themePreview.line } : null }; }
 
   async start(input: { projectId: string; url: string }): Promise<DesignInspectionState> {
     this.close();
@@ -126,6 +139,7 @@ export class DesignInspector {
     this.sourceUrl = url;
     const origin = new URL(url).origin;
     const contents = view.webContents;
+    contents.on('did-start-navigation', () => { this.pageGeneration++; this.themePreview = null; });
     const previewSession = contents.session;
     this.partitionSession = previewSession;
     previewSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
@@ -183,6 +197,53 @@ export class DesignInspector {
     } finally { this.busy = false; }
   }
 
+  async applyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState> {
+    const { projectId, token } = input ?? ({} as ThemePreviewInput);
+    const value = normalizeThemePreviewValue(input?.value);
+    if (!token || typeof token.name !== 'string' || !/^--[A-Za-z0-9_-]{1,98}$/.test(token.name) ||
+      typeof token.path !== 'string' || typeof token.line !== 'number' || typeof token.sourceFingerprint !== 'string') throw new Error('Wähle eine gefundene CSS-Variable.');
+    const view = this.requireThemePreview(projectId);
+    if (this.themeBusy) throw new Error('Eine Theme-Vorschau läuft bereits.');
+    if (this.themePreview) throw new Error('Setze zuerst die aktive Vorschau zurück.');
+    this.themeBusy = true;
+    try {
+      const generation = this.pageGeneration;
+      const pageUrl = view.webContents.getURL();
+      const inventory = await scanThemeTokens(this.store, projectId);
+      if (this.view !== view || this.pageGeneration !== generation || this.projectId !== projectId || view.webContents.getURL() !== pageUrl) throw new Error('Die Vorschau hat sich während der Prüfung geändert.');
+      if (!inventory.definitions.some((item) => item.name === token.name && item.path === token.path && item.line === token.line && item.sourceFingerprint === token.sourceFingerprint && item.value === token.value && item.valueTruncated === token.valueTruncated)) throw new Error('Die CSS-Fundstelle ist veraltet. Suche die Tokens erneut.');
+      const script = `(() => { const root = document.documentElement; const name = ${JSON.stringify(token.name)}; const original = root.style.getPropertyValue(name); const priority = root.style.getPropertyPriority(name); root.style.setProperty(name, ${JSON.stringify(value)}); return { original, priority, applied: root.style.getPropertyValue(name) }; })()`;
+      const result = await view.webContents.executeJavaScript(script, false) as { original: string; priority: string; applied: string };
+      if (this.view !== view || this.pageGeneration !== generation || this.projectId !== projectId || view.webContents.getURL() !== pageUrl) throw new Error('Die Vorschau hat sich während der Änderung geändert.');
+      if (result.applied !== value) throw new Error('Die CSS-Variable konnte nicht angewendet werden.');
+      this.themePreview = { name: token.name, value, path: token.path, line: token.line, original: result.original, priority: result.priority };
+      return this.state();
+    } finally { this.themeBusy = false; }
+  }
+
+  async resetThemePreview(projectId: string): Promise<DesignInspectionState> {
+    const view = this.requireThemePreview(projectId);
+    if (this.themeBusy) throw new Error('Eine Theme-Vorschau läuft bereits.');
+    const active = this.themePreview;
+    if (!active) return this.state();
+    this.themeBusy = true;
+    try {
+      const generation = this.pageGeneration;
+      const pageUrl = view.webContents.getURL();
+      const script = `(() => { const root = document.documentElement; const name = ${JSON.stringify(active.name)}; if (root.style.getPropertyValue(name) !== ${JSON.stringify(active.value)}) return false; const original = ${JSON.stringify(active.original)}; if (original) root.style.setProperty(name, original, ${JSON.stringify(active.priority)}); else root.style.removeProperty(name); return true; })()`;
+      const restored = await view.webContents.executeJavaScript(script, false) as boolean;
+      if (this.view !== view || this.pageGeneration !== generation || this.projectId !== projectId || view.webContents.getURL() !== pageUrl) throw new Error('Die Vorschau hat sich während des Zurücksetzens geändert.');
+      this.themePreview = null;
+      if (!restored) throw new Error('Die Seite hat den Wert selbst geändert. Der ursprüngliche Wert wurde nicht überschrieben.');
+      return this.state();
+    } finally { this.themeBusy = false; }
+  }
+
+  private requireThemePreview(projectId: string): WebContentsView {
+    if (!this.ready || !this.visible || !this.attached || !this.view || this.view.webContents.isDestroyed() || this.projectId !== projectId) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
+    return this.view;
+  }
+
   setBounds(bounds: BrowserBounds | null): DesignInspectionState {
     this.bounds = clampBrowserBounds(bounds, this.window.getContentSize());
     this.layout();
@@ -197,6 +258,8 @@ export class DesignInspector {
   }
 
   close(): DesignInspectionState {
+    this.pageGeneration++;
+    this.themePreview = null;
     this.armed = false;
     this.ready = false;
     this.busy = false;
@@ -228,6 +291,12 @@ export class DesignInspector {
     this.view.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x, y, clickCount: 1 });
     await new Promise((resolve) => setTimeout(resolve, 50));
     if (await this.view.webContents.executeJavaScript('window.__designSmokeClicks') !== 0) throw new Error('Der Design-Auswahlklick wurde an die Vorschau-Seite weitergegeben.');
+  }
+
+  /** Real-Electron smoke observation; never available outside --studio-smoke. */
+  async smokeThemeValue(selector: string, name: string): Promise<{ inline: string; computed: string }> {
+    if (!process.argv.includes('--studio-smoke') || !this.view || !this.ready) throw new Error('Design-Smoke-Vorschau ist nicht bereit.');
+    return this.view.webContents.executeJavaScript(`(() => { const root = document.documentElement; const element = document.querySelector(${JSON.stringify(selector)}); return { inline: root.style.getPropertyValue(${JSON.stringify(name)}), computed: element ? getComputedStyle(element).color : '' }; })()`) as Promise<{ inline: string; computed: string }>;
   }
 
   private async capture(contents: Electron.WebContents, targetExpression: string): Promise<DesignSelection | null> {
