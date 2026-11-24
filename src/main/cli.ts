@@ -10,6 +10,7 @@ import { ensureCardWorktree } from './git-worktree';
 import { buildAntigravityArgs } from './antigravity';
 import { CodexJsonlOutput } from './codex-jsonl';
 import { approvedCardWireframeContext } from './card-wireframe';
+import { assertCardWireframeReady } from './card-wireframe-gate';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -225,6 +226,7 @@ export class SessionRunner {
   start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot'; useWorktree?: boolean; overrides?: { model: string | null; effort: ColumnEffort | null } }): Session {
     const card = this.store.card(input.cardId);
     if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    assertCardWireframeReady(this.store, card.id);
     const project = this.store.project(card.projectId);
     const column = this.store.column(card.columnId);
     const agentId = input.agentId ?? column.agentId;

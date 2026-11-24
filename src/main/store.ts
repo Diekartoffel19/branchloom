@@ -26,6 +26,7 @@ import { installDesignInspection } from './design-inspection';
 import { installDesignStateRoutes } from './design-state-routes';
 import { installMemoryGitSources } from './memory-git-source';
 import { installCardWireframes } from './card-wireframe';
+import { wireframeStartBlockReason } from './card-wireframe-gate';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -47,7 +48,7 @@ function optionalText(value: string, label: string, max = 30000): string {
 
 interface ProjectRow { id: string; name: string; path: string; created_at: string }
 interface ColumnRow { id: string; project_id: string; name: string; position: number; auto_start: number; agent_id: string | null; model: string | null; effort: ColumnEffort | null }
-interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; priority: CardPriority; labels_json: string; position: number; created_at: string; updated_at: string; archived_at: string | null }
+interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; priority: CardPriority; labels_json: string; wireframe_required: number; position: number; created_at: string; updated_at: string; archived_at: string | null }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
 interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null; codex_thread_id: string | null }
 interface CommandTerminalRow { id: string; project_id: string; shell: CommandShell; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; card_id: string | null; worktree_path: string | null }
@@ -61,7 +62,7 @@ interface AttachmentRow { id: string; card_id: string; path: string; name: strin
 
 const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, path: row.path, createdAt: row.created_at });
 const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id, model: row.model, effort: row.effort });
-const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, priority: row.priority, labels: parseArray<string>(row.labels_json), position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
+const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, priority: row.priority, labels: parseArray<string>(row.labels_json), wireframeRequired: asBool(row.wireframe_required), position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
 const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path, codexThreadId: row.codex_thread_id });
 const commandTerminal = (row: CommandTerminalRow): CommandTerminal => ({ id: row.id, projectId: row.project_id, shell: row.shell, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, cardId: row.card_id, worktreePath: row.worktree_path });
@@ -82,7 +83,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, command TEXT NOT NULL, args_json TEXT NOT NULL, model TEXT, enabled INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id), model TEXT, effort TEXT);
-      CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, priority TEXT NOT NULL DEFAULT 'none', labels_json TEXT NOT NULL DEFAULT '[]');
+      CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, priority TEXT NOT NULL DEFAULT 'none', labels_json TEXT NOT NULL DEFAULT '[]', wireframe_required INTEGER NOT NULL DEFAULT 0 CHECK (wireframe_required IN (0, 1)));
       CREATE TABLE IF NOT EXISTS card_attachments (id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, path TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, added_at TEXT NOT NULL, UNIQUE(card_id, path));
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, agent_id TEXT NOT NULL REFERENCES agents(id), state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS command_terminals (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, shell TEXT NOT NULL, state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
@@ -119,6 +120,7 @@ export class StudioStore {
     if (!cardColumns.some((item) => item.name === 'archived_at')) this.db.exec('ALTER TABLE cards ADD COLUMN archived_at TEXT');
     if (!cardColumns.some((item) => item.name === 'priority')) this.db.exec("ALTER TABLE cards ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'");
     if (!cardColumns.some((item) => item.name === 'labels_json')) this.db.exec("ALTER TABLE cards ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'");
+    if (!cardColumns.some((item) => item.name === 'wireframe_required')) this.db.exec('ALTER TABLE cards ADD COLUMN wireframe_required INTEGER NOT NULL DEFAULT 0 CHECK (wireframe_required IN (0, 1))');
     const columnColumns = this.db.pragma('table_info(columns)') as Array<{ name: string }>;
     if (!columnColumns.some((item) => item.name === 'model')) this.db.exec('ALTER TABLE columns ADD COLUMN model TEXT');
     if (!columnColumns.some((item) => item.name === 'effort')) this.db.exec('ALTER TABLE columns ADD COLUMN effort TEXT');
@@ -383,15 +385,18 @@ export class StudioStore {
     const destination = this.column(input.columnId);
     if (destination.projectId !== input.projectId) throw new Error('Column belongs to another project');
     const stamp = now();
-    const value: Card = { id: randomUUID(), projectId: input.projectId, columnId: input.columnId, title: trimmed(input.title, 'Card title'), description: optionalText(input.description ?? '', 'Card description'), priority: cardPriority(input.priority ?? 'none'), labels: cardLabels(input.labels ?? []), position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(input.columnId) as { next: number }).next, createdAt: stamp, updatedAt: stamp, archivedAt: null };
+    const value: Card = { id: randomUUID(), projectId: input.projectId, columnId: input.columnId, title: trimmed(input.title, 'Card title'), description: optionalText(input.description ?? '', 'Card description'), priority: cardPriority(input.priority ?? 'none'), labels: cardLabels(input.labels ?? []), wireframeRequired: false, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(input.columnId) as { next: number }).next, createdAt: stamp, updatedAt: stamp, archivedAt: null };
     this.db.prepare('INSERT INTO cards (id, project_id, column_id, title, description, position, created_at, updated_at, archived_at, priority, labels_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)').run(value.id, value.projectId, value.columnId, value.title, value.description, value.position, value.createdAt, value.updatedAt, value.priority, json(value.labels));
     return value;
   }
-  updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[] }): Card {
+  updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean }): Card {
     const old = this.card(input.id);
     if (old.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
-    const value = { ...old, title: input.title === undefined ? old.title : trimmed(input.title, 'Card title'), description: input.description === undefined ? old.description : optionalText(input.description, 'Card description'), priority: input.priority === undefined ? old.priority : cardPriority(input.priority), labels: input.labels === undefined ? old.labels : cardLabels(input.labels), updatedAt: now() };
-    this.db.prepare('UPDATE cards SET title = ?, description = ?, priority = ?, labels_json = ?, updated_at = ? WHERE id = ?').run(value.title, value.description, value.priority, json(value.labels), value.updatedAt, input.id);
+    if (input.wireframeRequired !== undefined && typeof input.wireframeRequired !== 'boolean') throw new Error('Ungültige Wireframe-Einstellung.');
+    if (input.wireframeRequired !== undefined && input.wireframeRequired !== old.wireframeRequired &&
+      this.db.prepare("SELECT 1 FROM sessions WHERE card_id = ? AND state = 'running' LIMIT 1").get(input.id)) throw new Error('Laufenden Agenten zuerst stoppen, bevor die Wireframe-Einstellung geändert wird.');
+    const value = { ...old, title: input.title === undefined ? old.title : trimmed(input.title, 'Card title'), description: input.description === undefined ? old.description : optionalText(input.description, 'Card description'), priority: input.priority === undefined ? old.priority : cardPriority(input.priority), labels: input.labels === undefined ? old.labels : cardLabels(input.labels), wireframeRequired: input.wireframeRequired ?? old.wireframeRequired, updatedAt: now() };
+    this.db.prepare('UPDATE cards SET title = ?, description = ?, priority = ?, labels_json = ?, wireframe_required = ?, updated_at = ? WHERE id = ?').run(value.title, value.description, value.priority, json(value.labels), value.wireframeRequired ? 1 : 0, value.updatedAt, input.id);
     return value;
   }
   moveCard(input: { id: string; columnId: string }): Card {
@@ -709,7 +714,9 @@ export class StudioStore {
         ? 'manual'
         : progress.some((item) => item.state === 'needs_review')
           ? 'review'
-          : 'user';
+          : step?.agentId && progress.some((item) => item.state === 'pending' && wireframeStartBlockReason(this, item.cardId))
+            ? 'wireframe'
+            : 'user';
     return { ...value, pauseReason };
   }
   saveWorkflowStartError(id: string, reason: unknown): void {

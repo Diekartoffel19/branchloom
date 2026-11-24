@@ -13,6 +13,7 @@ export function workflowPauseCopy(reason: Workflow['pauseReason']): { descriptio
   if (reason === 'approval') return { description: 'Freigabe erforderlich: Der nächste Schritt startet erst nach deiner Bestätigung.', action: 'Schritt freigeben' };
   if (reason === 'manual') return { description: 'Der agentenlose Schritt wurde verschoben und wartet auf deine Bestätigung.', action: 'Schritt abschließen' };
   if (reason === 'review') return { description: 'Ein Agentenlauf muss geprüft werden. Öffne die betroffene Karte, bevor du diesen Schritt erneut startest.', action: 'Schritt erneut starten' };
+  if (reason === 'wireframe') return { description: 'Diese Karte verlangt vor dem Agentenstart einen gespeicherten und aktuell freigegebenen Wireframe. Öffne die Karte im Designbereich.', action: 'Nach Designfreigabe fortsetzen' };
   return { description: 'Der Workflow ist pausiert. Du kannst ihn fortsetzen.', action: 'Fortsetzen' };
 }
 

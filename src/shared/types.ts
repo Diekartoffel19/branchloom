@@ -28,7 +28,7 @@ export interface WhiteboardNode { id: string; projectId: string; title: string; 
 export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string; cardId: string | null }
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
-export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
+export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; wireframeRequired: boolean; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' } | { projectId: string; cardIds: string[]; action: 'priority'; priority: CardPriority };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
 export type CardContextKind = 'file' | 'folder' | 'url' | 'design';
@@ -45,7 +45,7 @@ export interface CommandTerminalTarget { cardId: string; cardTitle: string; bran
 export interface CommandTerminalEvent { terminalId: string; projectId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle: string; agentName: string; startedAt: string; snippet: string }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean; model?: string | null; effort?: ColumnEffort | null; useWorktree?: boolean }
-export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'user'; startError?: { message: string; at: string }; queueSkip?: { reason: string; at: string }; createdAt: string; updatedAt: string }
+export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'wireframe' | 'user'; startError?: { message: string; at: string }; queueSkip?: { reason: string; at: string }; createdAt: string; updatedAt: string }
 export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null }
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
@@ -119,7 +119,7 @@ export interface StudioAPI {
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   designTaskCandidate(input: { projectId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
   createCardFromDesignRequest(input: { projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string }): Promise<Card>;
-  updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
+  updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean }): Promise<Card>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;
   bulkUpdateCards(input: BulkCardAction): Promise<Card[]>;
   reorderCard(input: { id: string; direction: 'up' | 'down' }): Promise<Card>;

@@ -626,6 +626,20 @@ function createWindow(): void {
               keyboardClose.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
               for (let attempt = 0; attempt < 100 && (document.querySelector('.card-drawer') || document.activeElement !== keyboardCard); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.card-drawer') || document.activeElement !== keyboardCard || !(await sessionsUnchanged())) throw new Error('Karten-Tastaturtest: Escape schloss nicht mit Fokus-Rückgabe oder startete einen Agenten.');
+              keyboardCard.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const gateDialog = document.querySelector('.card-drawer');
+              const gateLabel = [...(gateDialog?.querySelectorAll('label') ?? [])].find((item) => item.textContent?.includes('Wireframe vor Agentenstart prüfen'));
+              const gateToggle = gateLabel?.querySelector('input[type="checkbox"]');
+              if (!(gateToggle instanceof HTMLInputElement) || gateToggle.checked) throw new Error('Optionale Karten-Wireframe-Freigabe fehlt oder ist standardmäßig aktiv.');
+              gateToggle.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.wireframeRequired; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.wireframeRequired) throw new Error('Wireframe-Pflicht wurde nicht gespeichert.');
+              let gateBlocked = false;
+              try { await window.studio.startSession({ cardId: bulkCard.id, agentId: ${JSON.stringify(evidenceAgent.id)}, prompt: 'Synthetischer gesperrter Start' }); }
+              catch (reason) { gateBlocked = String(reason).includes('aktuell freigegebenen Wireframe'); }
+              if (!gateBlocked || !(await sessionsUnchanged())) throw new Error('Karten-Wireframe-Pflicht ließ einen Agenten ohne Freigabe starten.');
+              gateDialog?.querySelector('button[aria-label="Karte schließen"]')?.click();
               const bulkSelect = document.querySelector('.board-card-wrap input[aria-label="„Smoke-Karte“ für Sammelaktion auswählen"]');
               if (!bulkSelect) throw new Error('Bulk-Priorität: Kartenauswahl fehlt.');
               bulkSelect.click();

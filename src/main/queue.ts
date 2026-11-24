@@ -10,6 +10,7 @@ function pauseMessage(workflow: Workflow): string {
   if (workflow.pauseReason === 'approval') return 'Workflow wartet auf eine ausdrückliche Schrittfreigabe.';
   if (workflow.pauseReason === 'manual') return 'Workflow wartet auf Bestätigung eines manuellen Schritts.';
   if (workflow.pauseReason === 'review') return 'Agentenlauf prüfen; ein erneuter Start kann eine Aktion wiederholen.';
+  if (workflow.pauseReason === 'wireframe') return 'Wireframe zur aktiven Karte im Designbereich speichern und aktuell freigeben. Danach Workflow und Queue bewusst fortsetzen.';
   return 'Aktiven Workflow prüfen und ausdrücklich fortsetzen.';
 }
 

@@ -1,6 +1,7 @@
 import type { Session, Workflow } from '../shared/types';
 import { DONE_MARKER, SessionRunner } from './cli';
 import { StudioStore } from './store';
+import { wireframeStartBlockReason } from './card-wireframe-gate';
 
 /** Last-line gate: the marker in the initial instruction or an earlier echo is not completion. */
 export function hasCompletionMarker(output: string): boolean {
@@ -106,6 +107,10 @@ export class WorkflowEngine {
           continue;
         }
         const card = this.store.card(next.cardId);
+        if (step.agentId && wireframeStartBlockReason(this.store, card.id)) {
+          this.store.setWorkflowState(id, 'paused');
+          return;
+        }
         if (card.columnId !== step.columnId) this.store.moveCard({ id: card.id, columnId: step.columnId });
         const agentId = step.agentId;
         if (!agentId) {
