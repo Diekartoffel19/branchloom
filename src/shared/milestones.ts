@@ -6,6 +6,9 @@ export interface ProjectMilestone {
   branch: string | null;
   commit: string;
   createdAt: string;
+  previewAvailable: boolean;
+  previewSource: string | null;
+  previewCapturedAt: string | null;
 }
 
 export interface MilestoneComparison {

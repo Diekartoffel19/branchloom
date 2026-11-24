@@ -3,8 +3,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
+import Database from 'better-sqlite3';
 import { StudioStore } from '../../src/main/store';
-import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from '../../src/main/milestones';
+import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from '../../src/main/milestones';
+import { normalizeMilestonePreviewUrl } from '../../src/main/milestone-preview';
+
+const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nAAAAABJRU5ErkJggg==', 'base64');
+const localUrl = 'http://127.0.0.1:5173/preview?token=synthetic';
+const captured = () => ({ png: tinyPng, source: `${localUrl}#state`, capturedAt: '2026-01-01T00:00:00.000Z' });
 
 const roots: string[] = [];
 const stores: StudioStore[] = [];
@@ -79,5 +85,63 @@ describe('manual Git milestones', () => {
     const other = store.createProject({ name: 'Nested', path: nested });
     expect(() => createMilestone(store, { projectId: other.id, label: 'Nested' })).toThrow('Repository-Stamm');
     store.close();
+  });
+});
+
+describe('optional local milestone screenshots', () => {
+  it('saves a bounded image with the Git marker across restart and isolates access by project', async () => {
+    const { store, project, file, root } = setup();
+    const marked = await createMilestoneWithPreview(store, { projectId: project.id, label: 'Mit Bild', url: localUrl }, async () => captured());
+    expect(marked.previewAvailable).toBe(true);
+    expect(marked.previewSource).toBe('http://127.0.0.1:5173/preview');
+    expect(marked.previewCapturedAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(milestonePreviewImage(store, { projectId: project.id, milestoneId: marked.id })).toBe(`data:image/png;base64,${tinyPng.toString('base64')}`);
+    const otherPath = join(root, 'other-project'); mkdirSync(otherPath);
+    const second = store.createProject({ name: 'Other', path: otherPath });
+    expect(() => milestonePreviewImage(store, { projectId: second.id, milestoneId: marked.id })).toThrow('nicht gefunden');
+    store.close();
+    const reopened = new StudioStore(file); stores.push(reopened);
+    expect(listMilestones(reopened, project.id)).toEqual([marked]);
+    expect(milestonePreviewImage(reopened, { projectId: project.id, milestoneId: marked.id })).toContain(tinyPng.toString('base64'));
+  });
+
+  it('migrates old milestone rows without removing their Git references', () => {
+    const { store, project, file } = setup();
+    const legacy = createMilestone(store, { projectId: project.id, label: 'Vor Update' });
+    store.close();
+    const db = new Database(file);
+    db.exec('ALTER TABLE project_milestones DROP COLUMN preview_png; ALTER TABLE project_milestones DROP COLUMN preview_source; ALTER TABLE project_milestones DROP COLUMN preview_captured_at;');
+    db.close();
+    const reopened = new StudioStore(file); stores.push(reopened);
+    expect(listMilestones(reopened, project.id)).toEqual([legacy]);
+    expect(legacy.previewAvailable).toBe(false);
+    expect(() => milestonePreviewImage(reopened, { projectId: project.id, milestoneId: legacy.id })).toThrow('kein gültiges Vorschau-Bild');
+    expect(compareMilestone(reopened, { projectId: project.id, milestoneId: legacy.id }).currentCommit).toBe(legacy.commit);
+  });
+
+  it('rejects foreign URLs and invalid captures before a Git marker is saved', async () => {
+    const { store, project, git } = setup();
+    for (const url of ['https://example.invalid/', 'http://192.168.1.2:5173/', 'file:///C:/secret', 'http://user:pass@127.0.0.1/']) {
+      expect(() => normalizeMilestonePreviewUrl(url)).toThrow();
+    }
+    let invoked = false;
+    await expect(createMilestoneWithPreview(store, { projectId: project.id, label: 'External', url: 'https://example.invalid/' }, async () => { invoked = true; return captured(); })).rejects.toThrow('localhost');
+    expect(invoked).toBe(false);
+    await expect(createMilestoneWithPreview(store, { projectId: project.id, label: 'Oversize', url: localUrl }, async () => ({ ...captured(), png: Buffer.alloc(1_000_001) }))).rejects.toThrow('ungültig');
+    await expect(createMilestoneWithPreview(store, { projectId: project.id, label: 'Wrong origin', url: localUrl }, async () => ({ ...captured(), source: 'http://localhost:5173/' }))).rejects.toThrow('Origin');
+    expect(listMilestones(store, project.id)).toEqual([]);
+    expect(git('for-each-ref', '--format=%(refname)', 'refs/branchloom/milestones')).toBe('');
+  });
+
+  it('rejects a commit changed during capture without saving a stale milestone', async () => {
+    const { store, project, projectPath, git } = setup();
+    await expect(createMilestoneWithPreview(store, { projectId: project.id, label: 'Moving target', url: localUrl }, async () => {
+      writeFileSync(join(projectPath, 'README.md'), 'changed during screenshot\n');
+      git('add', 'README.md');
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'Second');
+      return captured();
+    })).rejects.toThrow('während der Vorschauaufnahme geändert');
+    expect(listMilestones(store, project.id)).toEqual([]);
+    expect(git('for-each-ref', '--format=%(refname)', 'refs/branchloom/milestones')).toBe('');
   });
 });

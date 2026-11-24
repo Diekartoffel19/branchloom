@@ -7,6 +7,11 @@
 .milestones-create input { width: 100%; }
 .milestones-create button { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; }
 .milestones-create small { flex: 1 1 100%; color: var(--muted); line-height: 1.45; }
+.milestones-preview-option { flex: 1 1 100%; border-top: 1px solid var(--border); padding-top: 12px; }
+.milestones-preview-option summary { width: fit-content; cursor: pointer; color: var(--text); font-size: 13px; font-weight: 700; }
+.milestones-preview-option label { margin-top: 12px; max-width: 560px; }
+.milestones-preview-option p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.milestones-preview-option summary:focus-visible, .milestones-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .milestones-feedback { border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); padding: 11px 13px; font-size: 13px; }
 .milestones-feedback.error { color: var(--danger); border-color: var(--danger); }
 .milestones-list { margin-top: 22px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
@@ -24,6 +29,9 @@
 .milestones-comparison h3 { font-size: 19px; margin: 0 0 7px; }
 .milestones-comparison-head p { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .milestones-condition { color: var(--muted); line-height: 1.5; font-size: 13px; margin: 18px 0; }
+.milestones-preview-result { border-top: 1px solid var(--border); padding: 14px 0 18px; }
+.milestones-preview-result p { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.milestones-preview-result img { display: block; width: min(100%, 960px); height: auto; margin: 14px 0; border: 1px solid var(--border); border-radius: 6px; }
 .milestones-files { max-height: 360px; overflow: auto; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
 .milestones-files li { display: flex; gap: 14px; padding: 9px 4px; border-bottom: 1px solid var(--border); font-size: 12px; }
 .milestones-files li span { min-width: 18px; color: var(--accent); font-weight: 700; }
