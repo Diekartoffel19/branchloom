@@ -39,6 +39,7 @@ function service(request?: (url: URL) => Response | Promise<Response>) {
     expect(url.searchParams.has('key')).toBe(false);
     expect(url.searchParams.has('token')).toBe(false);
     expect(init?.method).toBe('GET');
+    expect(init?.redirect).toBe('error');
     expect(String((init?.headers as Record<string, string>)?.Authorization)).toContain(`oauth_consumer_key="${key}"`);
     if (request) return request(url);
     if (url.pathname === '/1/members/me') return reply({ id: ids.member, fullName: 'Demo Person' });
@@ -57,9 +58,12 @@ describe('read-only Trello connection', () => {
     const { root, store } = fixture();
     const api = service();
     const connection = new TrelloConnection(root, secure, api.fetcher);
-    expect(connection.authorizationUrl(key)).toContain('scope=read');
-    expect(connection.authorizationUrl(key)).toContain('expiration=30days');
-    expect(connection.authorizationUrl(key)).not.toContain(token);
+    const consent = new URL(connection.authorizationUrl(key));
+    expect(consent.origin).toBe('https://trello.com');
+    expect(consent.pathname).toBe('/1/authorize');
+    expect(Object.fromEntries(consent.searchParams)).toEqual({ key, name: 'Branchloom', expiration: '30days', scope: 'read', response_type: 'token' });
+    expect(consent.toString()).not.toContain(token);
+    expect(() => connection.authorizationUrl(`${key}&return_url=https://outside.example/`)).toThrow('API-Key');
     await expect(connection.status()).resolves.toEqual({ connected: false, memberName: null });
     await expect(connection.connect({ key: 'bad', token })).rejects.toThrow('API-Key');
     await expect(connection.connect({ key, token: 'bad' })).rejects.toThrow('Token');

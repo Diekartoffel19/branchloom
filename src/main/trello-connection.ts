@@ -138,6 +138,8 @@ export class TrelloConnection {
       response = await this.request(url, {
         method: 'GET',
         headers: { Accept: 'application/json', Authorization: `OAuth oauth_consumer_key="${credential.key}", oauth_token="${credential.token}"` },
+        // A Trello endpoint must never send the credential-bearing request to a redirect target.
+        redirect: 'error',
         signal: AbortSignal.timeout(15_000),
       });
     } catch { throw new Error('Trello ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.'); }

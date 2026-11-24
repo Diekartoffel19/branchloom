@@ -11,6 +11,8 @@ Unter **Board → Trello importieren** ist **Trello verbinden** die erste Wahl. 
 
 Branchloom besitzt derzeit **keinen eigenen mitgelieferten Trello-API-Key**. Deshalb ist der eigene Key einmalig nötig; ein vollständig automatischer Ein-Klick-Login ist noch offen. Ein abgelaufener oder widerrufener Token führt zu einer sichtbaren Fehlermeldung und muss neu verbunden werden. Branchloom ruft Trello nur auf ausdrückliche Bedienung hin ab; es synchronisiert spätere Änderungen nicht automatisch. Die Verbindung braucht Internet. Grundlage sind Atlassians [Autorisierungsanleitung](https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/) und [REST-API-Einstieg](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/).
 
+Der Freigabe-Knopf öffnet ausschließlich Trellos feste Autorisierungsadresse mit Leserechten; er übermittelt keinen Token und verwendet keinen Rücksprung auf eine fremde Seite. Spätere API-Abfragen senden den Token nur im Header an `api.trello.com` und folgen keiner Weiterleitung.
+
 ## Offline-Alternative: JSON-Datei
 
 Unter **JSON-Datei** kannst du weiterhin den Export eines einzelnen Trello-Boards wählen. In Trello: Boardmenü → **Drucken, Exportieren und Teilen** → JSON exportieren. [Atlassian beschreibt den Export hier](https://support.atlassian.com/trello/docs/exporting-data-from-trello/). Die Datei wird nur im Arbeitsspeicher gelesen; sie sollte außerhalb eines öffentlichen Git-Repositories liegen.
