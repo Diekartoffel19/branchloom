@@ -84,6 +84,7 @@ const studio: StudioAPI = {
   agents: () => invoke('agents'),
   detectAgents: () => invoke('detectAgents'),
   agentCapabilityEvidence: () => invoke('agentCapabilityEvidence'),
+  sessionRecovery: (sessionId) => invoke('sessionRecovery', sessionId),
   saveAgent: (input) => invoke('saveAgent', input),
   startSession: (input) => invoke('startSession', input),
   resumeCodexSession: (input) => invoke('resumeCodexSession', input),

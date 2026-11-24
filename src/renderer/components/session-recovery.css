@@ -1,0 +1,8 @@
+.session-recovery { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); font-size: 12px; }
+.session-recovery > strong { font-size: 12px; font-weight: 600; }
+.session-recovery p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.session-recovery details { color: var(--muted); }
+.session-recovery summary { cursor: pointer; width: fit-content; }
+.session-recovery summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.session-recovery ol { margin: 6px 0 0; padding-left: 20px; }
+.session-recovery li { margin: 3px 0; font-variant-numeric: tabular-nums; }

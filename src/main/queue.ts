@@ -18,7 +18,7 @@ function pauseMessage(workflow: Workflow): string {
 export class ProjectQueueEngine {
   private readonly pumping = new Set<string>();
   private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  constructor(private readonly store: StudioStore, private readonly workflows: WorkflowEngine) {}
+  constructor(private readonly store: StudioStore, private readonly workflows: WorkflowEngine, private readonly deviceOnline: () => boolean = () => true) {}
 
   dispose(): void {
     for (const timer of this.retryTimers.values()) clearTimeout(timer);
@@ -29,6 +29,7 @@ export class ProjectQueueEngine {
     const current = this.store.projectQueue(input.projectId);
     const templateWorkflowId = input.templateWorkflowId ?? current.templateWorkflowId;
     if (input.state === 'running') {
+      if (!this.deviceOnline()) throw new Error('Gerät meldet offline. Warteschlange nach Netzprüfung bewusst fortsetzen.');
       if (!templateWorkflowId) throw new Error('Zuerst eine Workflow-Route als Vorlage wählen.');
       this.store.queueCandidates(input.projectId, 1); // Validate To Do before persisting a running queue.
       const template = this.store.workflow(templateWorkflowId);
@@ -64,6 +65,15 @@ export class ProjectQueueEngine {
   }
   onBoardChanged(projectId: string): void { this.pump(projectId); }
 
+  /** Pause future claims without killing a PTY whose external writes may already have happened. */
+  pauseForConnectionLoss(projectId: string): void {
+    if (this.store.projectQueue(projectId).state !== 'running') return;
+    this.clearLaunchRetry(projectId);
+    const current = this.store.projectQueue(projectId);
+    this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: current.templateWorkflowId, activeWorkflowId: current.activeWorkflowId,
+      pauseReason: 'Gerät meldete offline. Lauf und mögliche Änderungen prüfen; nach Rückkehr nur bewusst fortsetzen.' });
+  }
+
   private pause(projectId: string, message: string): void {
     this.clearLaunchRetry(projectId);
     const queue = this.store.projectQueue(projectId);
@@ -97,6 +107,7 @@ export class ProjectQueueEngine {
 
   private pump(projectId: string): void {
     if (this.pumping.has(projectId) || this.store.projectQueue(projectId).state !== 'running') return;
+    if (!this.deviceOnline()) { this.pauseForConnectionLoss(projectId); return; }
     this.pumping.add(projectId);
     try {
       for (let pass = 0; pass < 2; pass += 1) {

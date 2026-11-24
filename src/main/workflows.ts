@@ -18,7 +18,7 @@ export function hasCompletionMarker(output: string): boolean {
 /** Durable per-card route. Only a live agent's final gated result advances automatically. */
 export class WorkflowEngine {
   private readonly pumping = new Set<string>();
-  constructor(private readonly store: StudioStore, private readonly runner: SessionRunner) {}
+  constructor(private readonly store: StudioStore, private readonly runner: SessionRunner, private readonly deviceOnline: () => boolean = () => true) {}
 
   setState(input: { id: string; state: 'running' | 'paused' }): Workflow {
     // The renderer can request a start or pause. Draft and done are durable
@@ -29,6 +29,10 @@ export class WorkflowEngine {
     if (old.state === 'done') throw new Error('Completed workflows cannot be restarted');
     if (old.state === 'draft' && input.state === 'paused') throw new Error('Ein ungestarteter Workflow kann nicht pausiert werden.');
     if (input.state === 'running') {
+      if (!this.deviceOnline()) throw new Error('Gerät meldet offline. Automatische Workflow-Schritte erst nach erneuter Prüfung bewusst fortsetzen.');
+      if (old.state === 'paused' && this.store.workflowProgress(old.id, old.currentStep).some((row) => row.state === 'running' && row.sessionId && this.store.session(row.sessionId).state === 'running')) {
+        throw new Error('Der bisherige Agentenprozess läuft noch. Warte auf sein Ende oder stoppe ihn bewusst, bevor du den Workflow fortsetzt.');
+      }
       if (old.cardIds.some((cardId) => this.store.card(cardId).archivedAt)) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
       const overlapping = this.store.snapshot(old.projectId).workflows.find((other) =>
         other.id !== old.id && other.state === 'running' && other.cardIds.some((cardId) => old.cardIds.includes(cardId)));
@@ -88,6 +92,7 @@ export class WorkflowEngine {
       for (let pass = 0; pass < 100; pass += 1) {
         const workflow = this.store.workflow(id);
         if (workflow.state !== 'running') return;
+        if (!this.deviceOnline()) { this.store.setWorkflowState(id, 'paused'); return; }
         const step = workflow.steps[workflow.currentStep];
         if (!step) { this.store.setWorkflowState(id, 'done'); return; }
         if (step.requireApproval && !this.store.isStepApproved(id, workflow.currentStep)) {

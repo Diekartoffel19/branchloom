@@ -19,6 +19,7 @@ import type { IdeaMatchKind, IdeaMatchPreview } from './idea-matches';
 import type { SessionRunEvidence } from './session-evidence';
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
+import type { SessionRecoveryState } from './session-recovery';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -174,6 +175,7 @@ export interface StudioAPI {
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;
   agentCapabilityEvidence(): Promise<AgentCapabilityEvidence[]>;
+  sessionRecovery(sessionId: string): Promise<SessionRecoveryState>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   resumeCodexSession(input: { sessionId: string; picker?: boolean }): Promise<Session>;

@@ -10,6 +10,7 @@ import { CardContextPanel } from './CardContextPanel';
 import { CardAcceptancePanel } from './CardAcceptancePanel';
 import { CardSplitPanel } from './CardSplitPanel';
 import { SessionEvidencePanel } from './SessionEvidencePanel';
+import { SessionRecoveryPanel } from './SessionRecoveryPanel';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
 import { CardQaPanel } from './CardQaPanel';
 import { PrDraftPanel } from './PrDraftPanel';
@@ -265,6 +266,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <div className="section-heading"><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
         {session ? <>
           <Suspense fallback={<div className="terminal-empty">Terminal wird geladen…</div>}><SessionTerminal key={session.id} session={session} /></Suspense>
+          <SessionRecoveryPanel key={`recovery-${session.id}`} session={session} />
           {session.state === 'running' ? <div className="terminal-controls"><form onSubmit={(event) => void send(event)}><input aria-label="Nachricht an Agent" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Nachricht an Agent senden…" /><button type="submit" className="icon-button" disabled={!message.trim()} aria-label="Senden"><Send size={17} /></button></form><button type="button" className="danger-button" onClick={() => void mutate(() => window.studio.stopSession(session.id))}><CircleStop size={15} /> Stoppen</button></div> : null}
           {sessionAgent?.kind === 'codex' && session.state !== 'running' && !card.archivedAt ? <div className="resume-controls">
             {session.codexThreadId ? <p className="section-copy">Codex hat dieses Gespräch als <code>{session.codexThreadId}</code> gemeldet. Prüfe vorher den Kartenverlauf und mögliche Dateiänderungen. Der alte Auftrag wird nicht erneut gesendet.</p>

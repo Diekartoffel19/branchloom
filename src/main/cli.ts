@@ -453,6 +453,9 @@ export class SessionRunner {
     if (child.cols !== input.cols || child.rows !== input.rows) child.resize(input.cols, input.rows);
   }
 
+  /** An in-memory PTY handle proves only that this app still owns the local process. */
+  hasLiveProcess(sessionId: string): boolean { return this.processes.has(sessionId); }
+
   stop(sessionId: string): void {
     const child = this.processes.get(sessionId);
     if (!child) throw new Error('Session is not running');

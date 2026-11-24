@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, net, safeStorage, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -42,6 +42,7 @@ import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './white
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
+import { SessionRecoveryMonitor } from './session-recovery';
 import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
 import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
@@ -61,6 +62,7 @@ let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let queueEngine: ProjectQueueEngine;
+let recoveryMonitor: SessionRecoveryMonitor | null = null;
 let browser: StudioBrowser | null = null;
 let designInspector: DesignInspector | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
@@ -124,8 +126,10 @@ function installIpc(): void {
     workflowEngine.onSessionFinished(session, finalMessage);
     queueEngine.onSessionFinished(session);
   });
-  workflowEngine = new WorkflowEngine(db, runner);
-  queueEngine = new ProjectQueueEngine(db, workflowEngine);
+  workflowEngine = new WorkflowEngine(db, runner, () => net.isOnline());
+  queueEngine = new ProjectQueueEngine(db, workflowEngine, () => net.isOnline());
+  recoveryMonitor = new SessionRecoveryMonitor(db, () => net.isOnline(), (sessionId) => runner?.hasLiveProcess(sessionId) ?? false, (projectId) => queueEngine.pauseForConnectionLoss(projectId));
+  recoveryMonitor.start();
   commandRunner = new CommandTerminalRunner(db, (event: CommandTerminalEvent) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:command-terminal-event', event);
   });
@@ -273,6 +277,7 @@ function installIpc(): void {
   bind('agents', () => db.agents());
   bind('detectAgents', () => detectAgents(db.agents()));
   bind('agentCapabilityEvidence', () => db.agentCapabilityEvidence());
+  bind('sessionRecovery', (sessionId: string) => recoveryMonitor?.state(sessionId));
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string; picker?: boolean }) => runner?.resumeCodex(input));
@@ -641,6 +646,8 @@ function createWindow(): void {
             if (launchProof.launch?.agentName !== 'Smoke-Agent' || launchProof.launch.sources.length !== 0 || launchProof.launch.promptDelivery !== 'none'
               || launchProof.launch.versionCheck !== 'unchecked' || launchProof.launch.git.scope !== 'project'
               || launchProof.linkedQa.length) throw new Error('Lokaler Agentenlauf hat keinen begrenzten Startbeleg: ' + JSON.stringify(launchProof));
+            const recovery = await window.studio.sessionRecovery(session.id);
+            if (recovery.process !== 'ended' || recovery.signal !== 'online') throw new Error('Lokaler Agentenlauf oder sein aktuelles Netzsignal fehlt im Wiederaufnahmebeleg.');
           }
           return true;
         })()
@@ -703,6 +710,10 @@ function createWindow(): void {
               const keyboardDialog = document.querySelector('.card-drawer[role="dialog"]');
               const keyboardClose = keyboardDialog?.querySelector('button[aria-label="Karte schließen"]');
               if (!keyboardDialog || keyboardDialog.getAttribute('aria-modal') !== 'true' || keyboardDialog.getAttribute('aria-labelledby') !== keyboardDialog.querySelector('h2')?.id || document.activeElement !== keyboardClose) throw new Error('Karten-Tastaturtest: Dialogbezeichnung oder Anfangsfokus fehlt.');
+              if (${process.platform === 'win32'}) {
+                for (let attempt = 0; attempt < 100 && !keyboardDialog.querySelector('.session-recovery')?.textContent?.includes('Gerät meldet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (!keyboardDialog.querySelector('.session-recovery')?.textContent?.includes('Dieser Lauf ist beendet')) throw new Error('Gespeicherter Agentenlauf zeigt keinen belegten Wiederaufnahme-Status.');
+              }
               keyboardClose.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
               if (!keyboardDialog.contains(document.activeElement) || document.activeElement === keyboardClose) throw new Error('Karten-Tastaturtest: Rückwärts-Tab verließ den Dialog.');
               document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
@@ -2802,6 +2813,8 @@ app.on('before-quit', () => {
   smokeQaServer?.close();
   smokeQaServer = null;
   queueEngine?.dispose();
+  recoveryMonitor?.dispose();
+  recoveryMonitor = null;
   browser?.dispose();
   browser = null;
   designInspector?.dispose();
