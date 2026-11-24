@@ -153,6 +153,7 @@ export interface StudioAPI {
   updateDraftWorkflow(input: { id: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   deleteDraftWorkflow(id: string): Promise<string>;
   setWorkflowState(input: { id: string; state: WorkflowState }): Promise<Workflow>;
+  workflowRunEvidence(input: { projectId: string; workflowId: string }): Promise<import('./workflow-evidence').WorkflowRunEvidence>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;
   queueCandidates(projectId: string): Promise<Card[]>;
   skipQueuedCard(input: { projectId: string; workflowId: string; reason: string }): Promise<ProjectQueue>;

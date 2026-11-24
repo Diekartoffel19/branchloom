@@ -1,0 +1,14 @@
+.workflow-evidence { margin-top: 14px; }
+.workflow-evidence-panel { margin-top: 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); padding: 14px; }
+.workflow-evidence-head { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
+.workflow-evidence-head strong { font-size: 13px; }
+.workflow-evidence-head p, .workflow-evidence-panel p { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.workflow-evidence-head p { margin: 4px 0 0; }
+.workflow-evidence-list { display: grid; gap: 8px; max-height: 390px; overflow: auto; margin: 12px 0 0; padding: 0; list-style: none; }
+.workflow-evidence-list li { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surface); }
+.workflow-evidence-row-head, .workflow-evidence-links { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.workflow-evidence-row-head strong { font-size: 12px; }
+.workflow-evidence-row-head span { font-size: 11px; color: var(--muted); }
+.workflow-evidence-list p { margin: 5px 0; overflow-wrap: anywhere; }
+.workflow-evidence-links { justify-content: flex-start; margin-top: 8px; }
+@media (max-width: 600px) { .workflow-evidence-head { flex-direction: column; } .workflow-evidence-list { max-height: none; } }

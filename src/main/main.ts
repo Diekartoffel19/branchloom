@@ -37,6 +37,7 @@ import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
+import { workflowRunEvidence } from './workflow-evidence';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
@@ -278,6 +279,7 @@ function installIpc(): void {
     queueEngine.onBoardChanged(workflow.projectId);
     return workflow;
   });
+  bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
   bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
   bind('queueCandidates', (projectId: string) => db.queueCandidates(projectId, 5));
   bind('skipQueuedCard', (input: Parameters<StudioAPI['skipQueuedCard']>[0]) => db.skipQueuedCard(input));
@@ -542,6 +544,16 @@ function createWindow(): void {
         const smokeProject = smokeStore.projects()[0]!;
         const smokeSnapshot = smokeStore.snapshot(smokeProject.id);
         const smokeCard = smokeSnapshot.cards.find((item) => item.title === 'Smoke-Karte')!;
+        const evidenceCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[2]!.id, title: 'BRANCHLOOM_WORKFLOW_EVIDENCE_CARD' });
+        const evidenceAgent = smokeStore.agents().find((item) => item.kind === 'codex')!;
+        const evidenceFlow = smokeStore.createWorkflow({ projectId: smokeProject.id, name: 'BRANCHLOOM_WORKFLOW_EVIDENCE_FLOW', cardIds: [evidenceCard.id], steps: [
+          { id: 'synthetic-evidence-step', columnId: evidenceCard.columnId, agentId: evidenceAgent.id, requireApproval: false },
+        ] });
+        smokeStore.ensureWorkflowProgress(evidenceFlow.id, 0, [evidenceCard.id]);
+        const evidenceSession = smokeStore.createSession({ cardId: evidenceCard.id, agentId: evidenceAgent.id });
+        smokeStore.beginWorkflowCard(evidenceFlow.id, 0, evidenceCard.id, evidenceSession.id);
+        smokeStore.finishSession(evidenceSession.id, 'exited', 0);
+        smokeStore.finishWorkflowCard(evidenceSession.id, false);
         const designContextSelection = saveDesignSelection(smokeStore, smokeProject.id, `${qaUrl}?token=synthetic`, {
           selector: 'button#design-context', tag: 'button', text: 'Synthetic design context', styles: { color: 'rgb(36, 59, 50)' }, tokens: [],
         });
@@ -566,11 +578,17 @@ function createWindow(): void {
                 throw new Error('Gespeicherte Karte wurde nach Reload nicht im Board gerendert.');
               }
               const boardProject = (await window.studio.projects())[0];
+              const evidenceSessionId = ${JSON.stringify(evidenceSession.id)};
+              const baselineSessions = (await window.studio.snapshot(boardProject.id)).sessions;
+              if (!baselineSessions.some((item) => item.id === evidenceSessionId)) throw new Error('Synthetische Workflow-Sitzung fehlt nach Reload.');
+              const baselineSessionIds = baselineSessions.map((item) => item.id).sort();
+              const sessionsUnchanged = async () => JSON.stringify((await window.studio.snapshot(boardProject.id)).sessions.map((item) => item.id).sort()) === JSON.stringify(baselineSessionIds);
               const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);
               const renderedColumns = [...document.querySelectorAll('.board-column .column-title h3')].map((item) => item.textContent);
               if (JSON.stringify(renderedColumns) !== JSON.stringify(storedColumns)) throw new Error('Gespeicherte Spaltenreihenfolge wurde nach Reload nicht gerendert.');
               const bulkCard = (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.title === 'Smoke-Karte');
               if (!bulkCard || bulkCard.priority !== 'none') throw new Error('Bulk-Priorität: Ausgangskarte fehlt.');
+              if (${process.platform === 'win32'} && baselineSessions.filter((item) => item.cardId === bulkCard.id).length !== 1) throw new Error('Ursprünglicher lokaler Smoke-Lauf fehlt.');
               const bulkSelect = document.querySelector('.board-card-wrap input[aria-label="„Smoke-Karte“ für Sammelaktion auswählen"]');
               if (!bulkSelect) throw new Error('Bulk-Priorität: Kartenauswahl fehlt.');
               bulkSelect.click();
@@ -596,7 +614,7 @@ function createWindow(): void {
               if (!bulkConfirmation?.textContent?.includes('1 Karte auf „Hoch“ setzen?') || !bulkConfirmation.textContent.includes('1 davon ändert sich.')) throw new Error('Bulk-Priorität: Bestätigung zeigt keine echte Änderung.');
               bulkConfirmation.querySelector('button')?.click();
               for (let attempt = 0; attempt < 100 && (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.priority !== 'high'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if ((await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.priority !== 'high' || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Bulk-Priorität: Bestätigung speicherte nicht atomar oder startete einen Agenten.');
+              if ((await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.priority !== 'high' || !(await sessionsUnchanged())) throw new Error('Bulk-Priorität: Bestätigung speicherte nicht atomar oder startete einen Agenten.');
               for (let attempt = 0; attempt < 100 && !document.querySelector('.board-bulk-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.board-bulk-result')?.textContent?.includes('1 Karte hat jetzt Priorität „Hoch“')) throw new Error('Bulk-Priorität: sichtbarer Ergebnistext fehlt.');
               const ideasNavAfterReload = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Ideenraum'));
@@ -752,7 +770,7 @@ function createWindow(): void {
                 if (qaFixCard) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
-              if (!qaFixCard || qaFixCard.columnId !== planningColumn.id || !qaFixCard.description.includes('Synthetischer Reproduktionsschritt') || !qaFixCard.description.includes(qaReport.id) || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Bestätigte QA-Fixkarte, Quellenbezug oder Agentenruhe fehlt.');
+              if (!qaFixCard || qaFixCard.columnId !== planningColumn.id || !qaFixCard.description.includes('Synthetischer Reproduktionsschritt') || !qaFixCard.description.includes(qaReport.id) || !(await sessionsUnchanged())) throw new Error('Bestätigte QA-Fixkarte, Quellenbezug oder Agentenruhe fehlt.');
               const screenshotButton = [...document.querySelectorAll('.card-qa-screenshot button')].find((item) => item.textContent?.includes('Screenshot ansehen'));
               if (!screenshotButton) throw new Error('QA-Screenshot-Knopf fehlt.');
               screenshotButton.click();
@@ -831,7 +849,7 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (batchReports?.length !== 5 || !batchReports.some((item) => item.requestedUrl.endsWith('/second')) || !batchReports.some((item) => item.requestedUrl.endsWith('/third')) || !document.querySelector('.card-qa [role="status"]')?.textContent?.includes('3 von 3 Routen gespeichert')) throw new Error('Mehrfach-Routenlauf speicherte oder zeigte nicht alle drei QA-Berichte.');
-              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Mehrfach-Routenlauf startete einen Agenten.');
+              if (!(await sessionsUnchanged())) throw new Error('Mehrfach-Routenlauf startete einen Agenten.');
               const contextForm = document.querySelector('.card-drawer .card-context-form');
               const contextInput = contextForm?.querySelector('input');
               if (!contextForm || !contextInput) throw new Error('Karten-Kontextformular fehlt.');
@@ -901,7 +919,7 @@ function createWindow(): void {
               if (!whiteboardKeyboardButton) throw new Error('Whiteboard-Datei hat keine Tastaturalternative.');
               whiteboardKeyboardButton.click();
               for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Whiteboard-Datei „src/widget.ts“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 3 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Whiteboard-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 3 || !(await sessionsUnchanged())) throw new Error('Whiteboard-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
               const contextFolderNode = await window.studio.createWhiteboardNode({ projectId: boardProject.id, title: 'Smoke-Ordnerbox', x: 40, y: 40, reference: { kind: 'folder', path: 'src' } });
               [...whiteboardDetails.querySelectorAll('button')].find((item) => item.textContent?.includes('Whiteboard neu laden'))?.click();
               let folderSource;
@@ -930,7 +948,7 @@ function createWindow(): void {
               if (!folderKeyboardButton) throw new Error('Whiteboard-Ordner hat keine Tastaturalternative.');
               folderKeyboardButton.click();
               for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Whiteboard-Ordner „src“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 4 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Ordner-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 4 || !(await sessionsUnchanged())) throw new Error('Ordner-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
               const designContextDetails = [...dropTarget.querySelectorAll('details.card-context-whiteboard')].find((item) => item.querySelector('summary')?.textContent?.includes('Design-Belege'));
               designContextDetails?.querySelector('summary')?.click();
               let designContextSource;
@@ -962,7 +980,7 @@ function createWindow(): void {
               if (!designContextKeyboard) throw new Error('Design-Beleg hat keine Tastaturalternative.');
               designContextKeyboard.click();
               for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Design-Beleg „button · button#design-context“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 5 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Design-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 5 || !(await sessionsUnchanged())) throw new Error('Design-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
               const outputPanel = document.querySelector('.card-drawer .output-errors');
               for (let attempt = 0; attempt < 100 && !outputPanel?.querySelector('form'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const outputForm = outputPanel?.querySelector('form');
@@ -975,7 +993,7 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!outputCard?.description.includes('BRANCHLOOM_OUTPUT_TEST')) throw new Error('Ausgewählter Agentenfehler wurde nicht als Karte gespeichert.');
-              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Fehlerkarten-Anlage startete einen weiteren Agenten.');
+              if (!(await sessionsUnchanged())) throw new Error('Fehlerkarten-Anlage startete einen weiteren Agenten.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'))?.click();
               let edgeListButton;
@@ -1026,6 +1044,38 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!previewVisible) throw new Error('Nächste freie To-Do-Karte wurde im Workflow nicht angezeigt.');
+              const evidenceFlowId = ${JSON.stringify(evidenceFlow.id)};
+              const evidenceCardId = ${JSON.stringify(evidenceCard.id)};
+              const evidenceFromIpc = await window.studio.workflowRunEvidence({ projectId: boardProject.id, workflowId: evidenceFlowId });
+              if (evidenceFromIpc.rows.length !== 1 || evidenceFromIpc.rows[0].cardId !== evidenceCardId || evidenceFromIpc.rows[0].state !== 'needs_review' || evidenceFromIpc.rows[0].session?.id !== evidenceSessionId || evidenceFromIpc.rows[0].session?.exitCode !== 0) throw new Error('Gespeicherter Workflow-Verlauf fehlt nach Neustart im lesenden IPC.');
+              let evidencePanelButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                evidencePanelButton = document.querySelector('#workflow-' + evidenceFlowId + ' .workflow-evidence > button');
+                if (evidencePanelButton) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!evidencePanelButton) throw new Error('Workflow-Verlaufsknopf fehlt nach Neustart.');
+              evidencePanelButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#workflow-' + evidenceFlowId + ' .workflow-evidence-list'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const evidencePanel = document.querySelector('#workflow-' + evidenceFlowId + ' .workflow-evidence-panel');
+              if (!evidencePanel?.textContent?.includes('Prüfung nötig') || !evidencePanel.textContent.includes('Exit-Code: 0') || ![...evidencePanel.querySelectorAll('button')].some((item) => item.textContent?.includes('Karte öffnen')) || ![...evidencePanel.querySelectorAll('button')].some((item) => item.textContent?.includes('Verlauf öffnen'))) throw new Error('Persistierter Schritt- und Sitzungsbeleg wurde im Workflow nicht gerendert.');
+              const evidenceCardButton = [...evidencePanel.querySelectorAll('button')].find((item) => item.textContent?.includes('Karte öffnen'));
+              evidenceCardButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer')?.textContent?.includes('BRANCHLOOM_WORKFLOW_EVIDENCE_CARD'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-drawer')?.textContent?.includes('BRANCHLOOM_WORKFLOW_EVIDENCE_CARD')) throw new Error('Workflow-Verlauf öffnete die zugehörige Karte nicht.');
+              document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
+              workflowNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#workflow-' + evidenceFlowId + ' .workflow-evidence > button'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              document.querySelector('#workflow-' + evidenceFlowId + ' .workflow-evidence > button')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#workflow-' + evidenceFlowId + ' .workflow-evidence-links'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const evidenceSessionButton = [...document.querySelectorAll('#workflow-' + evidenceFlowId + ' .workflow-evidence-links button')].find((item) => item.textContent?.includes('Verlauf öffnen'));
+              if (!evidenceSessionButton) throw new Error('Workflow-Sitzungsnavigation fehlt.');
+              evidenceSessionButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.activity-transcript-dialog')?.textContent?.includes('BRANCHLOOM_WORKFLOW_EVIDENCE_CARD'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.activity-transcript-dialog')?.textContent?.includes('BRANCHLOOM_WORKFLOW_EVIDENCE_CARD')) throw new Error('Workflow-Verlauf öffnete den gespeicherten Agentenlauf nicht.');
+              document.querySelector('.activity-transcript-dialog button[aria-label="Verlauf schließen"]')?.click();
+              workflowNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.queue-preview ol'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const workflowProject = (await window.studio.projects())[0];
               const workflowSnapshot = await window.studio.snapshot(workflowProject.id);
               const workflowCard = workflowSnapshot.cards.find((item) => item.title === 'Smoke-Karte');
@@ -1035,12 +1085,12 @@ function createWindow(): void {
               document.querySelector('button[aria-label="Aktualisieren"]')?.click();
               let deleteButton;
               for (let attempt = 0; attempt < 300; attempt++) {
-                deleteButton = [...document.querySelectorAll('.workflow-list .workflow-card button')].find((item) => item.textContent?.includes('Entwurf löschen'));
+                deleteButton = [...document.querySelectorAll('#workflow-' + deleteDraft.id + ' button')].find((item) => item.textContent?.includes('Entwurf löschen'));
                 if (deleteButton) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!deleteButton) throw new Error('Entwurf-Löschknopf fehlt.');
-              const editButton = [...document.querySelectorAll('.workflow-list .workflow-card button')].find((item) => item.textContent?.includes('Entwurf bearbeiten'));
+              const editButton = [...document.querySelectorAll('#workflow-' + deleteDraft.id + ' button')].find((item) => item.textContent?.includes('Entwurf bearbeiten'));
               if (!editButton) throw new Error('Entwurf-Bearbeitenknopf fehlt.');
               editButton.click();
               let editDialog;
@@ -1074,7 +1124,7 @@ function createWindow(): void {
                 activityNav.click();
                 let openTranscript;
                 for (let attempt = 0; attempt < 300; attempt++) {
-                  openTranscript = [...document.querySelectorAll('.activity-item button')].find((item) => item.textContent?.includes('Verlauf ansehen'));
+                  openTranscript = [...document.querySelectorAll('.activity-item')].find((item) => item.querySelector('h3')?.textContent?.includes('Smoke-Karte') && [...item.querySelectorAll('button')].some((button) => button.textContent?.includes('Verlauf ansehen')))?.querySelector('button');
                   if (openTranscript) break;
                   await new Promise((resolve) => setTimeout(resolve, 50));
                 }
@@ -1151,7 +1201,7 @@ function createWindow(): void {
               document.querySelector('.decision-review-item[data-qa-report-id="' + qaReport.id + '"] .decision-subaction')?.click();
               for (let attempt = 0; attempt < 100 && (await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id) || !(await window.studio.cardQaReports(qaCard.id)).some((item) => item.id === qaReport.id)) throw new Error('QA-Quittierung entfernte nicht nur den Inbox-Eintrag.');
-              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('QA-Inbox startete einen weiteren Agenten.');
+              if (!(await sessionsUnchanged())) throw new Error('QA-Inbox startete einen weiteren Agenten.');
               const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
               const liveProjectComment = await window.studio.createPlanComment({ planId: ${JSON.stringify(smokePlan.id)}, fingerprint: ${JSON.stringify(smokePlan.fingerprint)}, line: 1, body: 'BRANCHLOOM_LIVE_PROJECT_INBOX' });
               if (document.querySelector('.decision-review-section')?.textContent?.includes('BRANCHLOOM_LIVE_PROJECT_INBOX')) throw new Error('Projekt-Inbox wurde ohne Aktualisierung verändert.');
@@ -1182,7 +1232,7 @@ function createWindow(): void {
               refreshedPlanButton.click();
               for (let attempt = 0; attempt < 200 && (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht: ' + JSON.stringify({ active: document.activeElement?.outerHTML?.slice(0, 250), plan: document.querySelector('#workflow-plan-review')?.textContent?.slice(-300), view: document.querySelector('.topbar-title h1')?.textContent }));
-              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Globale Inbox startete einen Agenten.');
+              if (!(await sessionsUnchanged())) throw new Error('Globale Inbox startete einen Agenten.');
               [...document.querySelectorAll('.sidebar-add')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.modal-backdrop form.dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const form = document.querySelector('.modal-backdrop form.dialog');
