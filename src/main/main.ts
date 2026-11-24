@@ -1150,6 +1150,8 @@ function createWindow(): void {
               otherItem.querySelector('button.secondary-button')?.click();
               for (let attempt = 0; attempt < 100 && (document.querySelector('#project-select')?.value !== secondProject.id || !document.querySelector('.workflow-list')?.textContent?.includes('BRANCHLOOM_GLOBAL_OTHER_PROJECT')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('#project-select')?.value !== secondProject.id || !document.querySelector('.workflow-list')?.textContent?.includes('BRANCHLOOM_GLOBAL_OTHER_PROJECT')) throw new Error('Projektwechsel öffnete nicht die exakte Workflow-Quelle.');
+              const pausedStep = document.querySelector('#workflow-' + secondWorkflow.id + ' .route-step.paused[aria-current="step"]');
+              if (!pausedStep?.textContent?.includes('Hier pausiert')) throw new Error('Der pausierte Workflow-Schritt ist in der Oberfläche nicht erkennbar.');
               if ((await window.studio.snapshot(secondProject.id)).sessions.length !== 0) throw new Error('Projektwechsel startete einen Agenten.');
               selectSetter.call(projectSelect, boardProject.id); projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && document.querySelector('#project-select')?.value !== boardProject.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));

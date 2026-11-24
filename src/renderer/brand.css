@@ -358,6 +358,9 @@
 :root[data-theme] .route-step.current,
 :root[data-theme] .route-step.current .route-number,
 :root[data-theme] .proposal-route svg { color: var(--accent); }
+:root[data-theme] .route-step.paused,
+:root[data-theme] .route-step.paused .route-number { color: var(--warning); }
+:root[data-theme] .route-step.paused .route-number { background: var(--warning-bg); border: 1px solid var(--warning); }
 :root[data-theme] .planner-request,
 :root[data-theme] .proposal-footer { border-color: var(--border); }
 :root[data-theme] .queue-preview { background: var(--surface-2); border-color: var(--border); }
