@@ -4,6 +4,9 @@ Stand: 24.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Aktueller Branchloom-Schritt
 
+- Die gemeinsame Integration von Zeitmaschinen-Screenshots und Changelog-Worktree-Quellen bestand mit **445 Tests und fünf optionalen Live-Skips**, Typprüfung, Build, Quell-Electron-Smoke mit beiden neuen UI-/IPC-Pfaden, Doctor und Audit ohne Funde. Der Public-Scan und Windows-CI folgen nach dem dokumentierten Commit.
+- [Windows-CI 45323001688](https://github.com/mschr703/branchloom/actions/runs/45323001688) für die zuvor gepushten UI-Zustandsrouten bestand einschließlich portablem Paket und Paket-Smoke.
+
 - Der [Git-Changelog](CHANGELOG.md) kann nach ausdrücklicher Quellenwahl auch bereits gespeicherte Karten-Worktrees des Projekts lesen. Vor dem Lesen prüft er Pfad, gemeinsamen Git-Ursprung und Karten-Branch; Commits aus mehreren Quellen erscheinen nur einmal mit ihren Quellen. Höchstens zwölf Worktrees und 100 sichtbare Commits werden geprüft, fehlende oder nicht prüfbare Worktrees erscheinen als Teilergebnis. Die bisherige HEAD-Ansicht bleibt Standard. Der Ablauf schreibt keine Projektdateien und erfindet keine Test-/Review-Freigaben. Elf gezielte Backend-/Renderer-Tests, die isolierte Gesamtsuite mit 430 bestandenen und fünf optional übersprungenen Tests, Typprüfung, Build, Quell-Electron-Smoke mit synthetischem Git-Commit über IPC und sichtbarer Quellenwahl, Doctor, Audit ohne Funde, Diff-Check und Public-Scan bestanden. Der Smoke erstellte keinen Karten-Worktree; der echte Mehrquellen- und Fehlerpfad wurde in temporären Git-Repositories gezielt geprüft.
 
 - [UI-Zustandsrouten](DESIGN_STATES.md) speichern Normal, Loading, Empty und Error als vier vom lokalen Projekt selbst bereitgestellte Loopback-Adressen in SQLite. Alle vorhandenen Routen müssen dieselbe Origin verwenden. Speichern lädt keine Seite; erst **Gespeicherte Route öffnen** wechselt die isolierte Design-Vorschau. Fehlende Routen bleiben sichtbar und eine aktive flüchtige Theme-Vorschau sperrt den Wechsel. Die Übersicht blendet Querywerte aus; die vollständige URL bleibt lokal editierbar. Sechs gezielte Backend-/Renderer-Tests, die isolierte Gesamtsuite mit 426 bestandenen Tests und fünf optionalen Live-Skips, Typprüfung, Build und Quell-Electron-Smoke mit gespeicherter und tatsächlich geöffneter lokaler Empty-Route bestanden. Doctor, Audit ohne Funde und Public-Scan bestanden. Im integrierten Stand bestanden 436 Tests mit fünf optionalen Live-Skips, Typprüfung, Build, Doctor, Audit und Public-Scan. Der erste integrierte Electron-Smoke fand, dass das Toolbar-Feld den Query-Parameter der erfolgreich geöffneten Empty-Route verlor; nach gezielter Korrektur bestand der Quell-Electron-Smoke. Branchloom erzeugt keine Loading-/Error-/Empty-Zustände, exportiert diese Einstellung noch nicht mit Projektpaket V1 und vergleicht die vier Routen nicht gleichzeitig.
@@ -193,9 +196,9 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Den integrierten Plan-Review-Schritt öffentlich pushen und seine Windows-CI samt Paket-Smoke prüfen. Die Verify-Phase für Recovery-Commit `583f173` ist bereits grün; der Paketbau läuft noch.
-2. Den lokalen Browser-Fehler-Catcher mit sichtbarem Dev-Server-Fehler prüfen und danach integrieren. Den Whiteboard-Pfeil zur Kartenidee als weiteren Schritt prüfen.
-3. Die beim Inbox-Test entdeckte Scrollkorrektur sichtbar nachprüfen und einen mehrstufigen echten Workflow prüfen.
+1. Die integrierten Zeitmaschinen-Screenshots und den erweiterten Git-Changelog gemeinsam mit vollständiger Suite und Quell-Electron-Smoke prüfen; danach Public-Scan, Push und Windows-CI samt Paket-Smoke kontrollieren.
+2. Die isoliert entstehenden Design-Einzelmessungen und den Kartenkontext aus Whiteboard-Ordnerboxen nach ihren eigenen Fehler- und UI-Prüfungen integrieren.
+3. Einen mehrstufigen echten Workflow und die bestehenden offenen sichtbaren UI-Pfade prüfen; weitere Funktionen aus der Produktvision in überprüfbaren Schritten umsetzen.
 
 Der persönliche Jarvis-Kern und seine privaten Module werden getrennt von Branchloom betreut. [PARITY.md](PARITY.md) nennt die offenen Studio-Funktionen und Abnahmekriterien.
 
