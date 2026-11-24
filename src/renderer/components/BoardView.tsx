@@ -304,7 +304,7 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReo
       {children}
       {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
     </div>
-    <footer className="column-footer"><ColumnAgentSettings column={column} agents={snapshot.agents} mutate={mutate} /><label><input type="checkbox" checked={column.autoStart} disabled={!column.agentId} onChange={(event) => void mutate(() => window.studio.updateColumn({ id: column.id, autoStart: event.target.checked }))} /> Agent automatisch starten</label></footer>
+    <footer className="column-footer"><details className="column-agent-details"><summary>Spaltenagent <span>{agent ? `${agent.name} · ${column.autoStart ? 'Auto' : 'Manuell'}` : 'Nicht zugewiesen'}</span></summary><div className="column-agent-details-body"><ColumnAgentSettings column={column} agents={snapshot.agents} mutate={mutate} /><label><input type="checkbox" checked={column.autoStart} disabled={!column.agentId} onChange={(event) => void mutate(() => window.studio.updateColumn({ id: column.id, autoStart: event.target.checked }))} /> Agent automatisch starten</label></div></details></footer>
   </section>;
 }
 

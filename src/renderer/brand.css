@@ -524,6 +524,14 @@
   :root[data-theme] .brand > .brand-mark { display: flex; }
 }
 
+/* Board text is read repeatedly during triage; keep it legible at laptop height. */
+:root[data-theme] .column-title h3 { font-size: 14px; }
+:root[data-theme] .task-card strong { font-size: 14px; line-height: 1.4; }
+:root[data-theme] .task-card-description { font-size: 12px; line-height: 1.5; }
+:root[data-theme] .task-card-footer,
+:root[data-theme] .column-agent { font-size: 11px; }
+:root[data-theme] .column-footer { padding-block: 5px; }
+
 @media (prefers-contrast: more) {
   :root[data-theme='light'] { --border: #64776a; --muted: #33483b; --soft: #33483b; --accent: #19553d; }
   :root[data-theme='dark'] { --border: #9eb6a3; --muted: #e0eae0; --soft: #e0eae0; --accent: #b2ecc5; }

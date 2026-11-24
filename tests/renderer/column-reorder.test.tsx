@@ -41,4 +41,12 @@ describe('board column order controls', () => {
     const blocked = renderToStaticMarkup(createElement(BoardView, { snapshot: withCard, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(blocked).toContain('Spalte enthält aktive oder archivierte Karten');
   });
+
+  it('keeps the agent form reachable while collapsing it below each board column', () => {
+    const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html).toContain('<details class="column-agent-details"><summary>Spaltenagent <span>Nicht zugewiesen</span></summary>');
+    expect(html).toContain('aria-label="Agent für Zuerst"');
+    expect(html).toContain('Agent automatisch starten');
+    expect(html).not.toContain('<details class="column-agent-details" open=""');
+  });
 });
