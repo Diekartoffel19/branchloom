@@ -1429,8 +1429,14 @@ function createWindow(): void {
               if (!(cardSelect instanceof HTMLSelectElement) || !selectSetter) throw new Error('Aufgaben-Wireframe-Auswahl fehlt.');
               selectSetter.call(cardSelect, ${JSON.stringify(smokeCard.id)}); cardSelect.dispatchEvent(new Event('change', { bubbles: true }));
               let starter;
-              for (let attempt = 0; attempt < 100 && !starter; attempt++) { starter = [...(wireframe?.querySelectorAll('button') ?? [])].find((button) => button.textContent?.includes('Fenstergerüst vorbereiten')); if (!starter) await new Promise((resolve) => setTimeout(resolve, 50)); }
-              if (!(starter instanceof HTMLButtonElement)) throw new Error('Kartenbezogener Entwurfsstart fehlt.');
+              for (let attempt = 0; attempt < 200; attempt++) {
+                wireframe = document.querySelector('.task-wireframe');
+                starter = [...(wireframe?.querySelectorAll('button') ?? [])].find((button) => button.textContent?.includes('Fenstergerüst vorbereiten'));
+                if (wireframe?.querySelector('.task-wireframe-source select')?.value === ${JSON.stringify(smokeCard.id)} && wireframe.textContent?.includes(${JSON.stringify(`Für „${smokeCard.title}“ gibt es noch keinen Wireframe.`)}) && starter instanceof HTMLButtonElement && starter.isConnected && !starter.disabled) break;
+                starter = undefined;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(starter instanceof HTMLButtonElement)) throw new Error('Kartenbezogener Entwurfsstart für die ausgewählte Karte fehlt. Auswahl: ' + wireframe?.querySelector('.task-wireframe-source select')?.value + '; sichtbarer Zustand: ' + (wireframe?.textContent?.trim().slice(-320) ?? 'keine Wireframe-Ansicht'));
               if (![...(wireframe?.querySelectorAll('button') ?? [])].some((button) => button.textContent?.includes('Mit Agent vorschlagen'))) throw new Error('Optionaler Agentenvorschlag fehlt.');
               const beforeSessions = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.length;
               starter.click();
@@ -1439,7 +1445,7 @@ function createWindow(): void {
                 if (wireframe?.querySelector('.task-wireframe-canvas')) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
-              if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche. Sichtbarer Entwurfszustand: ' + (wireframe?.textContent?.trim().slice(0, 240) ?? 'keine Wireframe-Ansicht'));
+              if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche. Auswahl: ' + wireframe?.querySelector('.task-wireframe-source select')?.value + '; Startknopf verbunden: ' + starter.isConnected + '; sichtbarer Zustand: ' + (wireframe?.textContent?.trim().slice(-320) ?? 'keine Wireframe-Ansicht'));
               const premature = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} });
               if (premature !== null) throw new Error('Fenstergerüst wurde vor dem ausdrücklichen Speichern in SQLite angelegt.');
               const canvasStage = wireframe.querySelector('.task-wireframe-canvas');
