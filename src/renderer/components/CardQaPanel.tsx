@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
-import type { Card, CardQaBatchResult, CardQaReport, CardQaViewport } from '../../shared/types';
+import type { Card, CardQaBatchResult, CardQaPageObservation, CardQaReport, CardQaViewport } from '../../shared/types';
 import { CardQaComparison } from './CardQaComparison';
 import './card-qa.css';
 
@@ -10,6 +10,11 @@ const statusOf = (report: CardQaReport): string => report.status === 'passed'
   : report.status === 'failed' ? `${report.diagnostics.length} Fehler gefunden` : 'Prüfung nicht abgeschlossen';
 const viewportOf = (report: CardQaReport): string => report.viewportWidth > 0 && report.viewportHeight > 0
   ? `${report.viewportWidth} × ${report.viewportHeight} px` : 'nicht erfasst';
+const observationOf = (item: CardQaPageObservation): string => {
+  if (item.kind === 'missing-title') return 'Kein Seitentitel im geladenen Dokument.';
+  if (item.kind === 'missing-image-alt') return `${item.count} von ${item.scanned} geprüften Bildern ohne alt-Attribut. Ein leeres alt für dekorative Bilder zählt nicht als Fund.`;
+  return `Dokument ist ${item.pixels} px breiter als der sichtbare Inhaltsbereich (${item.clientWidth} px).`;
+};
 
 function CardQaScreenshot({ cardId, reportId }: { cardId: string; reportId: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -36,10 +41,16 @@ function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; r
   const [open, setOpen] = useState(initiallyOpen);
   useEffect(() => { setOpen(initiallyOpen); }, [initiallyOpen]);
   return <details className="card-qa-report" id={"card-qa-report-" + report.id} tabIndex={-1} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-    <summary><span className={`card-qa-state ${report.status}`}>{statusOf(report)}</span><time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time><span className="card-qa-viewport">{viewportOf(report)}</span></summary>
+    <summary><span className={`card-qa-state ${report.status}`}>{statusOf(report)}</span>{report.pageObservations.length ? <span className="card-qa-observation-count">{report.pageObservations.length} Seitenhinweise</span> : null}<time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time><span className="card-qa-viewport">{viewportOf(report)}</span></summary>
     <p className="card-qa-source"><strong>Seite:</strong> {report.requestedUrl}{report.finalUrl && report.finalUrl !== report.requestedUrl ? <> · <strong>Geladen:</strong> {report.finalUrl}</> : null}</p>
     {report.note ? <p className="inline-note">{report.note}</p> : null}
     {report.diagnostics.length ? <ol className="card-qa-findings">{report.diagnostics.map((item) => <li key={item.id}><strong>{item.kind === 'console' ? 'Konsole' : 'Laden'}:</strong> {item.message}{item.sourceUrl ? <small>{item.sourceUrl}{item.line ? `:${item.line}` : ''}</small> : null}</li>)}</ol> : null}
+    <div className="card-qa-page-check"><strong>Seitenstruktur</strong>
+      {report.pageCheck === 'not-run' ? <p>Für diesen Bericht nicht geprüft.</p> : report.pageCheck === 'unavailable' ? <p>Die drei DOM-Prüfungen waren nicht verfügbar.</p> : <>
+        <p>Seitentitel, Bild-Alt-Attribute und Dokumentbreite am gewählten Viewport geprüft{report.pageCheck === 'partial' ? '; bei mehr als 200 Bildern nur die ersten 200' : ''}.</p>
+        {report.pageObservations.length ? <ul>{report.pageObservations.map((item) => <li key={item.kind}>{observationOf(item)}</li>)}</ul> : <p>Bei diesen drei Prüfungen kein Hinweis.</p>}
+      </>}
+    </div>
     {open && report.screenshotAvailable ? <CardQaScreenshot cardId={cardId} reportId={report.id} /> : null}
   </details>;
 }
@@ -114,6 +125,6 @@ export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: {
       {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === (showLatest ? reports[0]?.id : focusReport?.id ?? reports[0]?.id)} />)}
     </div>}
     {!loading ? <CardQaComparison cardId={card.id} reports={reports} /> : null}
-    <p className="card-qa-limit">Der Bericht belegt nur diesen Seitenaufruf bei der gewählten Prüfgröße und Fehler im kurzen Prüfzeitraum. Layout, Interaktion, andere Routen und Tests bleiben separat zu prüfen.</p>
+    <p className="card-qa-limit">Der Bericht belegt diesen Seitenaufruf, Lade-/Konsolenfehler und bis zu drei einfache DOM-Beobachtungen bei der gewählten Größe. Interaktionen, vollständiges Layout und Barrierefreiheit bleiben separat zu prüfen.</p>
   </section>;
 }

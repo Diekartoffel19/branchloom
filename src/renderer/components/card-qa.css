@@ -13,11 +13,16 @@
 .card-qa-report summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .card-qa-report time, .card-qa-source, .card-qa-limit { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .card-qa-viewport { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.card-qa-observation-count { color: var(--soft); font-size: 11px; }
 .card-qa-source { margin: 9px 0 0; }
 .card-qa-state.passed { color: var(--accent); }
 .card-qa-state.failed, .card-qa-state.error { color: var(--danger); }
 .card-qa-findings { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 7px; font-size: 11px; }
 .card-qa-findings small { display: block; margin-top: 2px; color: var(--muted); }
+.card-qa-page-check { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 11px; line-height: 1.45; }
+.card-qa-page-check > strong { font-size: 11px; }
+.card-qa-page-check p { margin: 3px 0 0; color: var(--muted); }
+.card-qa-page-check ul { display: grid; gap: 4px; margin: 6px 0 0; padding-left: 18px; }
 .card-qa-limit { margin: 0; }
 .card-qa-screenshot { display: grid; gap: 7px; margin-top: 9px; }
 .card-qa-screenshot button { justify-self: start; }

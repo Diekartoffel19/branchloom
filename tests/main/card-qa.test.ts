@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 
-const fake = vi.hoisted(() => ({ windows: [] as Array<{ options: { show: boolean; width: number; height: number; useContentSize: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }; destroyed: boolean; webContents: unknown }>, mode: 'clean' as 'clean' | 'console' | 'remote' | 'load-error' | 'capture-error' | 'capture-large' | 'capture-empty' | 'slow' | 'clamped', releases: [] as Array<() => void> }));
+const fake = vi.hoisted(() => ({ windows: [] as Array<{ options: { show: boolean; width: number; height: number; useContentSize: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }; destroyed: boolean; webContents: unknown }>, mode: 'clean' as 'clean' | 'console' | 'remote' | 'load-error' | 'capture-error' | 'capture-large' | 'capture-empty' | 'slow' | 'clamped' | 'page-issues' | 'page-partial' | 'page-error', releases: [] as Array<() => void> }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
   class Contents extends EventEmitter {
@@ -26,6 +26,11 @@ vi.mock('electron', async () => {
       if (fake.mode === 'load-error' || url.includes('/broken')) throw new Error(`ERR_CONNECTION_REFUSED: ${url}`);
       if (fake.mode === 'console' || url.includes('/console')) this.emit('console-message', { level: 'error', message: 'Synthetic TypeError', sourceId: `${new URL(url).origin}/app.js?token=private`, lineNumber: 7 });
       if (fake.mode === 'remote') this.requestHandler?.({ url: 'https://example.invalid/asset.js?token=private' }, () => undefined);
+    }
+    async executeJavaScript() {
+      if (fake.mode === 'page-error') throw new Error('Synthetic page evaluation failed');
+      return { hasTitle: fake.mode !== 'page-issues', scannedImages: fake.mode === 'page-partial' ? 200 : 5, imagesWithoutAlt: fake.mode === 'page-issues' ? 2 : 0,
+        imagesTruncated: fake.mode === 'page-partial', clientWidth: 390, overflowPixels: fake.mode === 'page-issues' ? 24 : 0 };
     }
     async capturePage() {
       if (fake.mode === 'capture-error') throw new Error('Synthetic capture failure');
@@ -63,6 +68,35 @@ function fixture() {
 }
 
 describe('explicit local card QA', () => {
+  it('stores bounded page observations independently from console/load status and survives restart', async () => {
+    const { store, file, card } = fixture();
+    fake.mode = 'page-issues';
+    const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/issue?token=private', viewport: 'mobile' });
+    expect(report).toMatchObject({ status: 'passed', pageCheck: 'complete', pageObservations: [
+      { kind: 'missing-title' }, { kind: 'missing-image-alt', count: 2, scanned: 5 }, { kind: 'horizontal-overflow', pixels: 24, clientWidth: 390 },
+    ] });
+    expect(JSON.stringify(report)).not.toContain('token=private');
+    store.close();
+    const reopened = new StudioStore(file);
+    expect(cardQaReports(reopened, card.id)).toEqual([report]);
+    reopened.close();
+  });
+
+  it('marks a truncated image scan partial and an evaluation failure unavailable without inventing issues', async () => {
+    const { store, card } = fixture();
+    fake.mode = 'page-partial';
+    const partial = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/partial', viewport: 'desktop' });
+    expect(partial).toMatchObject({ pageCheck: 'partial', pageObservations: [] });
+    fake.mode = 'page-error';
+    const failedCheck = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/no-dom', viewport: 'desktop' });
+    expect(failedCheck).toMatchObject({ status: 'passed', pageCheck: 'unavailable', pageObservations: [] });
+    expect(failedCheck.screenshotAvailable).toBe(true);
+    fake.mode = 'load-error';
+    const loadError = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/broken', viewport: 'desktop' });
+    expect(loadError).toMatchObject({ status: 'error', pageCheck: 'not-run', pageObservations: [] });
+    store.close();
+  });
+
   it('checks up to five validated local routes in order and keeps each outcome', async () => {
     const { store, card } = fixture();
     const urls = ['http://127.0.0.1:5173/first', 'http://127.0.0.1:5173/console', 'http://127.0.0.1:5173/broken', 'http://127.0.0.1:5173/last'];
@@ -249,9 +283,11 @@ describe('explicit local card QA', () => {
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN screenshot_png');
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN viewport_width');
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN viewport_height');
+    legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN page_check');
+    legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN page_observations_json');
     legacy.close();
     const reopened = new StudioStore(file);
-    expect(cardQaReports(reopened, card.id).find((item) => item.id === old.id)).toMatchObject({ viewportWidth: 0, viewportHeight: 0, screenshotAvailable: false });
+    expect(cardQaReports(reopened, card.id).find((item) => item.id === old.id)).toMatchObject({ viewportWidth: 0, viewportHeight: 0, screenshotAvailable: false, pageCheck: 'not-run', pageObservations: [] });
     const report = await runCardQa(reopened, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
     expect(report).toMatchObject({ screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     reopened.close();

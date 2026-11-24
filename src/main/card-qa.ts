@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import type Database from 'better-sqlite3';
-import type { BrowserDiagnostic, Card, CardQaBatchResult, CardQaReport, CardQaViewport } from '../shared/types';
+import type { BrowserDiagnostic, Card, CardQaBatchResult, CardQaPageCheck, CardQaPageObservation, CardQaReport, CardQaViewport } from '../shared/types';
 import { diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
+import { inspectCardQaPage } from './card-qa-page';
 import type { StudioStore } from './store';
 
 const MAX_FINDINGS = 20;
@@ -22,9 +23,9 @@ const SCREENSHOT_HEIGHT = 600;
 const SCREENSHOT_TIMEOUT_MS = 3_000;
 const activeCards = new Set<string>();
 
-type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; note: string | null; screenshot_available: number; viewport_width: number; viewport_height: number };
-const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], note: row.note, screenshotAvailable: row.screenshot_available === 1, viewportWidth: row.viewport_width, viewportHeight: row.viewport_height });
-const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, viewport_width, viewport_height, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
+type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; page_check: CardQaPageCheck; page_observations_json: string; note: string | null; screenshot_available: number; viewport_width: number; viewport_height: number };
+const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], pageCheck: row.page_check, pageObservations: JSON.parse(row.page_observations_json) as CardQaPageObservation[], note: row.note, screenshotAvailable: row.screenshot_available === 1, viewportWidth: row.viewport_width, viewportHeight: row.viewport_height });
+const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, viewport_width, viewport_height, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
 
 async function captureBounded(contents: Electron.WebContents): Promise<Buffer> {
   let timeout: NodeJS.Timeout | null = null;
@@ -51,12 +52,15 @@ export function installCardQa(db: Database.Database): void {
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     requested_url TEXT NOT NULL, final_url TEXT, started_at TEXT NOT NULL,
     ended_at TEXT NOT NULL, status TEXT NOT NULL, diagnostics_json TEXT NOT NULL, note TEXT,
-    screenshot_png BLOB, viewport_width INTEGER NOT NULL DEFAULT 0, viewport_height INTEGER NOT NULL DEFAULT 0
+    screenshot_png BLOB, viewport_width INTEGER NOT NULL DEFAULT 0, viewport_height INTEGER NOT NULL DEFAULT 0,
+    page_check TEXT NOT NULL DEFAULT 'not-run', page_observations_json TEXT NOT NULL DEFAULT '[]'
   ); CREATE INDEX IF NOT EXISTS card_qa_reports_card ON card_qa_reports(card_id, ended_at DESC);`);
   const columns = db.pragma('table_info(card_qa_reports)') as Array<{ name: string }>;
   if (!columns.some((item) => item.name === 'screenshot_png')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN screenshot_png BLOB');
   if (!columns.some((item) => item.name === 'viewport_width')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN viewport_width INTEGER NOT NULL DEFAULT 0');
   if (!columns.some((item) => item.name === 'viewport_height')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN viewport_height INTEGER NOT NULL DEFAULT 0');
+  if (!columns.some((item) => item.name === 'page_check')) db.exec("ALTER TABLE card_qa_reports ADD COLUMN page_check TEXT NOT NULL DEFAULT 'not-run'");
+  if (!columns.some((item) => item.name === 'page_observations_json')) db.exec("ALTER TABLE card_qa_reports ADD COLUMN page_observations_json TEXT NOT NULL DEFAULT '[]'");
 }
 
 export function normalizeCardQaUrl(value: string): string {
@@ -81,8 +85,8 @@ export function cardQaScreenshot(store: StudioStore, input: { cardId: string; re
 
 function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | null): CardQaReport {
   store.db.transaction(() => {
-    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, screenshot_png, viewport_width, viewport_height)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.note, screenshot, report.viewportWidth, report.viewportHeight);
+    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, screenshot_png, viewport_width, viewport_height)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.pageCheck, JSON.stringify(report.pageObservations), report.note, screenshot, report.viewportWidth, report.viewportHeight);
     store.db.prepare(`DELETE FROM card_qa_reports WHERE card_id = ? AND id NOT IN (
       SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
     store.db.prepare(`UPDATE card_qa_reports SET screenshot_png = NULL WHERE id IN (
@@ -117,6 +121,8 @@ async function runReservedCardQa(store: StudioStore, card: Card, url: string, re
   let note: string | null = null;
   let status: CardQaReport['status'] = 'error';
   let screenshot: Buffer | null = null;
+  let pageCheck: CardQaPageCheck = 'not-run';
+  let pageObservations: CardQaPageObservation[] = [];
   let contentViewport = { width: 0, height: 0 };
   try {
     qaWindow = new BrowserWindow({ show: false, width: requestedViewport.width, height: requestedViewport.height, useContentSize: true, webPreferences: {
@@ -172,6 +178,13 @@ async function runReservedCardQa(store: StudioStore, card: Card, url: string, re
     } else {
       status = diagnostics.length ? 'failed' : 'passed';
       try {
+        const page = await inspectCardQaPage(contents);
+        pageCheck = page.partial ? 'partial' : 'complete';
+        pageObservations = page.observations;
+      } catch {
+        pageCheck = 'unavailable';
+      }
+      try {
         screenshot = await captureBounded(contents);
       } catch {
         note = 'Screenshot konnte nicht aufgenommen oder innerhalb des 1-MB-Limits gespeichert werden.';
@@ -185,7 +198,7 @@ async function runReservedCardQa(store: StudioStore, card: Card, url: string, re
     if (timeout) clearTimeout(timeout);
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
   }
-  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height }, screenshot);
+  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, pageCheck, pageObservations, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height }, screenshot);
 }
 
 /** One explicit route. The reservation is retained until its report has been stored. */
