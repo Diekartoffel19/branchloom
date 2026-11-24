@@ -1465,6 +1465,25 @@ function createWindow(): void {
               if (!(element instanceof HTMLButtonElement)) throw new Error('Editierter Text erschien nicht auf der Fläche.');
               element.focus(); element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
               for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-geometry input')?.value !== '61'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const resizeHandle = wireframe.querySelector('.task-wireframe-resize');
+              if (!(resizeHandle instanceof HTMLButtonElement) || resizeHandle.disabled) throw new Error('Wireframe-Größengriff fehlt.');
+              resizeHandle.focus(); resizeHandle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
+              for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '630'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '630') throw new Error('Tastatur-Größenänderung wurde nicht übernommen.');
+              const undo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Rückgängig'));
+              const redo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Wiederholen'));
+              if (!(undo instanceof HTMLButtonElement) || !(redo instanceof HTMLButtonElement)) throw new Error('Wireframe-Verlauf fehlt.');
+              undo.click();
+              for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '620'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '620') throw new Error('Größenänderung ließ sich nicht rückgängig machen.');
+              redo.click();
+              for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '630'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '630') throw new Error('Größenänderung ließ sich nicht wiederholen.');
+              const layerForward = [...wireframe.querySelectorAll('.task-wireframe-layer-order button')].find((button) => button.textContent?.includes('Eine Ebene vor'));
+              if (!(layerForward instanceof HTMLButtonElement) || layerForward.disabled) throw new Error('Ebenensteuerung fehlt.');
+              layerForward.click();
+              for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-layers li button')[2]?.textContent?.includes('Geprüfter Entwurf') !== true; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelectorAll('.task-wireframe-layers li button')[2]?.textContent?.includes('Geprüfter Entwurf') !== true) throw new Error('Ebenenreihenfolge wurde nicht geändert.');
               for (let attempt = 0; attempt < 100 && ![...wireframe.querySelectorAll('.task-wireframe-actions button')].some((button) => button.textContent?.includes('Entwurf speichern') && !button.disabled); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const save = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Entwurf speichern'));
               if (!(save instanceof HTMLButtonElement) || save.disabled) throw new Error('Entwurf ist nicht speicherbar.');
@@ -1475,7 +1494,7 @@ function createWindow(): void {
               textSetter.call(lockedText, 'Späte Eingabe'); lockedText.dispatchEvent(new Event('input', { bubbles: true }));
               let stored;
               for (let attempt = 0; attempt < 100 && !stored; attempt++) { stored = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }); if (!stored) await new Promise((resolve) => setTimeout(resolve, 50)); }
-              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Zahleneingabe, Tastaturbewegung oder Freigabezustand wurden nicht gespeichert.');
+              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements[2]?.id !== 'window-title' || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, Ebenenreihenfolge oder Freigabezustand wurden nicht gespeichert.');
               const approve = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Für Agenten freigeben'));
               for (let attempt = 0; attempt < 100 && approve?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(approve instanceof HTMLButtonElement) || approve.disabled) throw new Error('Gespeicherter Entwurf ist nicht freigebbar.');

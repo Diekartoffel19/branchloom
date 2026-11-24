@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, MousePointer2, Plus, RotateCcw } from 'lucide-react';
+import { Check, CornerDownRight, MousePointer2, Plus, Redo2, RotateCcw, Undo2 } from 'lucide-react';
 import type { Card } from '../../shared/types';
 import type { CardWireframe, WireframeElement, WireframeElementKind, WireframeElementTone } from '../../shared/card-wireframe';
 import { WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
+import { moveWireframeLayer, resizeWireframeElement } from './wireframe-editing';
 import './task-wireframe.css';
 
 interface Draft { title: string; elements: WireframeElement[] }
@@ -39,12 +40,41 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
   const [geometryDraft, setGeometryDraft] = useState<{ id: string; key: 'x' | 'y' | 'width' | 'height'; raw: string } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [, setHistoryRevision] = useState(0);
+  const past = useRef<Draft[]>([]);
+  const future = useRef<Draft[]>([]);
   const generation = useRef(0);
   const interactionLocked = useRef(false);
   const stage = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
+  const drag = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; x: number; y: number; before: Draft; recorded: boolean } | null>(null);
+  const resize = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; width: number; height: number; before: Draft; recorded: boolean } | null>(null);
   const card = cards.find((item) => item.id === cardId) ?? null;
   const selected = draft?.elements.find((item) => item.id === selectedId) ?? null;
+
+  function resetHistory() { past.current = []; future.current = []; setHistoryRevision((value) => value + 1); }
+  function recordHistory(before: Draft) {
+    past.current = [...past.current.slice(-49), before];
+    future.current = [];
+    setHistoryRevision((value) => value + 1);
+  }
+  function undo() {
+    if (!draft || !past.current.length || interactionLocked.current) return;
+    const previous = past.current[past.current.length - 1]!;
+    past.current = past.current.slice(0, -1);
+    future.current = [...future.current.slice(-49), draft];
+    retainDraft(previous); setGeometryDraft(null);
+    if (!previous.elements.some((item) => item.id === selectedId)) setSelectedId(null);
+    setHistoryRevision((value) => value + 1);
+  }
+  function redo() {
+    if (!draft || !future.current.length || interactionLocked.current) return;
+    const next = future.current[future.current.length - 1]!;
+    future.current = future.current.slice(0, -1);
+    past.current = [...past.current.slice(-49), draft];
+    retainDraft(next); setGeometryDraft(null);
+    if (!next.elements.some((item) => item.id === selectedId)) setSelectedId(null);
+    setHistoryRevision((value) => value + 1);
+  }
 
   async function load(targetCardId: string, expectedGeneration = generation.current) {
     interactionLocked.current = true;
@@ -55,6 +85,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
       const retained = unsavedDrafts.get(draftKey(projectId, targetCardId));
       setSaved(current); setDraft(retained ?? (current ? { title: current.title, elements: current.elements } : null));
       setSelectedId(null); setDirty(Boolean(retained)); setGeometryDraft(null);
+      resetHistory();
       if (retained) setNotice('Ungespeicherter Entwurf aus dieser App-Sitzung wiederhergestellt.');
     } catch (reason) { if (generation.current === expectedGeneration) setError(messageOf(reason)); }
     finally { if (generation.current === expectedGeneration) { interactionLocked.current = false; setLoading(false); } }
@@ -64,6 +95,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
     const current = ++generation.current;
     interactionLocked.current = false; setBusy(false);
     setSaved(null); setDraft(null); setSelectedId(null); setDirty(false); setError(''); setNotice('');
+    resetHistory();
     if (cardId && cards.some((item) => item.id === cardId)) { lastSelectedCard.set(projectId, cardId); void load(cardId, current); }
     else { if (cardId) setCardId(lastSelectedCard.get(projectId) && cards.some((item) => item.id === lastSelectedCard.get(projectId)) ? lastSelectedCard.get(projectId)! : ''); setLoading(false); }
     return () => { generation.current++; };
@@ -73,10 +105,12 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
     if (cardId) unsavedDrafts.set(draftKey(projectId, cardId), next);
     setDraft(next); setDirty(true); setNotice('Ungespeicherte Änderungen.'); setError('');
   }
-  function edit(next: Draft) { if (!interactionLocked.current) retainDraft(next); }
-  function editElement(id: string, change: Partial<WireframeElement>) {
+  function edit(next: Draft, record = true) { if (!interactionLocked.current) { if (draft && record) recordHistory(draft); retainDraft(next); } }
+  function editElement(id: string, change: Partial<WireframeElement>, record = true) {
     if (!draft) return;
-    edit({ ...draft, elements: draft.elements.map((item) => item.id === id ? { ...item, ...change } : item) });
+    const current = draft.elements.find((item) => item.id === id);
+    if (!current || Object.entries(change).every(([key, value]) => current[key as keyof WireframeElement] === value)) return;
+    edit({ ...draft, elements: draft.elements.map((item) => item.id === id ? { ...item, ...change } : item) }, record);
   }
   function addElement(kind: WireframeElementKind) {
     if (!draft || interactionLocked.current || draft.elements.length >= 40) return;
@@ -96,6 +130,11 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
   }
   function moveSelected(item: WireframeElement, dx: number, dy: number) {
     editElement(item.id, { x: clamp(item.x + dx, 0, WIREFRAME_WIDTH - item.width), y: clamp(item.y + dy, 0, WIREFRAME_HEIGHT - item.height) });
+  }
+  function changeLayer(id: string, direction: -1 | 1) {
+    if (!draft) return;
+    const elements = moveWireframeLayer(draft.elements, id, direction);
+    if (elements !== draft.elements) edit({ ...draft, elements });
   }
   function setGeometry(item: WireframeElement, key: 'x' | 'y' | 'width' | 'height', raw: string) {
     if (interactionLocked.current) return;
@@ -146,6 +185,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
     try {
       const proposal = await window.studio.proposeCardWireframe({ projectId, cardId: card.id });
       if (generation.current !== currentGeneration) return;
+      if (draft) recordHistory(draft);
       retainDraft({ title: proposal.title, elements: proposal.elements }); setSelectedId(null);
       setNotice('Agentenvorschlag geladen. Prüfe und bearbeite ihn, bevor du ihn speicherst und gesondert freigibst.');
     } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
@@ -161,24 +201,30 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="task-wireframe-notice" role="status">{notice}</p> : null}
     {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-empty"><p>Für „{card.title}“ gibt es noch keinen Wireframe.</p><button type="button" className="primary-button" disabled={busy} onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button><button type="button" className="secondary-button" disabled={busy} onClick={() => edit({ title: card.title.slice(0, 100), elements: [] })}>Leere Fläche beginnen</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button><small>Die Vorlage ist lokal und deterministisch. Der optionale Agentenvorschlag nutzt den gewählten Codex-Workflow-Agenten lesend und bleibt bis zum Speichern ungespeichert.</small></div> : <>
-      <div className="task-wireframe-toolbar"><span>Element hinzufügen</span>{(['panel', 'text', 'button', 'field'] as const).map((kind) => <button key={kind} type="button" className="secondary-button small" disabled={busy || draft.elements.length >= 40} onClick={() => addElement(kind)}><Plus size={14} aria-hidden="true" />{labelForKind[kind]}</button>)}<button type="button" className="secondary-button small task-wireframe-propose" disabled={busy || dirty} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent neu vorschlagen'}</button></div>
+      <div className="task-wireframe-toolbar"><span>Element hinzufügen</span>{(['panel', 'text', 'button', 'field'] as const).map((kind) => <button key={kind} type="button" className="secondary-button small" disabled={busy || draft.elements.length >= 40} onClick={() => addElement(kind)}><Plus size={14} aria-hidden="true" />{labelForKind[kind]}</button>)}<div className="task-wireframe-history" role="group" aria-label="Bearbeitungsschritte"><button type="button" className="secondary-button small" disabled={busy || !past.current.length} onClick={undo} title="Rückgängig"><Undo2 size={14} aria-hidden="true" />Rückgängig</button><button type="button" className="secondary-button small" disabled={busy || !future.current.length} onClick={redo} title="Wiederholen"><Redo2 size={14} aria-hidden="true" />Wiederholen</button></div><button type="button" className="secondary-button small task-wireframe-propose" disabled={busy || dirty} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent neu vorschlagen'}</button></div>
       <div className="task-wireframe-layout">
         <aside className="task-wireframe-layers" aria-label="Ebenen"><h3>Ebenen</h3>{draft.elements.length ? <ol>{draft.elements.map((item) => <li key={item.id}><button type="button" disabled={busy} className={selectedId === item.id ? 'selected' : ''} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>{labelForKind[item.kind]} · {item.text || 'Ohne Text'}</button></li>)}</ol> : <p>Noch keine Elemente.</p>}</aside>
-        <div className="task-wireframe-canvas-wrap"><div className="task-wireframe-canvas-head"><span>{WIREFRAME_WIDTH} × {WIREFRAME_HEIGHT} · App-Fenster</span><span><MousePointer2 size={13} aria-hidden="true" /> Ziehen oder Pfeiltasten</span></div><div className="task-wireframe-canvas" ref={stage} role="group" aria-label="Editierbares App-Wireframe">
+        <div className="task-wireframe-canvas-wrap"><div className="task-wireframe-canvas-head"><span>{WIREFRAME_WIDTH} × {WIREFRAME_HEIGHT} · App-Fenster</span><span><MousePointer2 size={13} aria-hidden="true" /> Ziehen oder Pfeiltasten · Ecke für Größe</span></div><div className="task-wireframe-canvas" ref={stage} role="group" aria-label="Editierbares App-Wireframe">
           {draft.elements.map((item) => <button key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedId === item.id ? ' selected' : ''}`} style={{ left: `${item.x / WIREFRAME_WIDTH * 100}%`, top: `${item.y / WIREFRAME_HEIGHT * 100}%`, width: `${item.width / WIREFRAME_WIDTH * 100}%`, height: `${item.height / WIREFRAME_HEIGHT * 100}%` }} aria-label={`${labelForKind[item.kind]}: ${item.text || 'ohne Text'}`} aria-pressed={selectedId === item.id}
             onFocus={() => { if (!interactionLocked.current) setSelectedId(item.id); }}
-            onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: item.x, y: item.y }; setSelectedId(item.id); }}
-            onPointerMove={(event) => { const current = drag.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== item.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const x = clamp(Math.round(current.x + (event.clientX - current.clientX) * WIREFRAME_WIDTH / rect.width), 0, WIREFRAME_WIDTH - item.width); const y = clamp(Math.round(current.y + (event.clientY - current.clientY) * WIREFRAME_HEIGHT / rect.height), 0, WIREFRAME_HEIGHT - item.height); if (x !== item.x || y !== item.y) editElement(item.id, { x, y }); }}
+            onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: item.x, y: item.y, before: draft, recorded: false }; setSelectedId(item.id); }}
+            onPointerMove={(event) => { const current = drag.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== item.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const x = clamp(Math.round(current.x + (event.clientX - current.clientX) * WIREFRAME_WIDTH / rect.width), 0, WIREFRAME_WIDTH - item.width); const y = clamp(Math.round(current.y + (event.clientY - current.clientY) * WIREFRAME_HEIGHT / rect.height), 0, WIREFRAME_HEIGHT - item.height); if (x !== item.x || y !== item.y) { if (!current.recorded) { recordHistory(current.before); current.recorded = true; } editElement(item.id, { x, y }, false); } }}
             onPointerUp={(event) => { if (drag.current?.pointerId === event.pointerId) drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
             onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; if (event.key === 'ArrowLeft') { event.preventDefault(); moveSelected(item, -step, 0); } else if (event.key === 'ArrowRight') { event.preventDefault(); moveSelected(item, step, 0); } else if (event.key === 'ArrowUp') { event.preventDefault(); moveSelected(item, 0, -step); } else if (event.key === 'ArrowDown') { event.preventDefault(); moveSelected(item, 0, step); } else if (event.key === 'Delete') { event.preventDefault(); removeElement(item.id); } }}>
             {item.kind === 'field' ? <span>{item.text || 'Eingabe'}</span> : item.text}
           </button>)}
+          {selected ? <button type="button" className="task-wireframe-resize" disabled={busy} style={{ left: `clamp(16px, ${(selected.x + selected.width) / WIREFRAME_WIDTH * 100}%, calc(100% - 16px))`, top: `clamp(16px, ${(selected.y + selected.height) / WIREFRAME_HEIGHT * 100}%, calc(100% - 16px))` }} aria-label={`Größe ändern: ${labelForKind[selected.kind]} ${selected.text || 'ohne Text'}. Pfeil rechts oder links ändert Breite, Pfeil unten oder oben Höhe; Umschalt für zehn Pixel.`} title="Größe ziehen · Pfeiltasten ändern um 1 px, Umschalt um 10 px"
+            onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0 || !draft) return; event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); resize.current = { id: selected.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, width: selected.width, height: selected.height, before: draft, recorded: false }; }}
+            onPointerMove={(event) => { const current = resize.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== selected.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const next = resizeWireframeElement({ ...selected, width: current.width, height: current.height }, (event.clientX - current.clientX) * WIREFRAME_WIDTH / rect.width, (event.clientY - current.clientY) * WIREFRAME_HEIGHT / rect.height); if (next.width !== selected.width || next.height !== selected.height) { if (!current.recorded) { recordHistory(current.before); current.recorded = true; } editElement(selected.id, { width: next.width, height: next.height }, false); } }}
+            onPointerUp={(event) => { if (resize.current?.pointerId === event.pointerId) resize.current = null; }} onPointerCancel={() => { resize.current = null; }}
+            onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; const change: [number, number] | null = event.key === 'ArrowRight' ? [step, 0] : event.key === 'ArrowLeft' ? [-step, 0] : event.key === 'ArrowDown' ? [0, step] : event.key === 'ArrowUp' ? [0, -step] : null; if (!change) return; event.preventDefault(); event.stopPropagation(); const next = resizeWireframeElement(selected, change[0], change[1]); editElement(selected.id, { width: next.width, height: next.height }); }}><CornerDownRight size={12} aria-hidden="true" /></button> : null}
         </div></div>
         <aside className="task-wireframe-properties" aria-label="Eigenschaften"><h3>Eigenschaften</h3><label>Entwurfstitel<input value={draft.title} disabled={busy} maxLength={100} onChange={(event) => edit({ ...draft, title: event.target.value })} /></label>{selected ? <>
           <div className="task-wireframe-property-kind">{labelForKind[selected.kind]}</div>
           <label>Text<input aria-label="Text des ausgewählten Elements" value={selected.text} disabled={busy} maxLength={120} onChange={(event) => editElement(selected.id, { text: event.target.value })} /></label>
           <div className="task-wireframe-geometry">{(['x', 'y', 'width', 'height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Breite' : key === 'height' ? 'Höhe' : key.toUpperCase()}<input type="number" min={key === 'width' || key === 'height' ? 24 : 0} max={key === 'width' || key === 'x' ? WIREFRAME_WIDTH : WIREFRAME_HEIGHT} disabled={busy} value={geometryDraft?.id === selected.id && geometryDraft.key === key ? geometryDraft.raw : selected[key]} onChange={(event) => setGeometry(selected, key, event.target.value)} onBlur={() => setGeometryDraft(null)} /></label>)}</div>
           <label>Ton<select value={selected.tone} disabled={busy} onChange={(event) => editElement(selected.id, { tone: event.target.value as WireframeElementTone })}><option value="plain">Neutral</option><option value="muted">Zurückhaltend</option><option value="accent">Akzent</option></select></label>
+          <div className="task-wireframe-layer-order" role="group" aria-label="Ebenenreihenfolge"><button type="button" className="secondary-button small" disabled={busy || draft.elements[0]?.id === selected.id} onClick={() => changeLayer(selected.id, -1)}>Eine Ebene zurück</button><button type="button" className="secondary-button small" disabled={busy || draft.elements[draft.elements.length - 1]?.id === selected.id} onClick={() => changeLayer(selected.id, 1)}>Eine Ebene vor</button></div>
           <button type="button" className="secondary-button small" disabled={busy} onClick={() => removeElement(selected.id)}>Element entfernen</button>
         </> : <p>Wähle ein Element auf der Fläche oder in der Ebenenliste.</p>}</aside>
       </div>
