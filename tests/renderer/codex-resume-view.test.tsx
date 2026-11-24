@@ -20,7 +20,7 @@ describe('Codex resume card control', () => {
   it('offers a deliberate picker on a finished Codex card and explains that prompts are not replayed', () => {
     const html = renderToStaticMarkup(createElement(CardPanel, { card, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(html).toContain('Codex-Gespräch auswählen');
-    expect(html).toContain('wiederholt den alten Auftrag nicht automatisch');
+    expect(html).toContain('der alte Auftrag wird nicht erneut gesendet');
     expect(html).toContain('Terminal wird geladen');
   });
 

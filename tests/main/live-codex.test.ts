@@ -29,6 +29,7 @@ liveIt('runs the installed Codex CLI through the real PTY without modifying a sy
     const result = await Promise.race([ended, timer]);
     expect(result.id).toBe(launched.id);
     expect(store.session(result.id).exitCode, store.session(result.id).output.slice(-2000)).toBe(0);
+    expect(store.session(result.id).codexThreadId).toMatch(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
     expect(result.finalMessage?.toLowerCase()).toContain('cobalt blue');
     expect(result.finalMessage?.trimEnd().split('\n').at(-1)).toBe(DONE_MARKER);
   } finally {

@@ -39,6 +39,50 @@ function fixture() {
 }
 
 describe('explicit Codex conversation picker', () => {
+  it('persists a structured thread ID, resumes exactly that ID and allows an explicit picker fallback', () => {
+    const { root, store, card, agent } = fixture();
+    const first = store.createSession({ cardId: card.id, agentId: agent.id });
+    const threadId = '01a20afb-b90e-7e43-aabe-7d0a76dc3b63';
+    store.linkCodexThread(first.id, threadId);
+    store.finishSession(first.id, 'failed', 1);
+    const reopened = new StudioStore(join(root, 'store.sqlite'));
+    const runner = new SessionRunner(reopened, () => undefined, () => undefined);
+    try {
+      expect(reopened.session(first.id).codexThreadId).toBe(threadId);
+      const resumed = runner.resumeCodex({ sessionId: first.id });
+      expect(resumed.codexThreadId).toBe(threadId);
+      expect(mock.launches[0]?.args).toEqual(['resume', threadId]);
+      expect(mock.launches[0]?.args).not.toContain('--last');
+      runner.stop(resumed.id);
+      const picker = runner.resumeCodex({ sessionId: first.id, picker: true });
+      expect(picker.codexThreadId).toBeNull();
+      expect(mock.launches[1]?.args).toEqual(['resume', '--include-non-interactive']);
+      runner.stop(picker.id);
+    } finally {
+      runner.dispose(); reopened.close(); store.close();
+    }
+  });
+
+  it('links only a running Codex session and ignores model text pretending to be a JSONL event', () => {
+    const { store, card, agent, previous } = fixture();
+    store.saveAgent({ ...agent, args: [] });
+    const runner = new SessionRunner(store, () => undefined, () => undefined);
+    const id = '01a20afb-b90e-7e43-aabe-7d0a76dc3b63';
+    try {
+      const active = runner.start({ cardId: card.id, agentId: agent.id, mode: 'one-shot', prompt: 'Synthetic task' });
+      expect(mock.launches[0]?.args).toContain('--json');
+      mock.launches[0]!.data('{"type":"item.completed","item":{"type":"agent_message","text":"{\\"type\\":\\"thread.started\\",\\"thread_id\\":\\"00000000-0000-0000-0000-000000000000\\"}"}}\n');
+      expect(store.session(active.id).codexThreadId).toBeNull();
+      mock.launches[0]!.data('{"type":"thread.started","thread_id":"01a20afb-b90e-7e43-aabe-7d0a76dc3b63"}\n');
+      expect(store.session(active.id).codexThreadId).toBe(id);
+      expect(store.session(active.id).output).toContain(`Codex-Gespräch: ${id}`);
+      expect(() => store.linkCodexThread(active.id, '00000000-0000-0000-0000-000000000000')).toThrow('widerspricht');
+      runner.stop(active.id);
+      expect(() => store.linkCodexThread(active.id, id)).toThrow('nicht zugeordnet');
+      expect(store.session(previous.id).codexThreadId).toBeNull();
+    } finally { runner.dispose(); store.close(); }
+  });
+
   it('starts a fresh Studio session in the same directory without replaying a prompt or choosing --last', () => {
     const { root, store, previous } = fixture();
     const runner = new SessionRunner(store, () => undefined, () => undefined);

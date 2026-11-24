@@ -224,7 +224,7 @@ function installIpc(): void {
   bind('detectAgents', () => detectAgents(db.agents()));
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
-  bind('resumeCodexSession', (input: { sessionId: string }) => runner?.resumeCodex(input));
+  bind('resumeCodexSession', (input: { sessionId: string; picker?: boolean }) => runner?.resumeCodex(input));
   bind('acknowledgeInterruptedSession', (input: { projectId: string; sessionId: string }) => db.acknowledgeInterruptedSession(input));
   bind('sendSession', (input: { sessionId: string; text: string }) => runner?.send(input));
   bind('writeSessionInput', (input: { sessionId: string; data: string }) => runner?.writeRaw(input));

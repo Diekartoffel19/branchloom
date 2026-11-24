@@ -36,7 +36,7 @@ Unter **Design** öffnet die [lesende Inspektion](docs/DESIGN_INSPECTION.md) aus
 9. Für Spracheingabe [die lokale Voice-Einrichtung](docs/VOICE.md) ausführen. Ein kurzer Clip wird offline transkribiert und erscheint vor dem Senden als editierbarer Text.
 10. Im linken Workspace-Bereich das aktive Projekt über **Projekt sichern** als lokales JSON-[Projektpaket](docs/PROJECT_PACKAGE.md) exportieren. **Projekt importieren** zeigt vor dem Anlegen eines neuen Projekts eine Vorschau. Die Datei ist nicht verschlüsselt und enthält nur Board, Karten, Notizen und Workflow-Struktur; Agenten und automatische Läufe bleiben beim Import aus.
 
-Workflows und Karten werden in SQLite gespeichert. Wenn die App während eines laufenden Agenten endet, werden dessen Sitzung und der Workflow beim nächsten Start zur Prüfung markiert; Aktionen werden nicht blind erneut ausgeführt. Codex-Gespräche können über den CLI-Picker manuell wieder geöffnet werden; automatische Wiederverbindung und die sichere Fortsetzung einer unterbrochenen Workflow-Aktion gehören noch zur [Zuverlässigkeitsstufe](docs/PARITY.md).
+Workflows und Karten werden in SQLite gespeichert. Wenn die App während eines laufenden Agenten endet, werden dessen Sitzung und der Workflow beim nächsten Start zur Prüfung markiert; Aktionen werden nicht blind erneut ausgeführt. Bei Codex-Workflow-Läufen mit belegter Gesprächs-ID lässt sich [genau dieses Gespräch ausdrücklich fortsetzen](docs/SESSION_RESUME.md); für interaktive und ältere Läufe bleibt der CLI-Picker. Automatische Wiederverbindung und die sichere Fortsetzung einer unterbrochenen Workflow-Aktion gehören noch zur [Zuverlässigkeitsstufe](docs/PARITY.md).
 
 ## Prüfen
 

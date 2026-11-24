@@ -8,6 +8,7 @@ import { columnSettings } from '../shared/column-settings';
 import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
 import { buildAntigravityArgs } from './antigravity';
+import { CodexJsonlOutput } from './codex-jsonl';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -36,6 +37,15 @@ export function resolveExecutable(command: string, env: NodeJS.ProcessEnv = proc
 }
 
 export interface AgentLauncher { executable: string; prefixArgs: string[] }
+
+function codexPackagedArgs(launcher: AgentLauncher, agent: AgentPreset): string[] {
+  // The Windows app-bundled Codex binary needs its standalone transport when
+  // launched without the desktop app server. Other CLI installations keep
+  // their existing launch arguments for compatibility with older versions.
+  return agent.kind === 'codex' && process.platform === 'win32'
+    && /[\\/]WindowsApps[\\/]OpenAI\.Codex_[^\\/]+[\\/]app[\\/]resources[\\/]codex\.exe$/i.test(launcher.executable)
+    ? ['--no-daemon'] : [];
+}
 
 /**
  * Narrowly recognized CMD shims are read as data, never executed.
@@ -154,7 +164,7 @@ function codexWorkflowProfileArgs(profileArgs: string[]): string[] {
 export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string, column?: { model: string | null; effort: ColumnEffort | null }): string[] {
   if (agent.kind === 'antigravity') return buildAntigravityArgs(agent.args, prompt, mode, column?.model ?? agent.model, column?.effort ?? null);
   const args = mode === 'one-shot' && agent.kind === 'codex'
-    ? ['exec', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...codexWorkflowProfileArgs(agent.args)]
+    ? ['exec', '--json', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...codexWorkflowProfileArgs(agent.args)]
     : [...agent.args];
   const model = column?.model ?? agent.model;
   if (model) {
@@ -236,7 +246,7 @@ export class SessionRunner {
     if (finalFile) this.finalMessageFiles.set(row.id, finalFile);
     let child: IPty;
     try {
-      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)], {
+      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)], {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
@@ -248,7 +258,7 @@ export class SessionRunner {
       this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: String(error), state: failed.state });
       throw error;
     }
-    this.attachProcess(row, child);
+    this.attachProcess(row, child, agent.kind === 'codex' && input.mode === 'one-shot');
     if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && agent.kind !== 'antigravity' && prompt) {
       // The CLI may show a login/trust prompt. Delay only the initial turn;
       // users can inspect the terminal and send it manually if it did not land.
@@ -260,8 +270,8 @@ export class SessionRunner {
     return row;
   }
 
-  /** Open Codex's own cwd-scoped session picker. A human chooses the chat; no prior prompt is replayed. */
-  resumeCodex(input: { sessionId: string }): Session {
+  /** Resume a CLI-confirmed conversation ID, or open the cwd-scoped picker. Never replay the old prompt. */
+  resumeCodex(input: { sessionId: string; picker?: boolean }): Session {
     const previous = this.store.session(input.sessionId);
     if (previous.state === 'running') throw new Error('Laufende Sitzung kann nicht erneut geöffnet werden.');
     const card = this.store.card(previous.cardId);
@@ -276,12 +286,14 @@ export class SessionRunner {
     if (previous.worktreePath && this.store.cardWorktree(card.id)?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree ist nicht mehr verknüpft.');
     const worktree = previous.worktreePath ? ensureCardWorktree(this.store, card.id) : null;
     if (previous.worktreePath && worktree?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree stimmt nicht mehr überein.');
-    const row = this.store.createSession({ cardId: card.id, agentId: agent.id, worktreePath: worktree?.path });
+    const exactId = input.picker === true ? null : previous.codexThreadId ?? null;
+    const row = this.store.createSession({ cardId: card.id, agentId: agent.id, worktreePath: worktree?.path, codexThreadId: exactId });
     let child: IPty;
     try {
-      // The picker is intentionally interactive: --last could silently select
-      // a different task, and passing a prompt could repeat side effects.
-      child = spawnPty(launcher.executable, [...launcher.prefixArgs, 'resume', '--include-non-interactive'], {
+      // An exact ID is linked only from Codex's structured thread.started
+      // event. The picker remains available when no ID is proven or the user
+      // chooses it. Neither path selects --last or sends an old prompt.
+      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), 'resume', ...(exactId ? [exactId] : ['--include-non-interactive'])], {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
@@ -296,15 +308,34 @@ export class SessionRunner {
     return row;
   }
 
-  private attachProcess(row: Session, child: IPty): void {
+  private attachProcess(row: Session, child: IPty, codexJson = false): void {
+    const decoder = codexJson ? new CodexJsonlOutput() : null;
     this.processes.set(row.id, child);
     this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: 'Agent started', state: 'running' });
     child.onData((data) => {
-      if (this.disposed) return;
-      this.store.appendOutput(row.id, data);
-      this.emit({ sessionId: row.id, cardId: row.cardId, type: 'output', data });
+      if (this.disposed || this.store.session(row.id).state !== 'running') return;
+      const parsed = decoder?.feed(data);
+      if (parsed?.threadId) {
+        try { this.store.linkCodexThread(row.id, parsed.threadId); }
+        catch (reason) { parsed.display += `Codex-Gespräch konnte nicht zugeordnet werden: ${reason instanceof Error ? reason.message : String(reason)}\r\n`; }
+      }
+      const display = parsed?.display ?? data;
+      if (!display) return;
+      this.store.appendOutput(row.id, display);
+      this.emit({ sessionId: row.id, cardId: row.cardId, type: 'output', data: display });
     });
     child.onExit(({ exitCode }) => {
+      const tail = decoder?.flush();
+      if (tail && !this.disposed && this.store.session(row.id).state === 'running') {
+        if (tail.threadId) {
+          try { this.store.linkCodexThread(row.id, tail.threadId); }
+          catch { /* The terminal still reports the CLI's event; stale or contradictory IDs are not linked. */ }
+        }
+        if (tail.display) {
+          this.store.appendOutput(row.id, tail.display);
+          this.emit({ sessionId: row.id, cardId: row.cardId, type: 'output', data: tail.display });
+        }
+      }
       const pending = this.pendingFirstTurn.get(row.id);
       if (pending) clearTimeout(pending);
       this.pendingFirstTurn.delete(row.id);

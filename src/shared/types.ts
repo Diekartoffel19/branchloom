@@ -28,7 +28,7 @@ export interface CardContextReference { id: string; cardId: string; projectId: s
 export interface CardContextPreview { id: string; kind: 'file' | 'url'; target: string; text: string | null; truncated: boolean; note: string }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'antigravity' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
-export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null }
+export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null; codexThreadId?: string | null }
 export interface InterruptedSessionReview { sessionId: string; projectId: string; cardId: string; cardTitle: string; agentName: string; interruptedAt: string; worktreePath: string | null }
 export type CommandShell = 'powershell' | 'cmd';
 export interface CommandTerminal { id: string; projectId: string; shell: CommandShell; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string }
@@ -112,7 +112,7 @@ export interface StudioAPI {
   detectAgents(): Promise<AgentDetection[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
-  resumeCodexSession(input: { sessionId: string }): Promise<Session>;
+  resumeCodexSession(input: { sessionId: string; picker?: boolean }): Promise<Session>;
   acknowledgeInterruptedSession(input: { projectId: string; sessionId: string }): Promise<void>;
   sendSession(input: { sessionId: string; text: string }): Promise<void>;
   writeSessionInput(input: { sessionId: string; data: string }): Promise<void>;

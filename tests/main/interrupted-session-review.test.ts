@@ -37,7 +37,7 @@ describe('interrupted session review', () => {
     const store = new StudioStore(dbPath);
     try {
       const columns = store.db.pragma('table_info(sessions)') as Array<{ name: string }>;
-      expect(columns.map((item) => item.name)).toEqual(expect.arrayContaining(['worktree_path', 'interrupted_at', 'interruption_reviewed_at']));
+      expect(columns.map((item) => item.name)).toEqual(expect.arrayContaining(['worktree_path', 'interrupted_at', 'interruption_reviewed_at', 'codex_thread_id']));
       expect(store.interruptedSessions(store.createProject({ name: 'Legacy', path: root }).id)).toEqual([]);
     } finally { store.close(); }
   });

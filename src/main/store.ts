@@ -45,7 +45,7 @@ interface ProjectRow { id: string; name: string; path: string; created_at: strin
 interface ColumnRow { id: string; project_id: string; name: string; position: number; auto_start: number; agent_id: string | null; model: string | null; effort: ColumnEffort | null }
 interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; priority: CardPriority; labels_json: string; position: number; created_at: string; updated_at: string; archived_at: string | null }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
-interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null }
+interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null; codex_thread_id: string | null }
 interface CommandTerminalRow { id: string; project_id: string; shell: CommandShell; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string }
 export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
 interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
@@ -58,7 +58,7 @@ const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, pat
 const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id, model: row.model, effort: row.effort });
 const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, priority: row.priority, labels: parseArray<string>(row.labels_json), position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
-const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path });
+const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path, codexThreadId: row.codex_thread_id });
 const commandTerminal = (row: CommandTerminalRow): CommandTerminal => ({ id: row.id, projectId: row.project_id, shell: row.shell, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output });
 const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json).map(normalizedWorkflowStep), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
 const note = (row: NoteRow): MemoryNote => ({ id: row.id, projectId: row.project_id, title: row.title, body: row.body, tags: parseArray<string>(row.tags_json), links: parseArray<string>(row.links_json), createdAt: row.created_at, updatedAt: row.updated_at });
@@ -101,6 +101,7 @@ export class StudioStore {
     `);
     const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
     if (!sessionColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE sessions ADD COLUMN worktree_path TEXT');
+    if (!sessionColumns.some((item) => item.name === 'codex_thread_id')) this.db.exec('ALTER TABLE sessions ADD COLUMN codex_thread_id TEXT');
     if (!sessionColumns.some((item) => item.name === 'interrupted_at')) this.db.exec('ALTER TABLE sessions ADD COLUMN interrupted_at TEXT');
     if (!sessionColumns.some((item) => item.name === 'interruption_reviewed_at')) this.db.exec('ALTER TABLE sessions ADD COLUMN interruption_reviewed_at TEXT');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_interruption ON sessions(project_id, interrupted_at DESC) WHERE interrupted_at IS NOT NULL AND interruption_reviewed_at IS NULL');
@@ -246,7 +247,7 @@ export class StudioStore {
     this.project(projectId);
     // The radar needs identity and worktree binding, never the potentially
     // 200 KiB transcript attached to each session.
-    return (this.db.prepare("SELECT id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, '' AS output, worktree_path FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC, id").all(projectId) as SessionRow[]).map(session);
+    return (this.db.prepare("SELECT id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, '' AS output, worktree_path, codex_thread_id FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC, id").all(projectId) as SessionRow[]).map(session);
   }
   queueCandidates(projectId: string, limit = 10): Card[] {
     if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Ungültige Vorschaugröße für die Warteschlange.');
@@ -593,13 +594,21 @@ export class StudioStore {
     this.project(projectId);
     return searchSessionTranscripts(this.db, projectId, query);
   }
-  createSession(input: { cardId: string; agentId: string; worktreePath?: string | null }): Session {
+  createSession(input: { cardId: string; agentId: string; worktreePath?: string | null; codexThreadId?: string | null }): Session {
     const source = this.card(input.cardId);
     if (source.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
     this.agent(input.agentId);
-    const value: Session = { id: randomUUID(), projectId: source.projectId, cardId: source.id, agentId: input.agentId, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '', worktreePath: input.worktreePath ?? null };
-    this.db.prepare('INSERT INTO sessions (id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, output, worktree_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output, value.worktreePath);
+    if (input.codexThreadId && (this.agent(input.agentId).kind !== 'codex' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.codexThreadId))) throw new Error('Ungültige Codex-Gesprächs-ID.');
+    const value: Session = { id: randomUUID(), projectId: source.projectId, cardId: source.id, agentId: input.agentId, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '', worktreePath: input.worktreePath ?? null, codexThreadId: input.codexThreadId ?? null };
+    this.db.prepare('INSERT INTO sessions (id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, output, worktree_path, codex_thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output, value.worktreePath, value.codexThreadId);
     return value;
+  }
+  linkCodexThread(sessionId: string, threadId: string): void {
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(threadId)) throw new Error('Ungültige Codex-Gesprächs-ID.');
+    const row = this.session(sessionId);
+    if (this.agent(row.agentId).kind !== 'codex' || row.state !== 'running') throw new Error('Codex-Gespräch kann dieser Sitzung nicht zugeordnet werden.');
+    const changed = this.db.prepare("UPDATE sessions SET codex_thread_id = ? WHERE id = ? AND state = 'running' AND (codex_thread_id IS NULL OR codex_thread_id = ?)").run(threadId, sessionId, threadId);
+    if (changed.changes !== 1) throw new Error('Codex-Gesprächs-ID der Sitzung widerspricht der vorhandenen Zuordnung.');
   }
   cardWorktree(cardId: string): CardWorktree | null {
     const row = this.db.prepare('SELECT * FROM card_worktrees WHERE card_id = ?').get(cardId) as WorktreeRow | undefined;
