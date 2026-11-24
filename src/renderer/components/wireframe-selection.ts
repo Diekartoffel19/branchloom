@@ -3,8 +3,25 @@ import type { WireframeElement } from '../../shared/card-wireframe';
 export type WireframeAlignment = 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bottom' | 'distribute-x' | 'distribute-y';
 
 export interface WireframeDuplication { elements: WireframeElement[]; selectedIds: string[] }
+export interface WireframePoint { x: number; y: number }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+/** Return layers intersecting a non-empty drag rectangle in artboard coordinates. */
+export function selectWireframeMarquee(
+  elements: WireframeElement[], start: WireframePoint, end: WireframePoint, existingIds: readonly string[] = [],
+): string[] {
+  const left = Math.min(start.x, end.x);
+  const right = Math.max(start.x, end.x);
+  const top = Math.min(start.y, end.y);
+  const bottom = Math.max(start.y, end.y);
+  if (right <= left || bottom <= top) return [...existingIds];
+  const chosen = new Set(existingIds);
+  for (const item of elements) {
+    if (item.x < right && item.x + item.width > left && item.y < bottom && item.y + item.height > top) chosen.add(item.id);
+  }
+  return elements.filter((item) => chosen.has(item.id)).map((item) => item.id);
+}
 
 /** Duplicate the current artboard selection in front of existing layers. The entire group shifts together. */
 export function duplicateWireframeSelection(

@@ -1,12 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { WireframeElement } from '../../src/shared/card-wireframe';
 import { snapWireframePosition } from '../../src/renderer/components/wireframe-editing';
-import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection } from '../../src/renderer/components/wireframe-selection';
+import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection, selectWireframeMarquee } from '../../src/renderer/components/wireframe-selection';
 
 const item = (id: string, x: number, y: number, width = 40, height = 20): WireframeElement =>
   ({ id, kind: 'panel', text: id, tone: 'plain', x, y, width, height });
 
 describe('wireframe multi-selection geometry', () => {
+  it('selects intersecting layers in both drag directions without altering their geometry', () => {
+    const elements = [item('a', 10, 10), item('b', 70, 50), item('c', 140, 140)];
+    expect(selectWireframeMarquee(elements, { x: 100, y: 80 }, { x: 35, y: 25 })).toEqual(['a', 'b']);
+    expect(selectWireframeMarquee(elements, { x: 35, y: 25 }, { x: 100, y: 80 })).toEqual(['a', 'b']);
+    expect(elements[0]).toMatchObject({ x: 10, y: 10 });
+  });
+
+  it('adds to an existing selection and ignores edge-only or zero-area contact', () => {
+    const elements = [item('a', 10, 10), item('b', 70, 50), item('c', 140, 140)];
+    expect(selectWireframeMarquee(elements, { x: 70, y: 50 }, { x: 110, y: 70 }, ['a'])).toEqual(['a', 'b']);
+    expect(selectWireframeMarquee(elements, { x: 50, y: 10 }, { x: 70, y: 30 })).toEqual([]);
+    expect(selectWireframeMarquee(elements, { x: 10, y: 10 }, { x: 10, y: 80 }, ['a'])).toEqual(['a']);
+  });
+
   it('duplicates selected layers with fresh IDs, preserved styles and a bounded shared offset', () => {
     const styled = { ...item('a', 350, 800, 40, 20), style: { fontSize: 20, fill: '#ffffff' } } as WireframeElement;
     const elements = [item('back', 10, 10), styled, item('b', 300, 700, 40, 20)];

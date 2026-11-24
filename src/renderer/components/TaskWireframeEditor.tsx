@@ -1,15 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Check, Circle, Copy, CornerDownRight, Minus, MousePointer2, Plus, Redo2, RotateCcw, Undo2 } from 'lucide-react';
 import type { Card } from '../../shared/types';
 import type { CardWireframe, WireframeArtboard, WireframeElement, WireframeElementKind, WireframeElementStyle, WireframeElementTone, WireframeVariant } from '../../shared/card-wireframe';
 import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_THEME_COLORS, WIREFRAME_WIDTH, wireframeColorCss } from '../../shared/card-wireframe';
 import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition, wireframePreviewFontSize } from './wireframe-editing';
 import { copyDesktopToArtboard } from './wireframe-artboards';
-import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection, type WireframeAlignment } from './wireframe-selection';
+import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection, selectWireframeMarquee, type WireframeAlignment, type WireframePoint } from './wireframe-selection';
 import { WireframeArtboardOverview } from './WireframeArtboardOverview';
 import './task-wireframe.css';
 
 interface Draft { title: string; elements: WireframeElement[]; artboards: CardWireframe['artboards'] }
+interface MarqueeDrag { pointerId: number; start: WireframePoint; end: WireframePoint; clientX: number; clientY: number; initialIds: string[]; add: boolean }
 interface Props { projectId: string; cards: Card[]; startCardId?: string | null; focusMode: boolean; focusPending?: boolean; canEnterFocus: boolean; onFocusModeChange: (focus: boolean) => void }
 const unsavedDrafts = new Map<string, Draft>();
 const lastSelectedCard = new Map<string, string>();
@@ -69,6 +70,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [styleNumberDraft, setStyleNumberDraft] = useState<{ id: string; key: 'fontSize' | 'radius'; raw: string } | null>(null);
   const [inlineTextEdit, setInlineTextEdit] = useState<{ id: string; artboard: WireframeArtboard; text: string } | null>(null);
+  const [marqueeView, setMarqueeView] = useState<{ start: WireframePoint; end: WireframePoint } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [, setHistoryRevision] = useState(0);
@@ -77,6 +79,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   const generation = useRef(0);
   const interactionLocked = useRef(false);
   const stage = useRef<HTMLDivElement>(null);
+  const marquee = useRef<MarqueeDrag | null>(null);
   const drag = useRef<{ id: string; ids: string[]; pointerId: number; clientX: number; clientY: number; before: Draft; origin: WireframeElement[]; recorded: boolean } | null>(null);
   const pointerSelection = useRef(false);
   const inlineEditRef = useRef<typeof inlineTextEdit>(null);
@@ -96,6 +99,46 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   }, [inlineItem?.id]);
   function setSelectedId(id: string | null) { setSelectedIds(id ? [id] : []); }
   function toggleSelected(id: string) { setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]); }
+  function pointOnStage(event: ReactPointerEvent<HTMLDivElement>): WireframePoint | null {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      x: clamp((event.clientX - rect.left) * canvas.width / rect.width, 0, canvas.width),
+      y: clamp((event.clientY - rect.top) * canvas.height / rect.height, 0, canvas.height),
+    };
+  }
+  function cancelMarquee() {
+    const current = marquee.current;
+    marquee.current = null; setMarqueeView(null);
+    if (current && stage.current?.hasPointerCapture(current.pointerId)) stage.current.releasePointerCapture(current.pointerId);
+  }
+  function startMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || event.button !== 0 || interactionLocked.current || inlineEditRef.current) return;
+    if (event.pointerType === 'touch') { setSelectedId(null); return; }
+    const start = pointOnStage(event);
+    if (!start) return;
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    marquee.current = { pointerId: event.pointerId, start, end: start, clientX: event.clientX, clientY: event.clientY, initialIds: event.shiftKey ? selectedIds : [], add: event.shiftKey };
+    setMarqueeView({ start, end: start });
+  }
+  function moveMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = marquee.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const end = pointOnStage(event);
+    if (!end) return;
+    current.end = end;
+    setMarqueeView({ start: current.start, end });
+  }
+  function finishMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = marquee.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const end = pointOnStage(event) ?? current.end;
+    const moved = Math.hypot(event.clientX - current.clientX, event.clientY - current.clientY) >= 4;
+    if (moved && elements) setSelectedIds(selectWireframeMarquee(elements, current.start, end, current.initialIds));
+    else if (!current.add) setSelectedId(null);
+    cancelMarquee();
+  }
   function updateInlineTextEdit(next: typeof inlineTextEdit) { inlineEditRef.current = next; setInlineTextEdit(next); }
   function startInlineTextEdit(item: WireframeElement) {
     if (interactionLocked.current || !elements || !isTextEditable(item.kind)) return;
@@ -133,6 +176,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   }
 
   function switchArtboard(target: WireframeArtboard) {
+    cancelMarquee();
     drag.current = null; resize.current = null;
     updateInlineTextEdit(null);
     setArtboard(target); setSelectedId(null); setGeometryDraft(null); setStyleNumberDraft(null);
@@ -164,6 +208,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   }
 
   async function load(targetCardId: string, expectedGeneration = generation.current) {
+    cancelMarquee();
     interactionLocked.current = true;
     setLoading(true); setError(''); setNotice('');
     try {
@@ -346,7 +391,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
         <aside className="task-wireframe-layers" aria-label="Ebenen" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); setSelectedIds(elements.map((item) => item.id)); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId); if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); setSelectedId(null); } else if (event.key === 'Delete' && selectedIds.length) { event.preventDefault(); removeSelection(); } }}><h3>Ebenen</h3><p className="task-wireframe-selection-hint">Umschalt oder Strg: mehrere wählen · F2: Text</p>{elements.length ? <ol>{elements.map((item) => <li key={item.id}><button data-wireframe-id={item.id} type="button" disabled={busy} className={selectedIds.includes(item.id) ? 'selected' : ''} aria-pressed={selectedIds.includes(item.id)} onClick={(event) => { if (event.shiftKey || event.ctrlKey || event.metaKey) toggleSelected(item.id); else setSelectedId(item.id); }}>{labelForKind[item.kind]} · {item.text || 'Ohne Text'}</button></li>)}</ol> : <p>Noch keine Elemente.</p>}</aside>
         <div className="task-wireframe-canvas-wrap" data-artboard={artboard}>
           <div className="task-wireframe-canvas-head"><span>{canvas.width} × {canvas.height} · {canvas.label}</span><div className="task-wireframe-view-controls" role="group" aria-label="Zeichenflächenansicht"><button type="button" className="secondary-button small" aria-label="Ansicht verkleinern" disabled={zoom <= 50} onClick={() => setZoom((value) => value - 25)}>−</button><output aria-label="Zoomstufe">{zoom} %</output><button type="button" className="secondary-button small" aria-label="Ansicht vergrößern" disabled={zoom >= 150} onClick={() => setZoom((value) => value + 25)}>+</button><button type="button" className="secondary-button small" aria-pressed={snapToGrid} onClick={() => setSnapToGrid((value) => !value)}>8 px Raster</button></div></div>
-          <div className="task-wireframe-canvas-viewport" role="region" tabIndex={0} aria-label="Verschiebbare Zeichenflächenansicht"><div className="task-wireframe-canvas-scale" style={{ width: `${zoom}%`, aspectRatio: `${canvas.width} / ${canvas.height}` }}><div className={`task-wireframe-canvas${snapToGrid ? ' has-grid' : ''}`} style={{ aspectRatio: `${canvas.width} / ${canvas.height}`, width: `${10000 / zoom}%`, transform: `scale(${zoom / 100})`, backgroundSize: snapToGrid ? `${800 / canvas.width}% ${800 / canvas.height}%` : undefined }} ref={stage} role="group" aria-label={`Editierbares ${canvas.label}-Wireframe`} onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedId(null); }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); setSelectedIds(elements.map((item) => item.id)); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId) ?? selected; if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); setSelectedId(null); } }}>
+          <div className="task-wireframe-canvas-viewport" role="region" tabIndex={0} aria-label="Verschiebbare Zeichenflächenansicht"><div className="task-wireframe-canvas-scale" style={{ width: `${zoom}%`, aspectRatio: `${canvas.width} / ${canvas.height}` }}><div className={`task-wireframe-canvas${snapToGrid ? ' has-grid' : ''}`} style={{ aspectRatio: `${canvas.width} / ${canvas.height}`, width: `${10000 / zoom}%`, transform: `scale(${zoom / 100})`, backgroundSize: snapToGrid ? `${800 / canvas.width}% ${800 / canvas.height}%` : undefined }} ref={stage} role="group" tabIndex={0} aria-label={`Editierbares ${canvas.label}-Wireframe`} onPointerDown={startMarquee} onPointerMove={moveMarquee} onPointerUp={finishMarquee} onPointerCancel={cancelMarquee} onLostPointerCapture={cancelMarquee} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); setSelectedIds(elements.map((item) => item.id)); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId) ?? selected; if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); if (marquee.current) cancelMarquee(); else setSelectedId(null); } }}>
           {elements.map((item) => <button data-wireframe-id={item.id} key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedIds.includes(item.id) ? ' selected' : ''}`} style={{ left: `${item.x / canvas.width * 100}%`, top: `${item.y / canvas.height * 100}%`, width: `${item.width / canvas.width * 100}%`, height: `${item.height / canvas.height * 100}%`, backgroundColor: item.kind === 'line' ? undefined : wireframeColorCss(item, 'fill'), borderColor: item.kind === 'line' ? undefined : wireframeColorCss(item, 'stroke'), color: item.kind === 'line' ? wireframeColorCss(item, 'stroke') ?? (item.tone === 'accent' ? 'var(--accent)' : 'var(--text)') : wireframeColorCss(item, 'textColor'), borderRadius: item.kind === 'ellipse' ? '50%' : item.style?.radius, fontSize: wireframePreviewFontSize(item.style?.fontSize, canvas.width), fontWeight: item.style?.fontWeight }} aria-label={`${labelForKind[item.kind]}${isShape(item.kind) ? '' : `: ${item.text || 'ohne Text'}`}`} aria-pressed={selectedIds.includes(item.id)}
             onFocus={() => { if (!interactionLocked.current && !pointerSelection.current && !selectedIds.includes(item.id)) setSelectedId(item.id); }}
             onDoubleClick={(event) => { if (event.shiftKey || event.ctrlKey || event.metaKey) return; event.preventDefault(); event.stopPropagation(); startInlineTextEdit(item); }}
@@ -356,6 +401,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
             onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; if (event.key === 'ArrowLeft') { event.preventDefault(); moveSelected(item, -step, 0); } else if (event.key === 'ArrowRight') { event.preventDefault(); moveSelected(item, step, 0); } else if (event.key === 'ArrowUp') { event.preventDefault(); moveSelected(item, 0, -step); } else if (event.key === 'ArrowDown') { event.preventDefault(); moveSelected(item, 0, step); } else if (event.key === 'Delete') { event.preventDefault(); selectedIds.includes(item.id) ? removeSelection() : removeElement(item.id); } }}>
             {item.kind === 'line' ? <svg className="task-wireframe-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line className="task-wireframe-line-hit" x1="2" y1={item.lineDirection === 'rising' ? '98' : '2'} x2="98" y2={item.lineDirection === 'rising' ? '2' : '98'} /><line className="task-wireframe-line-visible" x1="2" y1={item.lineDirection === 'rising' ? '98' : '2'} x2="98" y2={item.lineDirection === 'rising' ? '2' : '98'} /></svg> : item.kind === 'field' ? <span>{item.text || 'Eingabe'}</span> : item.text}
           </button>)}
+          {marqueeView ? <div className="task-wireframe-marquee" aria-hidden="true" style={{ left: `${Math.min(marqueeView.start.x, marqueeView.end.x) / canvas.width * 100}%`, top: `${Math.min(marqueeView.start.y, marqueeView.end.y) / canvas.height * 100}%`, width: `${Math.abs(marqueeView.end.x - marqueeView.start.x) / canvas.width * 100}%`, height: `${Math.abs(marqueeView.end.y - marqueeView.start.y) / canvas.height * 100}%` }} /> : null}
           {inlineItem ? <input ref={inlineInput} className={`task-wireframe-inline-text kind-${inlineItem.kind} tone-${inlineItem.tone}`} data-wireframe-inline-editor={inlineItem.id} aria-label={`Text direkt bearbeiten: ${labelForKind[inlineItem.kind]}`} maxLength={120} value={inlineTextEdit?.text ?? ''} style={{ left: `${inlineItem.x / canvas.width * 100}%`, top: `${inlineItem.y / canvas.height * 100}%`, width: `${inlineItem.width / canvas.width * 100}%`, height: `${inlineItem.height / canvas.height * 100}%`, backgroundColor: wireframeColorCss(inlineItem, 'fill'), borderColor: wireframeColorCss(inlineItem, 'stroke'), color: wireframeColorCss(inlineItem, 'textColor'), borderRadius: inlineItem.style?.radius, fontSize: wireframePreviewFontSize(inlineItem.style?.fontSize, canvas.width), fontWeight: inlineItem.style?.fontWeight }} onChange={(event) => updateInlineTextEdit({ ...inlineTextEdit!, text: event.target.value.slice(0, 120) })} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') { event.preventDefault(); finishInlineTextEdit(true); } else if (event.key === 'Escape') { event.preventDefault(); finishInlineTextEdit(false); } }} onBlur={() => finishInlineTextEdit(true, false)} /> : null}
           {selected ? <button type="button" className="task-wireframe-resize" disabled={busy} style={{ left: `clamp(16px, ${(selected.x + selected.width) / canvas.width * 100}%, calc(100% - 16px))`, top: `clamp(16px, ${(selected.y + selected.height) / canvas.height * 100}%, calc(100% - 16px))` }} aria-label={`Größe ändern: ${labelForKind[selected.kind]} ${selected.text || 'ohne Text'}. Pfeil rechts oder links ändert Breite, Pfeil unten oder oben Höhe; Umschalt für zehn Pixel.`} title="Größe ziehen · Pfeiltasten ändern um 1 px, Umschalt um 10 px"
             onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0 || !draft) return; event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); resize.current = { id: selected.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, width: selected.width, height: selected.height, before: draft, recorded: false }; }}

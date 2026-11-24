@@ -1534,6 +1534,36 @@ function createWindow(): void {
               const firstLayer = wireframe.querySelectorAll('.task-wireframe-layers li button')[0];
               const secondLayer = wireframe.querySelectorAll('.task-wireframe-layers li button')[1];
               if (!(firstLayer instanceof HTMLButtonElement) || !(secondLayer instanceof HTMLButtonElement)) throw new Error('Wireframe-Ebenen für Mehrfachauswahl fehlen.');
+              const stageRect = canvasStage.getBoundingClientRect();
+              if (!stageRect.width || !stageRect.height) throw new Error('Wireframe-Zeichenfläche hat keine messbaren Maße für die Rahmenauswahl.');
+              const originalCapture = canvasStage.setPointerCapture.bind(canvasStage);
+              const originalHasCapture = canvasStage.hasPointerCapture.bind(canvasStage);
+              const originalRelease = canvasStage.releasePointerCapture.bind(canvasStage);
+              let syntheticCaptured = false;
+              canvasStage.setPointerCapture = () => { syntheticCaptured = true; };
+              canvasStage.hasPointerCapture = () => syntheticCaptured;
+              canvasStage.releasePointerCapture = () => { syntheticCaptured = false; };
+              const stagePointer = (type, x, y, shiftKey = false) => canvasStage.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 42, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y, shiftKey }));
+              try {
+                stagePointer('pointerdown', stageRect.right - 2, stageRect.bottom - 2);
+                stagePointer('pointermove', stageRect.left + 2, stageRect.top + 2);
+                for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-marquee'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (!wireframe.querySelector('.task-wireframe-marquee')) throw new Error('Rahmenauswahl wurde beim Ziehen nicht angezeigt.');
+                stagePointer('pointerup', stageRect.left + 2, stageRect.top + 2);
+                for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-element[aria-pressed="true"]').length < 2; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (wireframe.querySelectorAll('.task-wireframe-element[aria-pressed="true"]').length < 2 || wireframe.querySelector('.task-wireframe-marquee') || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Rahmenauswahl markierte die Elemente nicht oder speicherte vorzeitig.');
+                stagePointer('pointerdown', stageRect.right - 2, stageRect.bottom - 2);
+                canvasStage.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+                if (wireframe.querySelector('.task-wireframe-marquee') || wireframe.querySelectorAll('.task-wireframe-element[aria-pressed="true"]').length < 2) throw new Error('Escape brach die Rahmenauswahl nicht ohne Änderung ab.');
+                stagePointer('pointerdown', stageRect.right - 2, stageRect.bottom - 2);
+                stagePointer('pointerup', stageRect.right - 2, stageRect.bottom - 2);
+                for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-element[aria-pressed="true"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (wireframe.querySelector('.task-wireframe-element[aria-pressed="true"]')) throw new Error('Klick auf freie Zeichenfläche hob die Auswahl nicht auf.');
+              } finally {
+                canvasStage.setPointerCapture = originalCapture;
+                canvasStage.hasPointerCapture = originalHasCapture;
+                canvasStage.releasePointerCapture = originalRelease;
+              }
               firstLayer.click(); secondLayer.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
               for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-multi'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const centerSelection = [...wireframe.querySelectorAll('.task-wireframe-align-grid button')].find((button) => button.textContent?.includes('Mitte X'));
