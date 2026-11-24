@@ -20,4 +20,8 @@
 .theme-tokens-preview label { max-width: 280px; color: var(--soft); font-size: 12px; }
 .theme-tokens-preview input { display: block; margin-top: 5px; }
 .theme-tokens-preview :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-tokens-edit-review, .theme-tokens-edit-result { display: grid; gap: 8px; margin-top: 12px; padding: 12px 14px; border-left: 2px solid var(--accent); background: var(--surface-2); font-size: 12px; }
+.theme-tokens-edit-review small { color: var(--muted); }
+.theme-tokens-edit-review pre { margin: 0; overflow-x: auto; color: var(--text); line-height: 1.6; }
+.theme-tokens-edit-review button, .theme-tokens-edit-result button { justify-self: start; }
 @media (max-width: 640px) { .theme-tokens-head, .theme-tokens-list li { flex-direction: column; align-items: stretch; } .theme-tokens-head button, .theme-tokens-list button { align-self: start; } }

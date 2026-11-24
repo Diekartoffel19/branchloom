@@ -3,6 +3,7 @@ import { WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type Database from 'better-sqlite3';
 import type { BrowserBounds } from '../shared/types';
 import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from '../shared/design-inspection';
+import { normalizeThemeTokenValue } from '../shared/theme-token-value';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import type { StudioStore } from './store';
 import { scanThemeTokens } from './theme-tokens';
@@ -74,11 +75,7 @@ export function normalizeDesignUrl(value: string): string {
 
 /** Only literal, request-free values may cross into a preview page as CSS. */
 export function normalizeThemePreviewValue(value: unknown): string {
-  if (typeof value !== 'string' || value.length > 32) throw new Error('Nutze einen Hex-Farbwert oder einen Radius von 0 bis 99 px.');
-  const trimmed = value.trim();
-  if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) return trimmed;
-  if (/^(?:0|[1-9][0-9]?)(?:\.[0-9]{1,2})?px$/.test(trimmed)) return trimmed;
-  throw new Error('Nutze einen Hex-Farbwert oder einen Radius von 0 bis 99 px.');
+  return normalizeThemeTokenValue(value);
 }
 
 const inspectScript = (targetExpression: string): string => `(() => {

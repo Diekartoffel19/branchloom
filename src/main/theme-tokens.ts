@@ -54,12 +54,14 @@ function lineOf(lineStarts: number[], offset: number): number {
   return low + 1;
 }
 
+type TokenSpan = Pick<ThemeTokenDefinition, 'name' | 'value' | 'valueTruncated' | 'line'> & { valueStart: number; valueEnd: number };
+
 /** Conservative CSS custom-property definitions inside braces; selectors and strings are not declarations. */
-export function cssTokenDefinitions(source: string): Array<Pick<ThemeTokenDefinition, 'name' | 'value' | 'valueTruncated' | 'line'>> {
+export function cssTokenSpans(source: string): TokenSpan[] {
   const masked = codeMask(source);
   const lineStarts = [0];
   for (let index = 0; index < source.length; index++) if (source[index] === '\n') lineStarts.push(index + 1);
-  const found: Array<Pick<ThemeTokenDefinition, 'name' | 'value' | 'valueTruncated' | 'line'>> = [];
+  const found: TokenSpan[] = [];
   let depth = 0;
   let declarationStart = -1;
   for (let index = 0; index < masked.length; index++) {
@@ -86,15 +88,22 @@ export function cssTokenDefinitions(source: string): Array<Pick<ThemeTokenDefini
       else if (parens === 0 && (current === ';' || current === '}')) break;
     }
     if (masked[end] === '{' || end === masked.length || parens !== 0) { declarationStart = -1; continue; }
-    const value = source.slice(colon + 1, end).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
-    if (value) found.push({ name, value: value.slice(0, MAX_VALUE_LENGTH), valueTruncated: value.length > MAX_VALUE_LENGTH, line: lineOf(lineStarts, start) });
+    const raw = source.slice(colon + 1, end);
+    const leading = /^\s*/.exec(raw)?.[0].length ?? 0;
+    const trailing = /\s*$/.exec(raw)?.[0].length ?? 0;
+    const value = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+    if (value) found.push({ name, value: value.slice(0, MAX_VALUE_LENGTH), valueTruncated: value.length > MAX_VALUE_LENGTH, line: lineOf(lineStarts, start), valueStart: colon + 1 + leading, valueEnd: end - trailing });
     declarationStart = -1;
     index = end - 1;
   }
   return found;
 }
 
-async function trackedCssFiles(root: string): Promise<string[]> {
+export function cssTokenDefinitions(source: string): Array<Pick<ThemeTokenDefinition, 'name' | 'value' | 'valueTruncated' | 'line'>> {
+  return cssTokenSpans(source).map(({ name, value, valueTruncated, line }) => ({ name, value, valueTruncated, line }));
+}
+
+export async function trackedCssFiles(root: string): Promise<string[]> {
   let gitRoot: string;
   try {
     const { stdout } = await execFileAsync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 2000, maxBuffer: 4096, windowsHide: true });
@@ -110,7 +119,7 @@ async function trackedCssFiles(root: string): Promise<string[]> {
   } catch { throw new Error('Versionierte CSS-Dateien konnten nicht innerhalb des Git-Limits gelesen werden.'); }
 }
 
-async function safeTrackedFile(root: string, path: string): Promise<string | null> {
+export async function safeTrackedFile(root: string, path: string): Promise<string | null> {
   if (isAbsolute(path) || path.includes('\\') || path.startsWith('/') || path.split('/').some((part) => !part || part === '.' || part === '..' || IGNORED.has(part.toLowerCase()))) return null;
   let cursor = root;
   const parts = path.split('/');
@@ -122,7 +131,7 @@ async function safeTrackedFile(root: string, path: string): Promise<string | nul
   return within(root, await fs.realpath(cursor)) ? cursor : null;
 }
 
-async function readBounded(root: string, file: string, budget: number): Promise<Buffer | null> {
+export async function readBounded(root: string, file: string, budget: number): Promise<Buffer | null> {
   const before = await fs.lstat(file);
   if (!before.isFile() || before.size > MAX_FILE_BYTES || before.size > budget) return null;
   const fd = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));

@@ -2,7 +2,7 @@ import type { ConflictRadarResult, ProjectConflictRadarResult } from './conflict
 import type { DraftTurn, TaskDraftReply } from './task-draft';
 import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
 import type { ChangelogPeriod, ProjectChangelog } from './changelog';
-import type { ThemeTokenInventory } from './theme-tokens';
+import type { ThemeTokenInventory, ThemeTokenDefinition, ThemeTokenEditPreview, ThemeTokenEditResult } from './theme-tokens';
 import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
 import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
@@ -88,6 +88,8 @@ export interface StudioAPI {
   convertIdeaToCard(input: { projectId: string; ideaId: string; columnId: string }): Promise<Card>;
   whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
   themeTokens(projectId: string): Promise<ThemeTokenInventory>;
+  previewThemeTokenEdit(input: { projectId: string; token: ThemeTokenDefinition; value: string }): Promise<ThemeTokenEditPreview>;
+  applyThemeTokenEdit(input: { projectId: string; token: ThemeTokenDefinition; value: string; reviewToken: string; confirm: boolean }): Promise<ThemeTokenEditResult>;
   whiteboardImpact(input: { projectId: string; nodeId: string }): Promise<WhiteboardImpact>;
   createCardFromWhiteboardImpact(input: { projectId: string; nodeId: string; referencePath: string; site: WhiteboardDirectImporter; columnId: string; title: string; description: string }): Promise<Card>;
   previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;

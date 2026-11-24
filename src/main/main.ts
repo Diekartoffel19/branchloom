@@ -40,6 +40,7 @@ import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
 import { transcribeAudio } from './voice/transcribe';
 import { projectChangelog } from './changelog';
 import { scanThemeTokens } from './theme-tokens';
+import { applyThemeTokenEdit, previewThemeTokenEdit } from './theme-token-edit';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
@@ -168,6 +169,8 @@ function installIpc(): void {
   bind('convertIdeaToCard', (input: Parameters<StudioAPI['convertIdeaToCard']>[0]) => convertIdeaToCard(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
   bind('themeTokens', (projectId: string) => scanThemeTokens(db, projectId));
+  bind('previewThemeTokenEdit', (input: Parameters<StudioAPI['previewThemeTokenEdit']>[0]) => previewThemeTokenEdit(db, input));
+  bind('applyThemeTokenEdit', (input: Parameters<StudioAPI['applyThemeTokenEdit']>[0]) => applyThemeTokenEdit(db, input));
   bind('whiteboardImpact', (input: Parameters<StudioAPI['whiteboardImpact']>[0]) => analyzeWhiteboardImpact(db, input));
   bind('createCardFromWhiteboardImpact', (input: Parameters<StudioAPI['createCardFromWhiteboardImpact']>[0]) => createCardFromWhiteboardImpact(db, input));
   bind('previewRepoMap', (projectId: string) => previewRepoMap(db, projectId));
@@ -1134,6 +1137,35 @@ function createWindow(): void {
             const resetTheme = await designInspector!.smokeThemeValue('#design-smoke-target', '--smoke-ink');
             if (resetTheme.inline || resetTheme.computed !== 'rgb(36, 59, 50)') throw new Error('Theme-Vorschau wurde nicht rückgängig gemacht: ' + JSON.stringify(resetTheme));
             if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n' || designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('Theme-Vorschau änderte Quelldatei oder gespeicherte Auswahl.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              document.querySelector('.theme-tokens-preview button[type="submit"]')?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.designInspectionState()).themePreview?.value !== '#aabbcc'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const reviewButton = [...document.querySelectorAll('.theme-tokens-preview button')].find((button) => button.textContent?.includes('Dateiänderung prüfen'));
+              for (let attempt = 0; attempt < 100 && reviewButton?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              reviewButton?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-edit-review'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.theme-tokens-edit-review')?.textContent?.includes('--smoke-ink: #aabbcc')) throw new Error('CSS-Änderungsdiff fehlt.');
+              return true;
+            })()`);
+            if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n') throw new Error('CSS-Datei wurde schon bei der Diff-Prüfung geschrieben.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              [...document.querySelectorAll('.theme-tokens-edit-review button')].find((button) => button.textContent?.includes('In CSS übernehmen'))?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-edit-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.theme-tokens-edit-result')?.textContent?.includes('#aabbcc')) throw new Error('CSS-Übernahme wurde nicht sichtbar bestätigt: ' + document.querySelector('.theme-tokens .inline-error')?.textContent);
+              for (let attempt = 0; attempt < 100 && document.querySelector('.theme-tokens-edit-result button')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              document.querySelector('.theme-tokens-edit-result button')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-edit-review')?.textContent?.includes('#243b32'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.theme-tokens-edit-review')?.textContent?.includes('#243b32')) throw new Error('Rücknahme-Diff fehlt: ' + document.querySelector('.theme-tokens .inline-error')?.textContent);
+              return true;
+            })()`);
+            if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #aabbcc; }\n') throw new Error('CSS-Datei wurde vor Rücknahmebestätigung verändert.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              [...document.querySelectorAll('.theme-tokens-edit-review button')].find((button) => button.textContent?.includes('Rücknahme bestätigen'))?.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.theme-tokens-edit-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.theme-tokens-edit-result') || !document.querySelector('.theme-tokens')?.textContent?.includes('zurückgenommen')) throw new Error('Rücknahme wurde nicht sichtbar bestätigt: ' + document.querySelector('.theme-tokens .inline-error')?.textContent);
+              return true;
+            })()`);
+            if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n') throw new Error('CSS-Rücknahme stellte die Quelldatei nicht wieder her.');
             await smokeWindow.webContents.executeJavaScript(`[...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click()`);
             for (let attempt = 0; attempt < 100 && designInspector?.state().ready; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
             if (designInspector?.state().ready) throw new Error('Design-Vorschau blieb nach Ansichtswechsel offen.');
