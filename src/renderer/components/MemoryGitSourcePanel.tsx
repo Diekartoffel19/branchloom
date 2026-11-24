@@ -8,7 +8,7 @@ const stateText: Record<MemoryGitSource['state'], string> = {
   'in-history': 'Commit ist in der aktuellen Projekt-Historie',
   'outside-history': 'Commit ist vorhanden, aber nicht mehr in der aktuellen HEAD-Historie',
   missing: 'Commit ist in diesem Repository nicht mehr vorhanden',
-  'repository-changed': 'Projekt zeigt auf ein anderes Repository',
+  'repository-changed': 'Projekt zeigt auf einen anderen Repository-Pfad',
   unavailable: 'Git-Quelle konnte gerade nicht geprüft werden',
 };
 
