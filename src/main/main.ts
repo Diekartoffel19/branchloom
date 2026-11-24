@@ -410,6 +410,7 @@ function installIpc(): void {
     if (card.projectId !== input.projectId) throw new Error('Karte gehört zu einem anderen Projekt.');
     db.project(input.projectId);
     const image = checkedWireframePng(input);
+    if (nativeImage.createFromBuffer(image).isEmpty()) throw new Error('Das PNG-Bild lässt sich nicht lesen.');
     if (smoke && smokeDataDirectory) {
       const file = join(smokeDataDirectory, `wireframe-${input.artboard}.png`);
       writeWireframePngExclusive(file, image);
