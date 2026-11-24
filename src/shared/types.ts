@@ -169,6 +169,7 @@ export interface StudioAPI {
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
   reviewCardWorktree(cardId: string): Promise<WorktreeReview | null>;
+  previewCardWorktreeCleanup(cardId: string): Promise<import('./worktree-cleanup').WorktreeCleanupPreview | null>;
   previewPrDraft(cardId: string): Promise<PrDraftPreview | null>;
   previewCardDiff(cardId: string): Promise<CardDiffPreview | null>;
   listReviewComments(cardId: string): Promise<ReviewComment[]>;

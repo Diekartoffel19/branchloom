@@ -17,7 +17,7 @@ import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
-import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
+import { ensureCardWorktree, mergeCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree } from './git-worktree';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
@@ -293,6 +293,7 @@ function installIpc(): void {
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
   bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
+  bind('previewCardWorktreeCleanup', (cardId: string) => previewCardWorktreeCleanup(db, cardId));
   bind('previewPrDraft', (cardId: string) => previewPrDraft(db, cardId));
   bind('previewCardDiff', (cardId: string) => previewCardDiff(db, cardId));
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
@@ -1437,6 +1438,47 @@ function createWindow(): void {
               if (!document.querySelector('.milestones-preview-result img')?.getAttribute('src')?.startsWith('data:image/png;base64,')) throw new Error('Screenshot ist in der Zeitmaschine nicht sichtbar.');
               return true;
             })()`);
+            const cleanupCard = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Worktree-Aufräumprüfung Smoke' });
+            const cleanupWorktree = ensureCardWorktree(smokeStore, cleanupCard.id);
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const select = document.querySelector('#project-select');
+              if (!(select instanceof HTMLSelectElement)) throw new Error('Projektauswahl fehlt bei Worktree-Prüfung.');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!setter) throw new Error('Projektauswahl ist nicht bedienbar.');
+              setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Board')?.click();
+              let card;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                card = [...document.querySelectorAll('.task-card')].find((item) => item.textContent?.includes('Worktree-Aufräumprüfung Smoke'));
+                if (card) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(card instanceof HTMLElement)) throw new Error('Worktree-Karte fehlt im Board.');
+              card.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const review = [...document.querySelectorAll('.card-drawer button')].find((button) => button.textContent?.includes('Git-Stand prüfen'));
+              if (!(review instanceof HTMLButtonElement)) throw new Error('Git-Stand-Knopf fehlt.');
+              review.click();
+              let cleanup;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                cleanup = [...document.querySelectorAll('.card-drawer button')].find((button) => button.textContent?.includes('Aufräumbarkeit prüfen'));
+                if (cleanup) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(cleanup instanceof HTMLButtonElement)) throw new Error('Lesende Aufräumaktion fehlt.');
+              for (let attempt = 0; attempt < 100 && cleanup.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (cleanup.disabled) throw new Error('Lesende Aufräumaktion blieb gesperrt: ' + document.querySelector('.card-drawer')?.textContent?.slice(0, 500));
+              cleanup.click();
+              for (let attempt = 0; attempt < 300 && !document.querySelector('[aria-label="Lesende Worktree-Aufräumprüfung"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const panel = document.querySelector('[aria-label="Lesende Worktree-Aufräumprüfung"]');
+              if (!panel?.textContent?.includes('Commit im Ziel: belegt') || !panel.textContent?.includes('entfernt hier weder Dateien noch Git-Branches')) throw new Error('Worktree-Aufräumprüfung zeigt Belege oder Löschgrenze nicht: ' + panel?.textContent?.slice(0, 1000) + ' / ' + document.querySelector('.card-drawer')?.textContent?.slice(0, 500));
+              const api = await window.studio.previewCardWorktreeCleanup(${JSON.stringify(cleanupCard.id)});
+              if (!api || api.path !== ${JSON.stringify(cleanupWorktree.path)} || !api.mergedIntoTarget || api.blockers.length) throw new Error('Worktree-Aufräumprüfung liefert falschen IPC-Stand.');
+              return true;
+            })()`);
+            if (!statSync(cleanupWorktree.path).isDirectory() || smokeStore.cardWorktree(cleanupCard.id)?.path !== cleanupWorktree.path) throw new Error('Lesende Aufräumprüfung veränderte den Worktree.');
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);

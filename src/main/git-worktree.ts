@@ -4,6 +4,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmdirSync,
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { WorktreeReview } from '../shared/types';
+import type { WorktreeCleanupPreview } from '../shared/worktree-cleanup';
 import type { CardWorktree, StudioStore } from './store';
 
 function git(cwd: string, args: string[], timeout = 30_000): string {
@@ -137,6 +138,42 @@ export function reviewCardWorktree(store: StudioStore, cardId: string): Worktree
   if (addedPaths.some((item) => within(targetPath, join(targetPath, item)) && pathPresent(join(targetPath, item)))) blockers.push('Ein neuer Commit-Pfad würde eine lokale Zieldatei überdecken.');
   const previewToken = createHash('sha256').update(JSON.stringify([cardId, record.branch, sourceHead, targetBranch, targetHead])).digest('hex');
   return { cardId, path: record.path, branch: record.branch, targetPath, targetBranch, sourceHead, targetHead, sourceStatus, targetStatus, uncommittedStat, committedStat, ahead, behind, canFastForward: blockers.length === 0 && ahead > 0, blockers, previewToken };
+}
+
+/** A fresh, read-only inventory for future cleanup. Never deletes user files or Git refs. */
+export function previewCardWorktreeCleanup(store: StudioStore, cardId: string): WorktreeCleanupPreview | null {
+  const card = store.card(cardId);
+  const record = store.cardWorktree(cardId);
+  if (!record) return null;
+  if (record.projectId !== card.projectId) throw new Error('Der gespeicherte Worktree gehört zu einem anderen Projekt.');
+  const review = reviewCardWorktree(store, cardId);
+  if (!review) return null;
+  const ignoredFilesPresent = git(record.path, ['-c', 'core.fsmonitor=false', 'ls-files', '--others', '--ignored', '--exclude-standard', '-z']) !== '';
+  const ancestor = spawnSync('git', ['merge-base', '--is-ancestor', review.sourceHead, review.targetHead], {
+    cwd: review.targetPath, timeout: 30_000, maxBuffer: 256 * 1024, windowsHide: true,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  if (ancestor.error || (ancestor.status !== 0 && ancestor.status !== 1)) throw new Error('Git konnte die Übernahme des Worktree-Commits nicht belegen.');
+  const mergedIntoTarget = ancestor.status === 0;
+  const activeSession = Boolean(store.activeSessionForProject(card.projectId));
+  const blockers: string[] = [];
+  const base = realpathSync(store.worktreeBase);
+  const checkout = realpathSync(record.path);
+  if (lstatSync(store.worktreeBase).isSymbolicLink() || !within(base, checkout) || within(realpathSync(review.targetPath), checkout)
+    || lstatSync(join(store.worktreeBase, record.projectId)).isSymbolicLink()) blockers.push('Der Checkout liegt nicht sicher im vorgesehenen App-Datenordner.');
+  if (!review.targetBranch) blockers.push('Der Ziel-Checkout hat keinen aktiven Branch.');
+  // A normal porcelain status omits ignored files, so both checks are required.
+  if (review.sourceStatus.length) blockers.push('Der Worktree enthält nicht committete oder unversionierte Dateien.');
+  if (ignoredFilesPresent) blockers.push('Der Worktree enthält ignorierte Dateien.');
+  if (review.targetStatus.length) blockers.push('Der Ziel-Checkout enthält nicht committete oder unversionierte Dateien.');
+  if (!mergedIntoTarget) blockers.push('Der Worktree-Commit ist im Ziel-Checkout nicht enthalten.');
+  if (activeSession) blockers.push('In diesem Projekt läuft noch ein Agent.');
+  return {
+    cardId, path: record.path, branch: record.branch, targetPath: review.targetPath, targetBranch: review.targetBranch,
+    sourceHead: review.sourceHead, targetHead: review.targetHead, sourceClean: review.sourceStatus.length === 0,
+    targetClean: review.targetStatus.length === 0, ignoredFilesPresent, mergedIntoTarget, activeSession,
+    blockers, checkedAt: new Date().toISOString(),
+  };
 }
 
 /** The only automatic merge is a reviewed fast-forward. No reset, force, delete or conflict resolution. */

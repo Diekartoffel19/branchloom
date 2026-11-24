@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
+import type { WorktreeCleanupPreview } from '../../shared/worktree-cleanup';
 import type { ConflictRadarResult } from '../../shared/conflict-radar';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
@@ -33,8 +34,10 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [contextAttachmentRequest, setContextAttachmentRequest] = useState<{ cardId: string; attachmentId: string; token: number } | null>(null);
   const [worktreeReview, setWorktreeReview] = useState<WorktreeReview | null | undefined>(undefined);
+  const [cleanupPreview, setCleanupPreview] = useState<WorktreeCleanupPreview | null | undefined>(undefined);
   const [worktreeBusy, setWorktreeBusy] = useState(false);
   const [worktreeError, setWorktreeError] = useState('');
+  const cleanupRequest = useRef(0);
   const [showDiffReview, setShowDiffReview] = useState(false);
   const [conflictRadar, setConflictRadar] = useState<ConflictRadarResult | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
@@ -45,7 +48,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
   useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
@@ -80,7 +83,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   }
 
   async function reviewWorktree() {
-    setWorktreeBusy(true); setWorktreeError('');
+    cleanupRequest.current += 1;
+    setWorktreeBusy(true); setWorktreeError(''); setCleanupPreview(undefined);
     try {
       const review = await window.studio.reviewCardWorktree(card.id);
       setWorktreeReview(review);
@@ -88,6 +92,17 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
       else setConflictRadar(null);
     }
     catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorktreeBusy(false); }
+  }
+
+  async function checkCleanup() {
+    const request = ++cleanupRequest.current;
+    setWorktreeBusy(true); setWorktreeError(''); setCleanupPreview(undefined);
+    try {
+      const preview = await window.studio.previewCardWorktreeCleanup(card.id);
+      if (request === cleanupRequest.current) setCleanupPreview(preview);
+    }
+    catch (reason) { if (request === cleanupRequest.current) setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setWorktreeBusy(false); }
   }
 
@@ -125,6 +140,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
       if (!window.confirm(`Die ${worktreeReview.ahead} committeten Änderung(en) aus ${worktreeReview.branch} per Fast-Forward in ${worktreeReview.targetBranch} übernehmen? Der Worktree bleibt erhalten.`)) return;
       const merged = await window.studio.mergeCardWorktree({ cardId: card.id, previewToken: worktreeReview.previewToken, confirm: true });
       setWorktreeReview(merged);
+      setCleanupPreview(undefined);
     } catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setWorktreeBusy(false); }
   }
@@ -247,7 +263,16 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
           {worktreeReview.committedStat ? <><strong>Committeter Diff-Stat</strong><pre className="terminal-output">{worktreeReview.committedStat}</pre></> : null}
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
           <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
+          <button className="text-button" type="button" disabled={worktreeBusy} onClick={() => void checkCleanup()}>Aufräumbarkeit prüfen</button>
         </div> : null}
+        {cleanupPreview === null ? <p className="inline-note">Für diese Karte gibt es keinen gespeicherten Worktree.</p> : null}
+        {cleanupPreview ? <section className="stacked-form" aria-label="Lesende Worktree-Aufräumprüfung">
+          <h4>Worktree-Aufräumprüfung</h4>
+          <p className="section-copy">Geprüft {new Date(cleanupPreview.checkedAt).toLocaleString('de-DE')}. Dieser Stand ist eine Momentaufnahme; Branchloom entfernt hier weder Dateien noch Git-Branches.</p>
+          <p className="run-meta">Repository: <code>{cleanupPreview.targetPath}</code><br />Worktree: <code>{cleanupPreview.path}</code><br />Branch: <code>{cleanupPreview.branch}</code> → <code>{cleanupPreview.targetBranch ?? 'detached'}</code><br />Worktree-HEAD: <code>{cleanupPreview.sourceHead}</code><br />Ziel-HEAD: <code>{cleanupPreview.targetHead}</code></p>
+          <p className="section-copy">Arbeitsbaum: {cleanupPreview.sourceClean ? 'sauber' : 'Änderungen vorhanden'} · Ignorierte Dateien: {cleanupPreview.ignoredFilesPresent ? 'vorhanden' : 'keine gefunden'} · Ziel: {cleanupPreview.targetClean ? 'sauber' : 'Änderungen vorhanden'} · Commit im Ziel: {cleanupPreview.mergedIntoTarget ? 'belegt' : 'nicht belegt'} · Laufender Agent: {cleanupPreview.activeSession ? 'ja' : 'nein'}</p>
+          {cleanupPreview.blockers.length ? <p className="inline-note">Offene Punkte: {cleanupPreview.blockers.join(' ')}</p> : <p className="inline-note">Für diesen Zeitpunkt wurden keine der geprüften Blocker gefunden. Die Entfernung ist in dieser Stufe noch nicht verfügbar.</p>}
+        </section> : null}
         {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} focusComment={focusReviewComment} /></Suspense> : null}
         <div className="drawer-divider" />
         <PrDraftPanel key={`pr-${card.id}`} cardId={card.id} />
