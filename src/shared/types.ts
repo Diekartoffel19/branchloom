@@ -39,6 +39,8 @@ export interface CardContextReference { id: string; cardId: string; projectId: s
 export interface CardContextPreview { id: string; kind: CardContextKind; target: string; text: string | null; truncated: boolean; note: string }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'antigravity' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
+export type AgentCapability = 'start' | 'input' | 'stop' | 'resume';
+export interface AgentCapabilityEvidence { agentId: string; capability: AgentCapability; sessionId: string; observedAt: string }
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null; codexThreadId?: string | null }
 export interface InterruptedSessionReview { sessionId: string; projectId: string; cardId: string; cardTitle: string; agentName: string; interruptedAt: string; worktreePath: string | null }
 export type CommandShell = 'powershell' | 'cmd';
@@ -163,6 +165,7 @@ export interface StudioAPI {
   removeCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextReference[]>;
   agents(): Promise<AgentPreset[]>;
   detectAgents(): Promise<AgentDetection[]>;
+  agentCapabilityEvidence(): Promise<AgentCapabilityEvidence[]>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   resumeCodexSession(input: { sessionId: string; picker?: boolean }): Promise<Session>;

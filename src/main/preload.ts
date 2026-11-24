@@ -77,6 +77,7 @@ const studio: StudioAPI = {
   removeCardContextReference: (input) => invoke('removeCardContextReference', input),
   agents: () => invoke('agents'),
   detectAgents: () => invoke('detectAgents'),
+  agentCapabilityEvidence: () => invoke('agentCapabilityEvidence'),
   saveAgent: (input) => invoke('saveAgent', input),
   startSession: (input) => invoke('startSession', input),
   resumeCodexSession: (input) => invoke('resumeCodexSession', input),

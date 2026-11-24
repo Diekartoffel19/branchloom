@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bot, Check, CircleHelp, Plus, Radar, RefreshCw, Terminal } from 'lucide-react';
-import type { AgentDetection, AgentPreset, ProjectSnapshot } from '../../shared/types';
+import type { AgentCapability, AgentCapabilityEvidence, AgentDetection, AgentPreset, ProjectSnapshot } from '../../shared/types';
 import type { Mutate } from './shared';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
@@ -8,6 +8,26 @@ type Draft = Omit<AgentPreset, 'id'> & { id?: string; argumentsText: string };
 
 const emptyDraft: Draft = { name: '', kind: 'codex', command: '', args: [], argumentsText: '', model: null, enabled: true };
 const kindName = (kind: AgentPreset['kind']) => kind === 'codex' ? 'Codex' : kind === 'claude' ? 'Claude Code' : kind === 'gemini' ? 'Gemini CLI' : kind === 'antigravity' ? 'Antigravity CLI' : 'Eigener Agent';
+const CAPABILITIES: Array<{ id: AgentCapability; label: string; evidence: string; empty: string }> = [
+  { id: 'start', label: 'Start', evidence: 'Lokaler PTY-Prozess gestartet', empty: 'Noch kein Kartenlauf belegt' },
+  { id: 'input', label: 'Eingabe', evidence: 'Eingabe an laufendes PTY geschrieben', empty: 'Noch keine manuelle Eingabe belegt' },
+  { id: 'stop', label: 'Stopp', evidence: 'Prozessende nach Stopp beobachtet', empty: 'Noch kein beendeter Stopp belegt' },
+  { id: 'resume', label: 'Resume', evidence: 'Codex-Resume-Aufruf gestartet', empty: 'Noch kein Resume-Aufruf belegt' },
+];
+
+export function AgentCapabilityRows({ agent, evidence }: { agent: AgentPreset; evidence: AgentCapabilityEvidence[] }) {
+  return <div className="agent-capability-list" aria-label={`Fähigkeitsbelege für ${agent.name}`}>
+    {CAPABILITIES.map(({ id, label, evidence: proven, empty }) => {
+      const item = evidence.find((entry) => entry.agentId === agent.id && entry.capability === id);
+      const unsupported = id === 'resume' && agent.kind !== 'codex';
+      return <div className="agent-capability-row" key={id}>
+        <strong>{label}</strong>
+        <span>{unsupported ? 'Für diesen Adapter derzeit nicht implementiert' : item ? proven : empty}</span>
+        <small>{unsupported ? '—' : item ? <time dateTime={item.observedAt} title={`Sitzung ${item.sessionId}`}>{new Date(item.observedAt).toLocaleString('de-DE')}</time> : 'Offen'}</small>
+      </div>;
+    })}
+  </div>;
+}
 
 export function diagnosticHint(item: AgentDetection): string {
   switch (item.status) {
@@ -28,15 +48,25 @@ export function AgentView({ snapshot, mutate }: Props) {
   const [detections, setDetections] = useState<AgentDetection[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState('');
+  const [evidence, setEvidence] = useState<AgentCapabilityEvidence[]>([]);
+  const [evidenceError, setEvidenceError] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState(snapshot.agents[0]?.id ?? '');
   const [draft, setDraft] = useState<Draft | null>(null);
+
+  async function refreshEvidence() {
+    try { setEvidence(await window.studio.agentCapabilityEvidence()); setEvidenceError(''); }
+    catch (reason) { setEvidenceError(reason instanceof Error ? reason.message : String(reason)); }
+  }
 
   async function detect() {
     setDetecting(true); setDetectError('');
+    void refreshEvidence();
     try { setDetections(await window.studio.detectAgents()); }
     catch (reason) { setDetectError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setDetecting(false); }
   }
   useEffect(() => { void detect(); }, []);
+  useEffect(() => { if (!snapshot.agents.some((agent) => agent.id === selectedAgentId)) setSelectedAgentId(snapshot.agents[0]?.id ?? ''); }, [snapshot.agents, selectedAgentId]);
 
   function edit(agent: AgentPreset) { setDraft({ ...agent, argumentsText: agent.args.join('\n') }); }
   function fromDetection(detection: AgentDetection) {
@@ -66,6 +96,13 @@ export function AgentView({ snapshot, mutate }: Props) {
         {snapshot.agents.length ? <div className="preset-list">{snapshot.agents.map((agent) => { const check = detections.find((item) => item.profileId === agent.id); return <button className="preset-item" type="button" key={agent.id} onClick={() => edit(agent)}><span className="preset-avatar"><Bot size={19} /></span><span><strong>{agent.name}</strong><small>{agent.kind} · {agent.command}{agent.model ? ` · ${agent.model}` : ''}</small>{check ? <small className="agent-diagnostic-hint">{diagnosticHint(check)}</small> : null}</span>{check ? <DiagnosticStatus item={check} /> : null}<span className={agent.enabled ? 'available-badge' : 'unavailable-badge'}>{agent.enabled ? 'Aktiv' : 'Inaktiv'}</span></button>; })}</div> : <div className="agent-empty"><CircleHelp size={22} /><p>Noch kein Agent gespeichert. Nutze einen erkannten CLI-Eintrag oder lege einen eigenen an.</p></div>}
       </section>
     </div>
+    <section className="panel agent-capability-panel">
+      <div className="panel-heading"><div><Radar size={18} /><h3>Fähigkeitsbelege</h3></div></div>
+      <p className="panel-subtitle">Aus echten lokalen Kartensitzungen. Ein PTY-Start oder gesendete Eingabe beweist keine Anmeldung, Modellantwort oder erfolgreiche Gesprächsfortsetzung. Alte Läufe ohne Aufzeichnung bleiben offen.</p>
+      {evidenceError ? <p className="inline-error" role="alert">{evidenceError}</p> : null}
+      {snapshot.agents.length ? <><label className="agent-capability-select">Agentenprofil<select value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)}>{snapshot.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select></label>
+        {snapshot.agents.filter((agent) => agent.id === selectedAgentId).map((agent) => <AgentCapabilityRows key={agent.id} agent={agent} evidence={evidence} />)}</> : <p className="list-empty">Erst ein Agentenprofil anlegen.</p>}
+    </section>
     <div className="info-strip"><CircleHelp size={18} /><p>CLI-Agenten können Dateien im Projektordner ändern und eigene Netzwerkzugriffe durchführen. Verwende nur Programme und Modelle, denen du vertraust.</p></div>
     {draft ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDraft(null); }}><form className="dialog" onSubmit={(event) => void save(event)}><div className="dialog-heading"><div><small>AGENTENPROFIL</small><h2>{draft.id ? 'Agent bearbeiten' : 'Agent anlegen'}</h2></div><button className="icon-button" type="button" onClick={() => setDraft(null)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={draft.name} onChange={(event) => setDraft((old) => old && ({ ...old, name: event.target.value }))} placeholder="Codex" /></label><label>Typ<select value={draft.kind} onChange={(event) => setDraft((old) => old && ({ ...old, kind: event.target.value as AgentPreset['kind'] }))}><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="gemini">Gemini CLI</option><option value="antigravity">Antigravity CLI</option><option value="custom">Eigener CLI-Agent</option></select></label><label>Programm<input required value={draft.command} onChange={(event) => setDraft((old) => old && ({ ...old, command: event.target.value }))} placeholder="codex, agy oder C:\\Pfad\\agent.exe" /></label><label>Argumente – eine Zeile pro Argument<textarea rows={4} value={draft.argumentsText} onChange={(event) => setDraft((old) => old && ({ ...old, argumentsText: event.target.value }))} placeholder="--agent&#10;mein-agent" /></label><label>Modell (optional)<input value={draft.model ?? ''} onChange={(event) => setDraft((old) => old && ({ ...old, model: event.target.value }))} placeholder="Modellkennung" /></label><label className="check-option"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((old) => old && ({ ...old, enabled: event.target.checked }))} /> Profil aktivieren</label><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setDraft(null)}>Abbrechen</button><button className="primary-button" type="submit">Speichern</button></div></form></div> : null}
   </div>;

@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative as relativePath, resolve } from 'node:path';
 import { spawn as spawnPty, type IPty } from 'node-pty';
-import type { AgentDetection, AgentPreset, Column, ColumnEffort, Session, SessionEvent } from '../shared/types';
+import type { AgentCapability, AgentDetection, AgentPreset, Column, ColumnEffort, Session, SessionEvent } from '../shared/types';
 import { columnSettings } from '../shared/column-settings';
 import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
@@ -216,6 +216,7 @@ export class SessionRunner {
   private readonly processes = new Map<string, IPty>();
   private readonly pendingFirstTurn = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly finalMessageFiles = new Map<string, { directory: string; path: string }>();
+  private readonly stopAwaitingExit = new Set<string>();
   private disposed = false;
   constructor(
     private readonly store: StudioStore,
@@ -330,13 +331,20 @@ export class SessionRunner {
       throw error;
     }
     this.attachProcess(row, child);
+    this.recordCapability(row.id, 'resume');
     return row;
+  }
+
+  private recordCapability(sessionId: string, capability: AgentCapability): void {
+    // A diagnostic write must not turn an already started agent into an IPC failure.
+    try { this.store.recordAgentCapability(sessionId, capability); } catch { /* The operation remains visible in the session. */ }
   }
 
   private attachProcess(row: Session, child: IPty, codexJson = false): void {
     const decoder = codexJson ? new CodexJsonlOutput() : null;
     this.processes.set(row.id, child);
     this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: 'Agent started', state: 'running' });
+    this.recordCapability(row.id, 'start');
     child.onData((data) => {
       if (this.disposed || this.store.session(row.id).state !== 'running') return;
       const parsed = decoder?.feed(data);
@@ -368,6 +376,7 @@ export class SessionRunner {
       const finalMessage = this.readAndClearFinalMessage(row.id);
       if (this.disposed) return;
       const current = this.store.session(row.id);
+      if (this.stopAwaitingExit.delete(row.id) && current.state === 'stopped') this.recordCapability(row.id, 'stop');
       if (current.state !== 'running') return;
       const state = exitCode === 0 ? 'exited' : 'failed';
       const finished = this.store.finishSession(row.id, state, exitCode);
@@ -381,6 +390,7 @@ export class SessionRunner {
     if (!child || this.store.session(input.sessionId).state !== 'running') throw new Error('Sitzung läuft nicht mehr.');
     if (typeof input.data !== 'string' || !input.data || input.data.length > 4096) throw new Error('Terminaleingabe muss zwischen 1 und 4096 Zeichen lang sein.');
     child.write(input.data);
+    this.recordCapability(input.sessionId, 'input');
   }
 
   send(input: { sessionId: string; text: string }): void {
@@ -388,6 +398,7 @@ export class SessionRunner {
     if (!child) throw new Error('Session is not running');
     if (!input.text.trim() || input.text.length > 10_000 || /\0/.test(input.text)) throw new Error('Message must be 1-10000 characters');
     child.write(`${input.text}\r`);
+    this.recordCapability(input.sessionId, 'input');
   }
 
   resize(input: { sessionId: string; cols: number; rows: number }): void {
@@ -408,6 +419,7 @@ export class SessionRunner {
     const pending = this.pendingFirstTurn.get(sessionId);
     if (pending) clearTimeout(pending);
     this.pendingFirstTurn.delete(sessionId);
+    this.stopAwaitingExit.add(sessionId);
     child.kill();
     this.emit({ sessionId, cardId: session.cardId, type: 'state', data: 'Agent stopped', state: 'stopped' });
   }
@@ -419,6 +431,7 @@ export class SessionRunner {
       if (pending) clearTimeout(pending);
       this.pendingFirstTurn.delete(sessionId);
       this.processes.delete(sessionId);
+      this.stopAwaitingExit.delete(sessionId);
       // Closing the app is not an explicit user stop of this card. The child
       // may already have made a change, so require review after the next start.
       try { this.store.interruptSessionOnShutdown(sessionId); }

@@ -263,6 +263,7 @@ function installIpc(): void {
   bind('reorderCard', (input: Parameters<StudioAPI['reorderCard']>[0]) => db.reorderCard(input));
   bind('agents', () => db.agents());
   bind('detectAgents', () => detectAgents(db.agents()));
+  bind('agentCapabilityEvidence', () => db.agentCapabilityEvidence());
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string; picker?: boolean }) => runner?.resumeCodex(input));
@@ -608,6 +609,13 @@ function createWindow(): void {
               await new Promise((resolve) => setTimeout(resolve, 50));
             }
             if (!agentFinished) throw new Error('Lokaler Smoke-Agent beendete seinen PTY-Lauf nicht.');
+            const capabilityProof = await window.studio.agentCapabilityEvidence();
+            if (!capabilityProof.some((item) => item.agentId === agent.id && item.sessionId === session.id && item.capability === 'start')) {
+              throw new Error('Der echte Agenten-PTY-Start erschien nicht im Fähigkeitsbeleg.');
+            }
+            if (capabilityProof.some((item) => item.agentId === agent.id && item.capability !== 'start')) {
+              throw new Error('Der reine Agentenstart behauptete weitere Fähigkeiten.');
+            }
           }
           return true;
         })()

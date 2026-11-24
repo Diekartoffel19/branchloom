@@ -66,6 +66,8 @@ Der Kartendialog im **Board** hält den Tastaturfokus innerhalb der Karte. **Esc
 
 Der gespeicherte Agentenverlauf in **Aktivität** öffnet als Dialog. Tab bleibt darin, Escape schließt ihn und setzt den Fokus zum Auslöser oder zur Aktivitätssuche zurück. [Details](docs/ACTIVITY.md).
 
+Unter **Agenten → Fähigkeitsbelege** zeigt Branchloom pro Profil die letzten tatsächlich protokollierten lokalen Schritte für Start, Terminaleingabe, Stopp und Codex-Resume. Die [Agentendiagnose](docs/AGENT_DIAGNOSTICS.md) erklärt, was diese Belege aussagen und welche Modell-/Anmeldeprüfung weiterhin offen ist.
+
 ## Prüfen
 
 ```powershell

@@ -51,6 +51,10 @@ describe('explicit Codex conversation picker', () => {
       expect(reopened.session(first.id).codexThreadId).toBe(threadId);
       const resumed = runner.resumeCodex({ sessionId: first.id });
       expect(resumed.codexThreadId).toBe(threadId);
+      expect(reopened.agentCapabilityEvidence()).toEqual(expect.arrayContaining([
+        expect.objectContaining({ agentId: agent.id, capability: 'resume', sessionId: resumed.id }),
+        expect.objectContaining({ agentId: agent.id, capability: 'start', sessionId: resumed.id }),
+      ]));
       expect(mock.launches[0]?.args).toEqual(['resume', threadId]);
       expect(mock.launches[0]?.args).not.toContain('--last');
       runner.stop(resumed.id);

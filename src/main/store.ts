@@ -2,13 +2,14 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentCapability, AgentCapabilityEvidence, AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { normalizedWorkflowStep, workflowStepSettings } from '../shared/workflow-step-settings';
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
+import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { parseProjectPackage, type ProjectPackageV1 } from './project-package';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
@@ -144,6 +145,7 @@ export class StudioStore {
     installCardWireframes(this.db);
     installWireframeComponents(this.db);
     installSessionSearch(this.db);
+    installAgentCapabilities(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
@@ -581,13 +583,21 @@ export class StudioStore {
 
   agents(): AgentPreset[] { return (this.db.prepare('SELECT * FROM agents ORDER BY name').all() as AgentRow[]).map(agent); }
   agent(id: string): AgentPreset { return agent(required(this.db.prepare('SELECT * FROM agents WHERE id = ?').get(id) as AgentRow | undefined, 'Agent not found')); }
+  agentCapabilityEvidence(): AgentCapabilityEvidence[] { return listAgentCapabilityEvidence(this.db); }
+  recordAgentCapability(sessionId: string, capability: AgentCapability): void { recordAgentCapability(this.db, sessionId, capability); }
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): AgentPreset {
     if (!['codex', 'claude', 'gemini', 'antigravity', 'custom'].includes(input.kind)) throw new Error('Invalid agent kind');
     if (!Array.isArray(input.args) || input.args.length > 40 || input.args.some((arg) => typeof arg !== 'string' || arg.length > 1000 || /[\0\r\n]/.test(arg))) throw new Error('Invalid agent arguments');
     const command = trimmed(input.command, 'Agent command', 1000);
     if (/[\r\n]/.test(command)) throw new Error('Invalid agent command');
     const value: AgentPreset = { id: input.id ?? randomUUID(), name: trimmed(input.name, 'Agent name'), kind: input.kind, command, args: input.args, model: input.model ? trimmed(input.model, 'Model name', 200) : null, enabled: input.enabled === true };
+    const previous = input.id ? this.db.prepare('SELECT kind, command, args_json, model FROM agents WHERE id = ?').get(input.id) as Pick<AgentRow, 'kind' | 'command' | 'args_json' | 'model'> | undefined : undefined;
+    const launchChanged = Boolean(previous && (previous.kind !== value.kind || previous.command !== value.command || previous.args_json !== json(value.args) || previous.model !== value.model));
+    if (launchChanged && this.db.prepare("SELECT 1 FROM sessions WHERE agent_id = ? AND state = 'running' LIMIT 1").get(value.id)) {
+      throw new Error('Laufendes Agentenprofil zuerst stoppen, bevor Startparameter geändert werden.');
+    }
     this.db.prepare('INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, command=excluded.command, args_json=excluded.args_json, model=excluded.model, enabled=excluded.enabled').run(value.id, value.name, value.kind, value.command, json(value.args), value.model, Number(value.enabled));
+    if (launchChanged) clearAgentCapabilityEvidence(this.db, value.id);
     return value;
   }
 

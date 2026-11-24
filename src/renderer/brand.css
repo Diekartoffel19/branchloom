@@ -254,6 +254,16 @@
 :root[data-theme] .info-strip p { font-size: 13px; line-height: 1.5; }
 :root[data-theme] .detected-item strong,
 :root[data-theme] .preset-item strong { font-size: 13px; }
+:root[data-theme] .agent-capability-panel { margin-top: 16px; }
+:root[data-theme] .agent-capability-panel .panel-subtitle { margin-bottom: 12px; max-width: 75ch; }
+:root[data-theme] .agent-capability-select { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+:root[data-theme] .agent-capability-select select { max-width: 260px; min-height: 36px; }
+:root[data-theme] .agent-capability-list { margin-top: 14px; border-top: 1px solid var(--border); }
+:root[data-theme] .agent-capability-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) 150px; align-items: baseline; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+:root[data-theme] .agent-capability-row strong { color: var(--text); }
+:root[data-theme] .agent-capability-row span, :root[data-theme] .agent-capability-row small { color: var(--muted); }
+:root[data-theme] .agent-capability-row small { text-align: right; font-size: 12px; }
+@media (max-width: 700px) { :root[data-theme] .agent-capability-row { grid-template-columns: 80px minmax(0, 1fr); } :root[data-theme] .agent-capability-row small { grid-column: 2; text-align: left; } }
 :root[data-theme] .available-badge { border-color: #7e9275; color: #3c5b3d; }
 :root[data-theme='dark'] .available-badge { color: #b8d7ad; }
 :root[data-theme] .unavailable-badge { border-color: var(--border); color: var(--muted); }
