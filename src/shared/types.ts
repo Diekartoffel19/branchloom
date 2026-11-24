@@ -269,6 +269,10 @@ export interface StudioAPI {
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   runCardQaBatch(input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
+  qaCoverageRoutes(projectId: string): Promise<import('./qa-coverage').QaCoverageRoute[]>;
+  saveQaCoverageRoute(input: import('./qa-coverage').SaveQaCoverageRoute): Promise<import('./qa-coverage').QaCoverageRoute>;
+  removeQaCoverageRoute(input: { projectId: string; routeId: string }): Promise<void>;
+  runQaCoverageCell(input: { projectId: string; routeId: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   previewQaFixCard(input: { projectId: string; sourceCardId: string; reportId: string }): Promise<import('./qa-fix-card').QaFixCardPreview>;
   createQaFixCard(input: import('./qa-fix-card').CreateQaFixCard): Promise<Card>;
   designSelections(projectId: string): Promise<DesignSelection[]>;

@@ -9,6 +9,7 @@ import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, Studi
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
+import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
 import { cardCriteria, createCardCriterion, updateCardCriterion, deleteCardCriterion, linkCardCriterionEvidence, unlinkCardCriterionEvidence } from './card-acceptance';
 import { cardSplitLinks, createCardSplit, previewCardSplit } from './card-split';
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
@@ -434,6 +435,10 @@ function installIpc(): void {
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('runCardQaBatch', (input: Parameters<StudioAPI['runCardQaBatch']>[0]) => runCardQaBatch(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
+  bind('qaCoverageRoutes', (projectId: string) => qaCoverageRoutes(db, projectId));
+  bind('saveQaCoverageRoute', (input: Parameters<StudioAPI['saveQaCoverageRoute']>[0]) => saveQaCoverageRoute(db, input));
+  bind('removeQaCoverageRoute', (input: Parameters<StudioAPI['removeQaCoverageRoute']>[0]) => removeQaCoverageRoute(db, input));
+  bind('runQaCoverageCell', (input: Parameters<StudioAPI['runQaCoverageCell']>[0]) => runQaCoverageCell(db, input));
   bind('previewQaFixCard', (input: Parameters<StudioAPI['previewQaFixCard']>[0]) => previewQaFixCard(db, input));
   bind('createQaFixCard', (input: Parameters<StudioAPI['createQaFixCard']>[0]) => createQaFixCard(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
@@ -1664,6 +1669,79 @@ function createWindow(): void {
             })()
           `;
           void smokeWindow.webContents.executeJavaScript(boardScript).then(async () => {
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const projectId = ${JSON.stringify(smokeProject.id)};
+              const cardId = ${JSON.stringify(smokeCard.id)};
+              const route = ${JSON.stringify(qaUrl)};
+              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board');
+              if (!nav) throw new Error('Board-Navigation für QA-Abdeckung fehlt.');
+              nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.qa-coverage > summary'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              let panel = document.querySelector('.qa-coverage');
+              panel?.querySelector('summary')?.click();
+              for (let attempt = 0; attempt < 100 && !panel?.querySelector('form select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !panel?.textContent?.includes('Noch keine Route ausgewählt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel?.textContent?.includes('Noch keine Route ausgewählt')) throw new Error('Leerer QA-Abdeckungszustand fehlt.');
+              const form = panel?.querySelector('form');
+              const cardSelect = form?.querySelector('select');
+              const routeInput = form?.querySelector('input[type="url"]');
+              const tablet = [...(form?.querySelectorAll('fieldset input') ?? [])][1];
+              const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!form || !cardSelect || !routeInput || !tablet || !selectSetter || !inputSetter) throw new Error('QA-Abdeckungsformular fehlt.');
+              selectSetter.call(cardSelect, cardId); cardSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              inputSetter.call(routeInput, route); routeInput.dispatchEvent(new Event('input', { bubbles: true }));
+              tablet.click();
+              for (let attempt = 0; attempt < 100 && form.querySelector('button[type="submit"]')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              form.querySelector('button[type="submit"]')?.click();
+              let selected;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                selected = (await window.studio.qaCoverageRoutes(projectId))[0];
+                if (selected && panel?.querySelector('tbody tr')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!selected || JSON.stringify(selected.viewports) !== JSON.stringify(['desktop', 'tablet'])
+                || selected.cells[0]?.state !== 'missing' || selected.cells[1]?.report?.status !== 'failed'
+                || !panel?.textContent?.includes('Kein Bericht') || !panel.textContent.includes('Fehler gefunden')) {
+                throw new Error('QA-Abdeckungsmatrix zeigte gewählte Größen, Lücke und Fehler nicht korrekt.');
+              }
+              const sessionsBefore = (await window.studio.snapshot(projectId)).sessions.length;
+              let runButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                runButton = panel.querySelector('tbody tr td:nth-child(2) .qa-coverage-cell button.secondary-button');
+                if (runButton && !runButton.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!runButton || runButton.disabled) throw new Error('Gezielter QA-Start für fehlende Zelle fehlt.');
+              runButton.click();
+              for (let attempt = 0; attempt < 500; attempt++) {
+                selected = (await window.studio.qaCoverageRoutes(projectId))[0];
+                if (selected?.cells[0]?.report && panel?.querySelector('tbody tr td:nth-child(2)')?.textContent?.includes('Fehler gefunden')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (selected?.cells[0]?.report?.status !== 'failed' || (await window.studio.snapshot(projectId)).sessions.length !== sessionsBefore) throw new Error('Gezielter QA-Lauf speicherte keinen Fehlerbericht oder startete einen Agenten.');
+              const otherProject = (await window.studio.projects()).find((item) => item.name === 'Smoke-Zweitprojekt');
+              const projectSelect = document.querySelector('#project-select');
+              if (!otherProject || !projectSelect) throw new Error('Projektwechsel für QA-Abdeckung fehlt.');
+              selectSetter.call(projectSelect, otherProject.id); projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.qa-coverage[data-project-id="' + otherProject.id + '"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const otherPanel = document.querySelector('.qa-coverage');
+              otherPanel?.querySelector('summary')?.click();
+              for (let attempt = 0; attempt < 100 && !otherPanel?.textContent?.includes('Noch keine Route ausgewählt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!otherPanel?.textContent?.includes('Noch keine Route ausgewählt') || otherPanel.textContent.includes(route)) throw new Error('QA-Abdeckung zeigte eine Route aus einem fremden Projekt.');
+              selectSetter.call(projectSelect, projectId); projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.qa-coverage[data-project-id="' + projectId + '"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              panel = document.querySelector('.qa-coverage');
+              panel?.querySelector('summary')?.click();
+              for (let attempt = 0; attempt < 100 && !panel?.querySelector('tbody tr'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel?.textContent?.includes(route)) throw new Error('Gespeicherte QA-Abdeckung fehlte nach dem Projektwechsel.');
+              const tabletLink = panel.querySelector('tbody tr td:nth-child(3) .qa-coverage-cell button.text-button');
+              const tabletReportId = selected.cells[1]?.report?.id;
+              tabletLink?.click();
+              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'card-qa-report-' + tabletReportId; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!tabletReportId || document.activeElement?.id !== 'card-qa-report-' + tabletReportId) throw new Error('QA-Abdeckungszelle öffnete den Quellenbericht nicht.');
+              return true;
+            })()`);
             execFileSync('git', ['init', '-q', smokeDataDirectory!], { windowsHide: true });
             execFileSync('git', ['-C', smokeDataDirectory!, 'add', '--', 'src/theme.css'], { windowsHide: true });
             execFileSync('git', ['-C', smokeDataDirectory!, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic smoke theme'], { windowsHide: true });

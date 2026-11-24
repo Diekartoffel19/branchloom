@@ -1,0 +1,28 @@
+.qa-coverage { margin: 0 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.qa-coverage > summary { cursor: pointer; padding: 11px 14px; font-size: 13px; font-weight: 650; }
+.qa-coverage > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.qa-coverage-body { display: grid; gap: 12px; padding: 0 14px 14px; }
+.qa-coverage-intro { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.qa-coverage-intro p { margin: 0; max-width: 75ch; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.qa-coverage-form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+.qa-coverage-form > label { display: grid; gap: 4px; min-width: 180px; font-size: 12px; font-weight: 600; }
+.qa-coverage-form > label:nth-child(2) { flex: 1 1 260px; }
+.qa-coverage-form input, .qa-coverage-form select { width: 100%; min-width: 0; }
+.qa-coverage-form fieldset { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 5px 8px 7px; border: 1px solid var(--border); border-radius: 6px; }
+.qa-coverage-form legend { padding: 0 3px; font-size: 11px; color: var(--muted); }
+.qa-coverage-form fieldset label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.qa-coverage-form fieldset input { width: auto; }
+.qa-coverage-hint, .qa-coverage-empty { margin: 0; font-size: 11px; color: var(--muted); }
+.qa-coverage-scroll { overflow-x: auto; }
+.qa-coverage table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 12px; }
+.qa-coverage th, .qa-coverage td { padding: 9px; text-align: left; vertical-align: top; border-top: 1px solid var(--border); }
+.qa-coverage thead th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.qa-coverage tbody th { max-width: 280px; font-weight: 500; }
+.qa-coverage-route { display: block; overflow-wrap: anywhere; }
+.qa-coverage tbody th small, .qa-coverage-cell time, .qa-coverage-cell small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); font-weight: 400; }
+.qa-coverage-cell, .qa-coverage-actions { display: grid; justify-items: start; gap: 5px; }
+.qa-coverage-cell strong { font-size: 11px; font-weight: 650; }
+.qa-coverage-cell strong.qa-coverage-failed { color: var(--danger); }
+.qa-coverage-unselected { color: var(--muted); font-size: 11px; }
+.qa-coverage .text-button { padding: 0; }
+@media (max-width: 700px) { .qa-coverage-intro { display: grid; } .qa-coverage-form { display: grid; } }

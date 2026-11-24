@@ -84,6 +84,8 @@ npm audit --audit-level=critical
 
 Vor einer öffentlichen Veröffentlichung zusätzlich `node scripts/check-public.mjs` auf den gestagten Dateien und der erreichbaren Git-Historie ausführen. Das Skript sperrt typische Schlüssel, persönliche Benutzerpfade und lokale Datenordner; es meldet Datei, Zeile und Kategorie ohne Werte. Auch vor einem neuen Modellübergabepfad prüft Branchloom die vorbereiteten Textfelder lokal und sperrt erkannte Fundstellen. [Ablauf und Grenzen](docs/MODEL_HANDOFF_GUARD.md). Öffentliche Beispiele verwenden synthetische Daten.
 
+Auf dem Board zeigt die [UI-Abdeckung](docs/QA_COVERAGE.md) nur ausdrücklich ausgewählte lokale Kartenrouten und Größen mit ihren jüngsten gespeicherten Browser-QA-Berichten. Eine fehlende oder alte Prüfung lässt sich gezielt neu starten.
+
 ## Stand und Grenzen
 
 [STATUS.md](docs/STATUS.md) nennt den tatsächlich geprüften Stand. Die App ist eine frühe Entwicklungsfassung. Weitere Importquellen, Konflikt-Merge und Worktree-Aufräumen, zusätzliche CLI-Adapter, Live-Diktat, kontrollierte Browsersteuerung durch Agenten, Remote-Mobilzugriff und automatische Knowledge-Graph-Indizierung stehen noch auf der [Paritätsliste](docs/PARITY.md). [Produktvision](docs/PRODUCT_VISION.md), [Open-Source-Referenzen](docs/OPEN_SOURCE_REFERENCES.md) und [technische Orientierung](docs/HANDOVER.md) beschreiben Ziel und Einstieg. Der persönliche Jarvis-Assistent und seine privaten Module sind separate Projekte.

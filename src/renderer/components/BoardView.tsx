@@ -7,6 +7,7 @@ import type { Mutate } from './shared';
 import { CardPanel } from './CardPanel';
 import { TrelloImportPanel } from './TrelloImportPanel';
 import { TaskDraftAssistant } from './TaskDraftAssistant';
+import { QaCoveragePanel } from './QaCoveragePanel';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
@@ -14,7 +15,7 @@ import '../board-bulk.css';
 import '../column-order.css';
 import '../column-settings.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; onOpenDesign?: (cardId: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; onOpenDesign?: (cardId: string) => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
 
 export function isMoveShortcut(event: Pick<React.KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>): boolean {
   return event.key.toLocaleLowerCase() === 'm' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -24,7 +25,7 @@ export function moveDestinations(columns: Column[], card: Card): Column[] {
   return card.archivedAt ? [] : columns.filter((column) => column.id !== card.columnId);
 }
 
-export function BoardView({ snapshot, mutate, openCard, onOpenDesign }: Props) {
+export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -191,6 +192,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign }: Props) {
 
   return <div className="board-page">
     <div className="view-header"><div><h2>Planen und ausführen</h2><p>Karten ordnen, Agenten zuweisen und Ergebnisse prüfen.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)}><MessageCircle size={16} /> Aufgabe besprechen</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button></div></div>
+    <QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} />
     <div className="board-filters" role="search" aria-label="Board-Filter">
       <label className="board-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Karten suchen…" aria-label="Karten suchen" aria-describedby="board-filter-help" /></label>
       <label><span className="sr-only">Spalte filtern</span><select value={filterColumnId} onChange={(event) => setFilterColumnId(event.target.value)} aria-label="Spalte filtern"><option value="">Alle Spalten</option>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
