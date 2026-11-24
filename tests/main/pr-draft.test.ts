@@ -61,10 +61,30 @@ describe('read-only PR draft', () => {
     expect(preview.text).toContain('`feature.txt`');
     expect(preview.text).toContain('Eine nutzbare Änderung.');
     expect(preview.text).toContain('nicht an diesen Commit gebunden');
+    expect(preview.text).toContain('Checkout-Gitstand nicht erfasst');
     expect(preview.text).toContain('390 × 844');
     expect(preview.text).toContain('Automatisierte Tests: noch nicht');
     expect(preview.text).not.toContain('Other change');
     expect(preview.text).not.toContain('other.txt');
+    store.close();
+  });
+
+  it('states exactly which QA checkout was observed without attributing dev-server content to Git', () => {
+    const { store, project, card } = fixture();
+    const tree = ensureCardWorktree(store, card.id);
+    commit(tree.path, 'feature.txt', 'Add verified feature');
+    const head = git(tree.path, ['rev-parse', 'HEAD']);
+    const insert = store.db.prepare(`INSERT INTO card_qa_reports
+      (id, card_id, project_id, requested_url, started_at, ended_at, status, diagnostics_json, viewport_width, viewport_height, git_evidence_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const common = [card.id, project.id, 'http://127.0.0.1:5173/', '2026-11-24T00:00:00.000Z', '2026-11-24T00:00:01.000Z', 'passed', '[]', 390, 844] as const;
+    insert.run('qa-clean', ...common, JSON.stringify({ scope: 'card-worktree', startHead: head, endHead: head, dirtyAtStart: false, dirtyAtEnd: false, state: 'clean' }));
+    insert.run('qa-changed', ...common, JSON.stringify({ scope: 'card-worktree', startHead: head, endHead: 'a'.repeat(40), dirtyAtStart: false, dirtyAtEnd: false, state: 'changed' }));
+    const text = previewPrDraft(store, card.id)!.text;
+    expect(text).toContain(`Karten-Worktree bei \`${head.slice(0, 12)}\` sauber beobachtet`);
+    expect(text).toContain('Checkout-HEAD wechselte während der QA');
+    expect(text).toContain('Dev-Server-Auslieferung **nicht an diesen Commit gebunden**');
+    expect(text).toContain('Automatisierte Tests: noch nicht für diesen PR-Entwurf nachgewiesen');
     store.close();
   });
 });

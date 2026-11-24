@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import type { PrDraftPreview } from '../shared/types';
+import type { CardQaReport, PrDraftPreview } from '../shared/types';
 import type { StudioStore } from './store';
 import { cardQaReports } from './card-qa';
 import { reviewCardWorktree } from './git-worktree';
@@ -19,6 +19,18 @@ function oneLine(value: string): string {
 
 function code(value: string): string {
   return `\`${oneLine(value).replaceAll('`', '\\`')}\``;
+}
+
+function qaCheckoutNote(report: CardQaReport, sourceHead: string): string {
+  const evidence = report.gitEvidence;
+  if (!evidence) return ' · Checkout-Gitstand nicht erfasst';
+  if (evidence.state === 'unavailable') return ' · Checkout-Gitstand nicht prüfbar';
+  if (evidence.state === 'changed') return ' · Checkout-HEAD wechselte während der QA';
+  if (evidence.state === 'dirty') return ' · Checkout mit nicht committeten Änderungen';
+  if (evidence.scope === 'card-worktree' && evidence.startHead === sourceHead && evidence.endHead === sourceHead) {
+    return ` · Karten-Worktree bei ${code(sourceHead.slice(0, 12))} sauber beobachtet`;
+  }
+  return ' · QA-Checkout stimmt nicht mit dem PR-Quell-HEAD überein';
 }
 
 /** A read-only, editable starting point. QA observations are deliberately not attributed to a Git commit. */
@@ -55,8 +67,8 @@ export function previewPrDraft(store: StudioStore, cardId: string): PrDraftPrevi
     '- Automatisierte Tests: noch nicht für diesen PR-Entwurf nachgewiesen.',
     '- Code-Review: noch nicht für diesen PR-Entwurf nachgewiesen.',
     ...(reports.length ? [
-      '- Lokale Browser-QA an dieser Karte (Aufruf und Konsolenfehler; **nicht an diesen Commit gebunden**):',
-      ...reports.map((report) => `  - ${oneLine(report.endedAt)} · ${report.status} · ${report.viewportWidth || '?'} × ${report.viewportHeight || '?'} · ${code(report.requestedUrl.slice(0, 200))}${report.screenshotAvailable ? ' · Screenshot nur lokal in Branchloom' : ''}`),
+      '- Lokale Browser-QA an dieser Karte (Dev-Server-Auslieferung **nicht an diesen Commit gebunden**):',
+      ...reports.map((report) => `  - ${oneLine(report.endedAt)} · ${report.status} · ${report.viewportWidth || '?'} × ${report.viewportHeight || '?'} · ${code(report.requestedUrl.slice(0, 200))}${qaCheckoutNote(report, review.sourceHead)}${report.screenshotAvailable ? ' · Screenshot nur lokal in Branchloom' : ''}`),
     ] : ['- Lokale Browser-QA: kein gespeicherter Bericht an dieser Karte.']),
     ...(review.sourceStatus.length ? ['', '> Hinweis: Der Worktree hat nicht committete Änderungen. Sie sind nicht Teil dieses Entwurfs.'] : []),
     ...(review.blockers.length ? ['', `> Merge-Status: ${review.blockers.map(oneLine).join(' ')}`] : []),
