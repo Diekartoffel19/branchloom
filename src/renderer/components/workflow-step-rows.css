@@ -4,7 +4,8 @@
   border-radius: 8px;
   background: var(--surface-2);
 }
-.workflow-step-row-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.workflow-step-row-head { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 10px; }
+.workflow-step-row-head .step-main { margin-right: auto; }
 .workflow-step-row-head label { margin: 0; }
 .workflow-step-row-settings { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(130px, .8fr); gap: 10px; }
 .workflow-step-row-settings label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 600; }

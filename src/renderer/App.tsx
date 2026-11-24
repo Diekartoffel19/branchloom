@@ -284,6 +284,9 @@ export function App() {
       await refresh();
       return result;
     } catch (reason) {
+      // A rejected action may still have persisted a paused workflow or a
+      // partial diagnostic state. Show that state without hiding the error.
+      try { await refresh(); } catch { /* Keep the original action error. */ }
       setError(messageOf(reason));
       return null;
     }

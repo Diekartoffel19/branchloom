@@ -685,7 +685,9 @@ export class StudioStore {
       if (!step || typeof step !== 'object') throw new Error('Ungültiger Workflow-Schritt.');
       if (this.column(step.columnId).projectId !== projectId) throw new Error('Workflow-Spalte gehört zu einem anderen Projekt.');
       const agent = step.agentId ? this.agent(step.agentId) : null;
-      return { ...step, ...workflowStepSettings(agent?.kind ?? null, step.model, step.effort) };
+      if (step.useWorktree != null && typeof step.useWorktree !== 'boolean') throw new Error('Worktree-Auswahl muss ein Ja/Nein-Wert sein.');
+      if (step.useWorktree && !agent) throw new Error('Ein manueller Schritt kann keinen Agenten-Worktree starten.');
+      return { ...step, ...workflowStepSettings(agent?.kind ?? null, step.model, step.effort), useWorktree: step.useWorktree === true };
     });
   }
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Workflow {

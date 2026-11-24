@@ -1,6 +1,6 @@
 # Isolierte Git-Worktrees für Karten
 
-In der Kartenansicht lässt sich vor **Agent starten** die Option „Isolierten Git-Worktree für diese Sitzung verwenden“ einschalten. Sie ist standardmäßig aus. Ohne Auswahl läuft der Agent wie bisher im registrierten Projektordner. Automatische Workflow-Sitzungen ändern dieses Verhalten nicht.
+In der Kartenansicht lässt sich vor **Agent starten** die Option „Isolierten Git-Worktree für diese Sitzung verwenden“ einschalten. Sie ist standardmäßig aus. Ohne Auswahl läuft der Agent wie bisher im registrierten Projektordner. In **Workflows → Manuell anlegen** oder **Entwurf bearbeiten** gibt es dieselbe ausdrückliche Wahl je Agentenschritt. Auch Queue-Karten übernehmen sie aus der gewählten Route; ohne Auswahl laufen die Schritte weiterhin im Projektordner. Ein manueller Schritt kann keinen Agenten-Worktree wählen.
 
 Bei der ersten Auswahl legt Branchloom außerhalb des Projekt-Repositories im lokalen App-Datenordner `worktrees/<Projekt-ID>/<Karten-ID>` einen Git-Worktree mit Branch `jarvis/card-<Karten-ID>` an. Weitere ausgewählte Sitzungen derselben Karte benutzen diesen Branch und Ordner wieder. Die App zeigt den Pfad in der Sitzung an und speichert die Zuordnung in ihrer lokalen SQLite-Datenbank. Vor Wiederverwendung prüft sie Repository, Pfad und Branch. Ein nicht initialisiertes Git-Projekt, fehlender Commit oder beschädigter/ausgetauschter Worktree führen zu einer Fehlermeldung; ein Agent wird dann nicht gestartet.
 
