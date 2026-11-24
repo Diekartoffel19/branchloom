@@ -80,7 +80,7 @@ npm run build
 npm audit --audit-level=critical
 ```
 
-Vor einer öffentlichen Veröffentlichung zusätzlich `node scripts/check-public.mjs` auf den gestagten Dateien ausführen. Das Skript sperrt typische Schlüssel, persönliche Benutzerpfade und lokale Datenordner, ohne gefundene Werte auszugeben. Öffentliche Beispiele verwenden synthetische Daten.
+Vor einer öffentlichen Veröffentlichung zusätzlich `node scripts/check-public.mjs` auf den gestagten Dateien und der erreichbaren Git-Historie ausführen. Das Skript sperrt typische Schlüssel, persönliche Benutzerpfade und lokale Datenordner; es meldet Datei, Zeile und Kategorie ohne Werte. Auch vor einem neuen Modellübergabepfad prüft Branchloom die vorbereiteten Textfelder lokal und sperrt erkannte Fundstellen. [Ablauf und Grenzen](docs/MODEL_HANDOFF_GUARD.md). Öffentliche Beispiele verwenden synthetische Daten.
 
 ## Stand und Grenzen
 

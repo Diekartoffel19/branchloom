@@ -13,6 +13,7 @@ import { approvedCardWireframeContext } from './card-wireframe';
 import { assertCardWireframeReady } from './card-wireframe-gate';
 import { captureRunGit, recordSessionLaunch, recordSessionPromptWrite, recordSessionVersion } from './session-evidence';
 import type { PromptDelivery, RunSource } from '../shared/session-evidence';
+import { assertSafeModelContext } from './sensitive-content';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -248,6 +249,12 @@ export class SessionRunner {
     const wireframeContext = approvedCardWireframeContext(this.store, { projectId: card.projectId, cardId: card.id });
     const prompt = wireframeContext ? `${taskPrompt}\n\n${wireframeContext}` : taskPrompt;
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
+    assertSafeModelContext([
+      { field: 'Kartentitel', text: card.title },
+      { field: 'Kartenbeschreibung', text: card.description },
+      ...(input.prompt === undefined ? [] : [{ field: 'Agentenauftrag', text: input.prompt }]),
+      ...(wireframeContext ? [{ field: 'freigegebener Wireframe', text: wireframeContext }] : []),
+    ]);
     const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
     const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const row = this.store.createSession({ cardId: card.id, agentId, worktreePath: worktree?.path });

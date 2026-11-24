@@ -32,7 +32,7 @@ describe('public repository guard', () => {
     const token = 'sk-' + 'x'.repeat(24);
     const result = checkedFile('config.ts', `export const example = '${token}';\n`);
     expect(result.status).toBe(1);
-    expect(result.output).toContain('sensitive content pattern');
+    expect(result.output).toContain('config.ts:1: credential token');
     expect(result.output).not.toContain(token);
   });
 
@@ -46,12 +46,12 @@ describe('public repository guard', () => {
       if (result.status !== 0) throw new Error(result.stderr);
     };
     git('init', '-q');
-    writeFileSync(file, `export default '${token}';\n`);
+    writeFileSync(file, `export default 'safe';\nexport default '${token}';\n`);
     git('add', 'config.ts');
     writeFileSync(file, 'export default "safe";\n');
     const result = spawnSync(process.execPath, [guard], { cwd: dir, encoding: 'utf8' });
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('sensitive content pattern');
+    expect(result.stderr).toContain('config.ts:2: credential token');
     expect(result.stderr).not.toContain(token);
   });
 
@@ -79,7 +79,7 @@ describe('public repository guard', () => {
     git('commit', '-qm', 'remove synthetic secret');
     const result = spawnSync(process.execPath, [guard], { cwd: dir, encoding: 'utf8' });
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('sensitive content pattern');
+    expect(result.stderr).toMatch(/old-config\.ts \[history [a-f0-9]{12}\]:1: credential token/);
     expect(result.stderr).not.toContain(token);
   });
 });

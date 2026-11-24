@@ -4,18 +4,21 @@ const files = execFileSync('git', ['ls-files', '--cached', '-z'], { encoding: 'u
   .split('\0').filter(Boolean);
 const forbiddenPath = /(^|\/)(?:\.env(?:\..*)?|\.kangentic|\.claude|\.codex|data|browser-profile|transcripts?)(\/|$)|\.(?:sqlite(?:-wal|-shm)?|pem|p12|key|log)$/i;
 const forbiddenText = [
-  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
-  /\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,})\b/,
-  /\b(?:OPENROUTER_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY)\s*=\s*[^\s#]{8,}/i,
-  /(?:[A-Za-z]:\\Users\\|\/Users\/)[^\\/\s]+[\\/]/i,
+  { category: 'private key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g },
+  { category: 'credential token', pattern: /\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16})\b/g },
+  { category: 'environment credential', pattern: /\b(?:OPENROUTER_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY)\s*[:=]\s*["']?[^\s"'#]{16,}/gi },
+  { category: 'personal home path', pattern: /(?:[A-Za-z]:\\Users\\|\/Users\/|\/home\/)[^\\/\s]+[\\/]/g },
 ];
 
 const failures = [];
 function checkContent(label, content) {
-  for (const pattern of forbiddenText) {
-    if (pattern.test(content)) {
-      failures.push(`${label}: sensitive content pattern`);
-      return;
+  for (const { category, pattern } of forbiddenText) {
+    pattern.lastIndex = 0;
+    let count = 0;
+    for (const match of content.matchAll(pattern)) {
+      const line = 1 + (content.slice(0, match.index).match(/\n/g)?.length ?? 0);
+      failures.push(`${label}:${line}: ${category}`);
+      if (++count >= 20) break;
     }
   }
 }
@@ -23,7 +26,7 @@ function checkContent(label, content) {
 for (const file of files) {
   const normalized = file.replaceAll('\\', '/');
   if (forbiddenPath.test(normalized)) {
-    failures.push(`${file}: forbidden path`);
+    failures.push(`${file}: forbidden staged path`);
     continue;
   }
   // Review the exact blob that would be committed. A clean working-tree copy
@@ -61,9 +64,10 @@ if (entries.length) {
     offset = lineEnd + 1;
     if (match[1] === 'blob') {
       const label = entry.path || entry.hash.slice(0, 12);
-      if (forbiddenPath.test(label.replaceAll('\\', '/'))) failures.push(`${label}: forbidden historical path`);
-      if (size > 10 * 1024 * 1024) failures.push(`${label}: historical blob exceeds 10 MiB`);
-      else checkContent(label, batch.toString('utf8', offset, offset + size));
+      const historical = `${label} [history ${entry.hash.slice(0, 12)}]`;
+      if (forbiddenPath.test(label.replaceAll('\\', '/'))) failures.push(`${historical}: forbidden historical path`);
+      if (size > 10 * 1024 * 1024) failures.push(`${historical}: blob exceeds 10 MiB`);
+      else checkContent(historical, batch.toString('utf8', offset, offset + size));
     }
     offset += size + 1;
   }

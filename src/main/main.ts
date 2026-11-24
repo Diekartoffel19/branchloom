@@ -612,6 +612,15 @@ function createWindow(): void {
               name: 'Smoke-Agent', kind: 'custom', command: ${JSON.stringify(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'))},
               args: ['/C', 'echo JARVIS_STUDIO_AGENT_OK && echo Error: BRANCHLOOM_OUTPUT_TEST'], model: null, enabled: true,
             });
+            const syntheticToken = 'sk-' + 's'.repeat(24);
+            const sessionsBeforeGuard = (await window.studio.snapshot(project.id)).sessions.length;
+            let guardMessage = '';
+            try { await window.studio.startSession({ cardId: card.id, agentId: agent.id, prompt: 'Check\\n' + syntheticToken }); }
+            catch (error) { guardMessage = String(error); }
+            if (!guardMessage.includes('Agentenauftrag, Zeile 2 (API-Schlüssel)') || guardMessage.includes(syntheticToken)
+              || (await window.studio.snapshot(project.id)).sessions.length !== sessionsBeforeGuard) {
+              throw new Error('Modellübergabe-Sperre über IPC gab Wert aus oder startete einen Agenten.');
+            }
             const session = await window.studio.startSession({ cardId: card.id, agentId: agent.id, prompt: '' });
             let agentFinished = false;
             for (let attempt = 0; attempt < 600; attempt++) {
