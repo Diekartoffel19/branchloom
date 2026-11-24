@@ -81,7 +81,12 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
 
   async function reviewWorktree() {
     setWorktreeBusy(true); setWorktreeError('');
-    try { setWorktreeReview(await window.studio.reviewCardWorktree(card.id)); }
+    try {
+      const review = await window.studio.reviewCardWorktree(card.id);
+      setWorktreeReview(review);
+      if (review) await reviewConflicts();
+      else setConflictRadar(null);
+    }
     catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setWorktreeBusy(false); }
   }
@@ -109,9 +114,15 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
 
   async function mergeWorktree() {
     if (!worktreeReview?.canFastForward) return;
-    if (!window.confirm(`Die ${worktreeReview.ahead} committeten Änderung(en) aus ${worktreeReview.branch} per Fast-Forward in ${worktreeReview.targetBranch} übernehmen? Der Worktree bleibt erhalten.`)) return;
     setWorktreeBusy(true); setWorktreeError('');
     try {
+      const preflight = await window.studio.reviewCardConflicts(card.id);
+      setConflictRadar(preflight);
+      if (preflight.state === 'overlap' || preflight.state === 'unknown') {
+        const note = preflight.state === 'overlap' ? 'Andere Karten-Worktrees enthalten Änderungen an denselben Git-Pfaden.' : 'Die Prüfung anderer Karten-Worktrees war unvollständig.';
+        if (!window.confirm(`${note} Trotzdem zur abschließenden Merge-Bestätigung weitergehen?`)) return;
+      }
+      if (!window.confirm(`Die ${worktreeReview.ahead} committeten Änderung(en) aus ${worktreeReview.branch} per Fast-Forward in ${worktreeReview.targetBranch} übernehmen? Der Worktree bleibt erhalten.`)) return;
       const merged = await window.studio.mergeCardWorktree({ cardId: card.id, previewToken: worktreeReview.previewToken, confirm: true });
       setWorktreeReview(merged);
     } catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
@@ -223,7 +234,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
-        <div className="agent-actions"><button className="secondary-button" type="button" disabled={worktreeBusy} onClick={() => void reviewWorktree()}>{worktreeBusy ? 'Prüfe…' : 'Git-Stand prüfen'}</button><button className="secondary-button" type="button" aria-expanded={showDiffReview} onClick={() => setShowDiffReview((open) => !open)}>{showDiffReview ? 'Diff schließen' : 'Diff und Kommentare'}</button><button className="secondary-button" type="button" disabled={conflictBusy} onClick={() => void reviewConflicts()}>{conflictBusy ? 'Prüfe…' : 'Parallele Änderungen prüfen'}</button></div>
+        <div className="agent-actions"><button className="secondary-button" type="button" disabled={worktreeBusy} onClick={() => void reviewWorktree()}>{worktreeBusy ? 'Prüfe…' : 'Git-Stand prüfen'}</button><button className="secondary-button" type="button" aria-expanded={showDiffReview} onClick={() => setShowDiffReview((open) => !open)}>{showDiffReview ? 'Diff schließen' : 'Diff und Kommentare'}</button><button className="secondary-button" type="button" disabled={conflictBusy || worktreeBusy} onClick={() => void reviewConflicts()}>{conflictBusy ? 'Prüfe…' : 'Karten-Worktrees vergleichen'}</button></div>
         {session?.state === 'running' ? <p className="run-meta">Bei geöffneter Karte wird das Konflikt-Radar etwa alle 30 Sekunden automatisch aktualisiert.</p> : null}
         {worktreeError ? <p className="inline-error" role="alert">{worktreeError}</p> : null}
         {conflictError ? <p className="inline-error" role="alert">Konflikt-Radar: {conflictError}</p> : null}

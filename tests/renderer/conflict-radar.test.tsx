@@ -18,6 +18,15 @@ describe('conflict radar notice', () => {
     expect(html).toContain('1 gemeinsame Datei');
   });
 
+  it('labels a stopped card worktree comparison as a manual preflight', () => {
+    const result: ConflictRadarResult = { ...base, scope: 'all-worktrees', sessionId: null, state: 'overlap', peers: [{ cardId: 'second', cardTitle: 'Beendete Karte', sessionId: null, state: 'overlap', changedCount: 1, commonPaths: ['src/file.ts'], commonCount: 1, reason: null }] };
+    const html = renderToStaticMarkup(createElement(ConflictRadarNotice, { result }));
+    expect(html).toContain('Karten-Worktrees vergleichen');
+    expect(html).toContain('Beendete Karte');
+    expect(html).toContain('src/file.ts');
+    expect(html).not.toContain('mehreren laufenden Worktrees');
+  });
+
   it('does not present an incomplete Git check as safe', () => {
     const result: ConflictRadarResult = { ...base, state: 'unknown', reason: 'Diese Sitzung verwendet keinen isolierten Worktree.', peers: [{ cardId: 'second', cardTitle: 'Zweite Karte', sessionId: 'other', state: 'unknown', changedCount: null, commonPaths: [], commonCount: 0, reason: 'Git-Status konnte nicht gelesen werden.' }] };
     const html = renderToStaticMarkup(createElement(ConflictRadarNotice, { result }));
@@ -50,8 +59,8 @@ describe('conflict radar notice', () => {
       ...snapshot, sessions: snapshot.sessions.map((item) => ({ ...item, state })),
     }, mutate: async () => null, onClose: () => undefined }));
     expect(render('running')).toContain('alle 30 Sekunden automatisch aktualisiert');
-    expect(render('running')).toContain('Parallele Änderungen prüfen');
+    expect(render('running')).toContain('Karten-Worktrees vergleichen');
     expect(render('exited')).not.toContain('alle 30 Sekunden automatisch aktualisiert');
-    expect(render('exited')).toContain('Parallele Änderungen prüfen');
+    expect(render('exited')).toContain('Karten-Worktrees vergleichen');
   });
 });

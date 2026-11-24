@@ -25,7 +25,7 @@ import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxIte
 import { globalInboxItems } from './global-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
-import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
+import { reviewCardWorktreeConflicts, reviewProjectConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
@@ -298,7 +298,7 @@ function installIpc(): void {
   bind('createReviewRuleFromComment', (input: Parameters<StudioAPI['createReviewRuleFromComment']>[0]) => createReviewRuleFromComment(db, input));
   bind('updateReviewRule', (input: Parameters<StudioAPI['updateReviewRule']>[0]) => updateReviewRule(db, input));
   bind('deleteReviewRule', (input: Parameters<StudioAPI['deleteReviewRule']>[0]) => deleteReviewRule(db, input));
-  bind('reviewCardConflicts', (cardId: string) => reviewCardConflicts(db, cardId, db.runningSessionsForProject(db.card(cardId).projectId)));
+  bind('reviewCardConflicts', (cardId: string) => reviewCardWorktreeConflicts(db, cardId));
   bind('reviewProjectConflicts', (projectId: string) => reviewProjectConflicts(db, projectId));
   bind('mergeCardWorktree', (input: { cardId: string; previewToken: string; confirm: boolean }) => mergeCardWorktree(db, input));
   bind('saveNote', (input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }) => db.saveNote(input));

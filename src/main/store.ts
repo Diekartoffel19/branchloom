@@ -631,6 +631,11 @@ export class StudioStore {
     const row = this.db.prepare('SELECT * FROM card_worktrees WHERE card_id = ?').get(cardId) as WorktreeRow | undefined;
     return row ? { cardId: row.card_id, projectId: row.project_id, sourceRoot: row.source_root, path: row.path, branch: row.branch, createdAt: row.created_at } : null;
   }
+  cardWorktreesForProject(projectId: string): CardWorktree[] {
+    this.project(projectId);
+    const rows = this.db.prepare('SELECT * FROM card_worktrees WHERE project_id = ? ORDER BY created_at, card_id').all(projectId) as WorktreeRow[];
+    return rows.map((row) => ({ cardId: row.card_id, projectId: row.project_id, sourceRoot: row.source_root, path: row.path, branch: row.branch, createdAt: row.created_at }));
+  }
   saveCardWorktree(input: Omit<CardWorktree, 'createdAt'>): CardWorktree {
     const source = this.card(input.cardId);
     if (source.projectId !== input.projectId) throw new Error('Worktree card belongs to another project');

@@ -3,7 +3,7 @@ export type ConflictRadarState = 'idle' | 'clear' | 'overlap' | 'unknown';
 export interface ConflictRadarPeer {
   cardId: string;
   cardTitle: string;
-  sessionId: string;
+  sessionId: string | null;
   state: Exclude<ConflictRadarState, 'idle'>;
   changedCount: number | null;
   commonPaths: string[];
@@ -14,6 +14,7 @@ export interface ConflictRadarPeer {
 export interface ConflictRadarResult {
   cardId: string;
   sessionId: string | null;
+  scope?: 'all-worktrees';
   checkedAt: string;
   state: ConflictRadarState;
   ownChangedCount: number | null;

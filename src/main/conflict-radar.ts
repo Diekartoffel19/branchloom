@@ -3,7 +3,7 @@ import { lstat, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ConflictRadarPeer, ConflictRadarResult, ProjectConflictIssue, ProjectConflictPair, ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { Session } from '../shared/types';
-import type { StudioStore } from './store';
+import type { CardWorktree, StudioStore } from './store';
 
 const MAX_PATHS = 5_000;
 const MAX_OUTPUT = 2 * 1024 * 1024;
@@ -70,13 +70,10 @@ async function samePath(left: string, right: string): Promise<boolean> {
   return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
-async function verifiedWorktree(store: StudioStore, session: Session, targetRoot: string, targetCommon: string, deadline: number): Promise<string> {
-  if (!session.worktreePath) throw new Error('Sitzung verwendet keinen isolierten Worktree.');
-  const record = store.cardWorktree(session.cardId);
-  if (!record || record.projectId !== session.projectId) throw new Error('Gespeicherter Karten-Worktree fehlt.');
+async function verifiedCardWorktree(store: StudioStore, record: CardWorktree, targetRoot: string, targetCommon: string, deadline: number, sessionPath?: string): Promise<string> {
   if ((await lstat(record.path)).isSymbolicLink()) throw new Error('Der Worktree-Pfad ist ein symbolischer Link.');
-  const expected = join(store.worktreeBase, session.projectId, session.cardId);
-  if (!await samePath(record.path, expected) || !await samePath(record.path, session.worktreePath)
+  const expected = join(store.worktreeBase, record.projectId, record.cardId);
+  if (!await samePath(record.path, expected) || (sessionPath && !await samePath(record.path, sessionPath))
     || !await samePath(record.sourceRoot, targetRoot)) throw new Error('Sitzungs-Worktree ist nicht mehr eindeutig zugeordnet.');
   const actualRoot = (await git(record.path, ['rev-parse', '--show-toplevel'], deadline)).trim();
   const actualCommon = (await git(record.path, ['rev-parse', '--path-format=absolute', '--git-common-dir'], deadline)).trim();
@@ -84,6 +81,13 @@ async function verifiedWorktree(store: StudioStore, session: Session, targetRoot
   if (!await samePath(actualRoot, record.path) || !await samePath(actualCommon, targetCommon)
     || branch !== `refs/heads/${record.branch}`) throw new Error('Worktree gehört nicht mehr zum erwarteten Projekt und Branch.');
   return record.path;
+}
+
+async function verifiedWorktree(store: StudioStore, session: Session, targetRoot: string, targetCommon: string, deadline: number): Promise<string> {
+  if (!session.worktreePath) throw new Error('Sitzung verwendet keinen isolierten Worktree.');
+  const record = store.cardWorktree(session.cardId);
+  if (!record || record.projectId !== session.projectId) throw new Error('Gespeicherter Karten-Worktree fehlt.');
+  return verifiedCardWorktree(store, record, targetRoot, targetCommon, deadline, session.worktreePath);
 }
 
 function overlap(left: Set<string>, right: Set<string>): string[] {
@@ -106,6 +110,54 @@ function overlap(left: Set<string>, right: Set<string>): string[] {
     if (shared) common.push(item);
   }
   return common.sort();
+}
+
+/** Manual preflight also includes stopped cards whose worktrees still contain changes. */
+export async function reviewCardWorktreeConflicts(store: StudioStore, cardId: string): Promise<ConflictRadarResult> {
+  const card = store.card(cardId);
+  const checkedAt = new Date().toISOString();
+  const records = store.cardWorktreesForProject(card.projectId);
+  const own = records.find((item) => item.cardId === cardId);
+  const base = { cardId, sessionId: null, checkedAt, ownChangedCount: null, peers: [] as ConflictRadarPeer[], scope: 'all-worktrees' as const };
+  if (!own) return { ...base, state: 'idle', reason: 'Für diese Karte gibt es noch keinen Git-Worktree.' };
+  const others = records.filter((item) => item.cardId !== cardId);
+  if (others.length > 20) return { ...base, state: 'unknown', reason: 'Mehr als 20 weitere Karten-Worktrees; diese Prüfung wäre unvollständig.' };
+
+  const deadline = Date.now() + CHECK_BUDGET_MS;
+  const project = store.project(card.projectId);
+  let targetRoot = '';
+  let targetCommon = '';
+  let ownPaths: Set<string> | null = null;
+  let ownReason: string | null = null;
+  let targetHead = '';
+  try {
+    targetRoot = (await git(project.path, ['rev-parse', '--show-toplevel'], deadline)).trim();
+    targetCommon = (await git(targetRoot, ['rev-parse', '--path-format=absolute', '--git-common-dir'], deadline)).trim();
+    targetHead = (await git(targetRoot, ['rev-parse', '--verify', 'HEAD'], deadline)).trim();
+    const path = await verifiedCardWorktree(store, own, targetRoot, targetCommon, deadline);
+    ownPaths = await changedPaths(path, targetRoot, deadline);
+  } catch (error) { ownReason = error instanceof Error ? error.message : 'Git-Prüfung fehlgeschlagen.'; }
+
+  const peers: ConflictRadarPeer[] = [];
+  for (const record of others) {
+    let title = 'Unbekannte Karte';
+    try {
+      title = store.card(record.cardId).title;
+      if (!ownPaths) throw new Error(ownReason ?? 'Diese Karte konnte nicht geprüft werden.');
+      const path = await verifiedCardWorktree(store, record, targetRoot, targetCommon, deadline);
+      if (await samePath(own.path, path)) throw new Error('Beide Karten teilen denselben Worktree.');
+      const otherPaths = await changedPaths(path, targetRoot, deadline);
+      const commonPaths = overlap(ownPaths, otherPaths);
+      peers.push({ cardId: record.cardId, cardTitle: title, sessionId: null, state: commonPaths.length ? 'overlap' : 'clear', changedCount: otherPaths.size, commonPaths: commonPaths.slice(0, 30), commonCount: commonPaths.length, reason: null });
+    } catch (error) {
+      peers.push({ cardId: record.cardId, cardTitle: title, sessionId: null, state: 'unknown', changedCount: null, commonPaths: [], commonCount: 0, reason: error instanceof Error ? error.message : 'Git-Prüfung fehlgeschlagen.' });
+    }
+  }
+  try {
+    if (targetHead && (await git(targetRoot, ['rev-parse', '--verify', 'HEAD'], deadline)).trim() !== targetHead) ownReason = 'Ziel-Commit hat sich während der Prüfung geändert.';
+  } catch { ownReason = 'Ziel-Commit konnte nach der Prüfung nicht erneut gelesen werden.'; }
+  const state = peers.some((peer) => peer.state === 'overlap') ? 'overlap' : peers.some((peer) => peer.state === 'unknown') || ownReason ? 'unknown' : 'clear';
+  return { ...base, state, ownChangedCount: ownPaths?.size ?? null, peers, reason: ownReason ?? (others.length ? null : 'Keine weitere Karte hat einen gespeicherten Worktree.') };
 }
 
 /** Read-only snapshot. Never starts, stops, merges or changes an agent session. */

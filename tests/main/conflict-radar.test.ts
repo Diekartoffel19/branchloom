@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { changedPaths, reviewCardConflicts, reviewProjectConflicts } from '../../src/main/conflict-radar';
+import { changedPaths, reviewCardConflicts, reviewCardWorktreeConflicts, reviewProjectConflicts } from '../../src/main/conflict-radar';
 import { ensureCardWorktree } from '../../src/main/git-worktree';
 import { StudioStore } from '../../src/main/store';
 
@@ -44,6 +44,51 @@ function fixture() {
 }
 
 describe('conflict radar', () => {
+  it('compares saved card worktrees after both agent sessions have stopped', async () => {
+    const { store, first, firstRun, secondRun, firstTree, secondTree } = fixture();
+    try {
+      store.finishSession(firstRun.id, 'stopped', null);
+      store.finishSession(secondRun.id, 'stopped', null);
+      commit(firstTree.path, 'shared.txt', 'committed first');
+      writeFileSync(join(secondTree.path, 'shared.txt'), 'uncommitted second');
+      const warning = await reviewCardWorktreeConflicts(store, first.id);
+      expect(warning).toMatchObject({ scope: 'all-worktrees', state: 'overlap', sessionId: null, ownChangedCount: 1 });
+      expect(warning.peers[0]).toMatchObject({ cardId: secondRun.cardId, sessionId: null, commonPaths: ['shared.txt'], commonCount: 1 });
+      writeFileSync(join(secondTree.path, 'shared.txt'), 'base');
+      writeFileSync(join(secondTree.path, 'other.txt'), 'other');
+      expect((await reviewCardWorktreeConflicts(store, first.id)).state).toBe('clear');
+    } finally { store.close(); }
+  });
+
+  it('marks a stale saved peer worktree as unknown and does not create one for a new card', async () => {
+    const { store, project, first, second, firstTree, secondTree } = fixture();
+    try {
+      const columnId = store.snapshot(project.id).columns[0]!.id;
+      const newCard = store.createCard({ projectId: project.id, columnId, title: 'Ohne Worktree' });
+      expect(await reviewCardWorktreeConflicts(store, newCard.id)).toMatchObject({ state: 'idle', scope: 'all-worktrees' });
+      rmSync(secondTree.path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      const warning = await reviewCardWorktreeConflicts(store, first.id);
+      expect(warning.state).toBe('unknown');
+      expect(warning.peers[0]).toMatchObject({ cardId: second.id, state: 'unknown' });
+      expect(store.cardWorktree(second.id)).not.toBeNull();
+      rmSync(firstTree.path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      expect((await reviewCardWorktreeConflicts(store, first.id)).state).toBe('unknown');
+    } finally { store.close(); }
+  });
+
+  it('does not claim a complete preflight when more than 20 other card worktrees are stored', async () => {
+    const { store, project, first } = fixture();
+    try {
+      const columnId = store.snapshot(project.id).columns[0]!.id;
+      for (let index = 0; index < 20; index += 1) {
+        const card = store.createCard({ projectId: project.id, columnId, title: `Stored ${index}` });
+        store.saveCardWorktree({ cardId: card.id, projectId: project.id, sourceRoot: project.path, path: join(store.worktreeBase, project.id, card.id), branch: `test/${index}` });
+      }
+      const result = await reviewCardWorktreeConflicts(store, first.id);
+      expect(result).toMatchObject({ scope: 'all-worktrees', state: 'unknown', peers: [] });
+      expect(result.reason).toContain('Mehr als 20');
+    } finally { store.close(); }
+  });
   it('checks all running worktrees once for a project-wide overlap, then clears', async () => {
     const { store, project, first, second, firstTree, secondTree } = fixture();
     try {
