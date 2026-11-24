@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CardQaComparison, QaComparisonView } from '../../src/renderer/components/CardQaComparison';
+import { CardQaComparison, QaComparisonView, overlayEligible } from '../../src/renderer/components/CardQaComparison';
 import type { CardQaReport } from '../../src/shared/types';
 
 const base: CardQaReport = {
@@ -11,6 +11,16 @@ const base: CardQaReport = {
 };
 
 describe('local visual screenshot comparison', () => {
+  it('offers an overlay only for matching recorded viewport and decoded bitmap dimensions', () => {
+    const other = { ...base, id: 'two' };
+    expect(overlayEligible(base, other, { width: 960, height: 600 }, { width: 960, height: 600 })).toBe(true);
+    expect(overlayEligible(base, { ...other, viewportWidth: 390 }, { width: 960, height: 600 }, { width: 960, height: 600 })).toBe(false);
+    expect(overlayEligible(base, { ...other, viewportHeight: 0 }, { width: 960, height: 600 }, { width: 960, height: 600 })).toBe(false);
+    expect(overlayEligible(base, other, { width: 960, height: 600 }, { width: 959, height: 600 })).toBe(false);
+    expect(overlayEligible(base, other, { width: 960, height: 600 }, null)).toBe(false);
+    expect(overlayEligible(base, other, { width: 0, height: 600 }, { width: 0, height: 600 })).toBe(false);
+  });
+
   it('requires two saved screenshots and two explicit selections', () => {
     const one = renderToStaticMarkup(createElement(CardQaComparison, { cardId: 'card', reports: [base] }));
     expect(one).toContain('zwei gespeicherte QA-Screenshots');

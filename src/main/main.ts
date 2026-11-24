@@ -832,6 +832,7 @@ function createWindow(): void {
               const comparedImages = [...document.querySelectorAll('.card-qa-comparison-images img')];
               if (comparedImages.length !== 2) throw new Error('Visual-Diff zeigte nicht beide gespeicherten Bilder.');
               await Promise.all(comparedImages.map((image) => image.decode()));
+              if (document.querySelector('.card-qa-overlay-toggle')) throw new Error('Unterschiedliche Viewports boten fälschlich eine Überlagerung an.');
               if (!document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 768 × 1024 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 390 × 844 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Git im Projektordner') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('keinem Commit nachweislich zugeordnet') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Keine Pixelbewertung')) throw new Error('Visual-Diff-Quellen, Prüfgrößen, Git-Belege oder Grenzen fehlen.');
               [...document.querySelectorAll('.card-qa-comparison-images button')].find((item) => item.textContent?.includes('Screenshot A vergrößern'))?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-comparison-images figure.expanded'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -868,6 +869,38 @@ function createWindow(): void {
               }
               if (batchReports?.length !== 5 || !batchReports.some((item) => item.requestedUrl.endsWith('/second')) || !batchReports.some((item) => item.requestedUrl.endsWith('/third')) || !document.querySelector('.card-qa [role="status"]')?.textContent?.includes('3 von 3 Routen gespeichert')) throw new Error('Mehrfach-Routenlauf speicherte oder zeigte nicht alle drei QA-Berichte.');
               if (!(await sessionsUnchanged())) throw new Error('Mehrfach-Routenlauf startete einen Agenten.');
+              const matchingMobile = batchReports.find((item) => item.id !== comparisonReports[0].id && item.requestedUrl === ${JSON.stringify(qaUrl)} && item.viewportWidth === 390 && item.viewportHeight === 844 && item.screenshotAvailable);
+              if (!matchingMobile) throw new Error('Zweiter gespeicherter Mobile-Screenshot derselben Route fehlt.');
+              const matchingSelects = [...document.querySelectorAll('.card-qa-comparison select')];
+              if (matchingSelects.length !== 2) throw new Error('Vergleichsauswahl nach mehreren Routen fehlt.');
+              selectValueSetter.call(matchingSelects[0], comparisonReports[0].id);
+              matchingSelects[0].dispatchEvent(new Event('change', { bubbles: true }));
+              selectValueSetter.call(matchingSelects[1], matchingMobile.id);
+              matchingSelects[1].dispatchEvent(new Event('change', { bubbles: true }));
+              const matchingCompare = [...document.querySelectorAll('.card-qa-comparison button')].find((item) => item.textContent?.includes('Visuell vergleichen'));
+              for (let attempt = 0; attempt < 100 && matchingCompare?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(matchingCompare instanceof HTMLButtonElement) || matchingCompare.disabled) throw new Error('Gleichgroßer Vergleich wurde nicht aktiv.');
+              matchingCompare.click();
+              let overlayToggle;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                overlayToggle = document.querySelector('.card-qa-overlay-toggle');
+                if (overlayToggle) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(overlayToggle instanceof HTMLButtonElement)) throw new Error('Gleichgroße gespeicherte Bilder boten keine Überlagerung an.');
+              overlayToggle.click();
+              let slider;
+              for (let attempt = 0; attempt < 100 && !slider; attempt++) { slider = document.querySelector('input[aria-label="Anteil von Screenshot B"]'); if (!slider) await new Promise((resolve) => setTimeout(resolve, 50)); }
+              const rangeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!(slider instanceof HTMLInputElement) || !rangeSetter) throw new Error('Tastaturbedienbarer QA-Bildregler fehlt.');
+              slider.focus();
+              rangeSetter.call(slider, '70'); slider.dispatchEvent(new Event('input', { bubbles: true })); slider.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-overlay-stage')?.getAttribute('aria-label')?.includes('70 Prozent'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-qa-overlay-stage')?.getAttribute('aria-label')?.includes('70 Prozent') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 390 × 844 px')) throw new Error('Bildregler oder Quellenmetadaten wurden nicht sichtbar aktualisiert.');
+              overlayToggle.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.card-qa-overlay-stage'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.card-qa-overlay-stage')) throw new Error('Geschlossene Überlagerung hielt Bilder im DOM.');
+              [...document.querySelectorAll('.card-qa-comparison-view button')].find((item) => item.textContent?.includes('Vergleich schließen'))?.click();
               const contextForm = document.querySelector('.card-drawer .card-context-form');
               const contextInput = contextForm?.querySelector('input');
               if (!contextForm || !contextInput) throw new Error('Karten-Kontextformular fehlt.');
