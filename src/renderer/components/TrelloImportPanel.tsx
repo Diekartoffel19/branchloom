@@ -11,6 +11,11 @@ export function defaultTrelloSelection(preview: TrelloImportPreview): string[] {
   return preview.cards.filter((card) => card.eligible && !card.archived && !card.importedCardId).map((card) => card.sourceId);
 }
 
+export function suggestedTrelloListColumns(preview: TrelloImportPreview, columns: Column[], fallbackColumnId: string): Record<string, string> {
+  const byName = new Map(columns.map((column) => [column.name.trim().toLocaleLowerCase(), column.id]));
+  return Object.fromEntries(preview.cards.filter((card) => card.listId).map((card) => [card.listId!, byName.get((card.listName ?? '').trim().toLocaleLowerCase()) ?? fallbackColumnId]));
+}
+
 export function importable(card: TrelloImportCard): boolean {
   return card.eligible && !card.importedCardId;
 }
@@ -44,6 +49,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   const [preview, setPreview] = useState<TrelloImportPreview | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [columnId, setColumnId] = useState(columns.find((column) => column.name.toLowerCase() === 'to do')?.id ?? columns[0]?.id ?? '');
+  const [columnByListId, setColumnByListId] = useState<Record<string, string> | null>(null);
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState<'status' | 'read' | 'connect' | 'boards' | 'preview' | 'accept' | null>('status');
   const [error, setError] = useState('');
@@ -51,6 +57,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   const matching = useMemo(() => preview?.cards.filter((card) => `${card.title} ${card.listName ?? ''} ${card.labels.join(' ')}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [preview, filter]);
   const shown = matching.slice(0, DISPLAY_LIMIT);
   const matchingCount = matching.length;
+  const sourceLists = useMemo(() => [...new Map(preview?.cards.filter((card) => card.listId).map((card) => [card.listId!, card.listName ?? 'Unbenannte Liste']) ?? [])], [preview]);
 
   useEffect(() => {
     function escape(event: KeyboardEvent) { if (event.key === 'Escape' && busy === null) onClose(); }
@@ -72,7 +79,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
     return () => { current = false; };
   }, []);
 
-  function clearPreview() { setPreview(null); setSelectedIds([]); setResult(null); setPreviewBoardId(''); setPreviewMode(null); setError(''); }
+  function clearPreview() { setPreview(null); setSelectedIds([]); setColumnByListId(null); setResult(null); setPreviewBoardId(''); setPreviewMode(null); setError(''); }
 
   async function openAuthorization() {
     setError('');
@@ -129,7 +136,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
     try {
       const selectedBoard = boardId;
       const next = mode === 'live' ? await window.studio.previewTrelloBoard({ projectId, boardId: selectedBoard }) : await window.studio.previewTrelloImport({ projectId, json });
-      setPreview(next); setPreviewMode(mode); setPreviewBoardId(mode === 'live' ? selectedBoard : ''); setSelectedIds(defaultTrelloSelection(next));
+      setPreview(next); setPreviewMode(mode); setPreviewBoardId(mode === 'live' ? selectedBoard : ''); setSelectedIds(defaultTrelloSelection(next)); setColumnByListId(null);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(null); }
   }
@@ -139,11 +146,13 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
     setBusy('accept'); setError(''); setResult(null);
     try {
       const accepted = previewMode === 'live'
-        ? await window.studio.acceptTrelloBoard({ projectId, columnId, boardId: previewBoardId, fingerprint: preview.fingerprint, sourceIds: selectedIds })
-        : await window.studio.acceptTrelloImport({ projectId, columnId, json, fingerprint: preview.fingerprint, sourceIds: selectedIds });
+        ? await window.studio.acceptTrelloBoard({ projectId, columnId, columnByListId: columnByListId ?? undefined, boardId: previewBoardId, fingerprint: preview.fingerprint, sourceIds: selectedIds })
+        : await window.studio.acceptTrelloImport({ projectId, columnId, columnByListId: columnByListId ?? undefined, json, fingerprint: preview.fingerprint, sourceIds: selectedIds });
       setResult(accepted); setSelectedIds([]);
       await mutate(async () => accepted);
-      setPreview(previewMode === 'live' ? await window.studio.previewTrelloBoard({ projectId, boardId: previewBoardId }) : await window.studio.previewTrelloImport({ projectId, json }));
+      const refreshed = previewMode === 'live' ? await window.studio.previewTrelloBoard({ projectId, boardId: previewBoardId }) : await window.studio.previewTrelloImport({ projectId, json });
+      setPreview(refreshed);
+      setColumnByListId((old) => old ? Object.fromEntries(Object.entries(suggestedTrelloListColumns(refreshed, columns, columnId)).map(([listId, suggested]) => [listId, old[listId] ?? suggested])) : null);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(null); }
   }
@@ -163,8 +172,9 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
       {error ? <p className="inline-error" role="alert">{error}</p> : null}
       {preview ? <div className="trello-preview">
         <div className="trello-preview-head"><div><h3>{preview.boardName ?? 'Trello-Board'}</h3><p>{preview.total} Karten · {preview.eligible} importierbar · {preview.duplicates} bereits importiert</p></div><span className="state-badge">Vorschau</span></div>
-        <label>Zielspalte<select value={columnId} onChange={(event) => setColumnId(event.target.value)} disabled={busy !== null}>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
-        <p className="field-help">Alle gewählten Karten kommen in diese Spalte. Archivierte Trello-Karten sind zunächst abgewählt und bleiben beim Import archiviert. Ein Import startet keine Agenten automatisch.</p>
+        <label>{columnByListId ? 'Zielspalte für Karten ohne bekannte Trello-Liste' : 'Zielspalte'}<select value={columnId} onChange={(event) => setColumnId(event.target.value)} disabled={busy !== null}>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
+        {sourceLists.length > 0 ? <div className="trello-list-mapping"><label><input type="checkbox" checked={columnByListId !== null} disabled={busy !== null} onChange={(event) => setColumnByListId(event.target.checked ? suggestedTrelloListColumns(preview, columns, columnId) : null)} /> Trello-Listen einzeln zuordnen</label>{columnByListId ? <div className="trello-list-mapping-rows">{sourceLists.map(([listId, listName]) => { const count = preview.cards.filter((card) => card.listId === listId).length; return <label key={listId}><span>{listName} <small>({count} {count === 1 ? 'Karte' : 'Karten'})</small></span><select aria-label={`Zielspalte für Trello-Liste ${listName}`} value={columnByListId[listId] ?? columnId} disabled={busy !== null} onChange={(event) => setColumnByListId((old) => ({ ...old, [listId]: event.target.value }))}>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>; })}</div> : null}</div> : null}
+        <p className="field-help">{columnByListId ? 'Die gewählten Karten kommen in die zugeordnete Zielspalte ihrer Trello-Liste.' : 'Alle gewählten Karten kommen in die gewählte Zielspalte.'} Archivierte Trello-Karten sind zunächst abgewählt und bleiben beim Import archiviert. Ein Import startet keine Agenten automatisch.</p>
         <div className="trello-selection-row"><span>{selectedIds.length} ausgewählt</span><button className="text-button" type="button" onClick={() => setSelectedIds([])} disabled={busy !== null || selectedIds.length === 0}>Auswahl leeren</button><button className="text-button" type="button" onClick={() => setSelectedIds((old) => [...new Set([...old, ...shown.filter(importable).map((card) => card.sourceId)])])} disabled={busy !== null || shown.length === 0}>Angezeigte auswählen</button></div>
         <label className="sr-only" htmlFor="trello-filter">Karten filtern</label><input id="trello-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Karten, Liste oder Label filtern…" />
         <div className="trello-card-list" aria-label="Trello-Karten in der Vorschau">{shown.map((card) => <TrelloCardRow key={card.sourceId} card={card} checked={selectedIds.includes(card.sourceId)} disabled={busy !== null} onToggle={() => toggle(card.sourceId)} />)}{matchingCount === 0 ? <p className="list-empty">Keine Karten für diesen Filter.</p> : null}</div>

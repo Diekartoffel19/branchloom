@@ -524,13 +524,25 @@ export class StudioStore {
     };
   }
 
-  acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): TrelloImportResult {
+  acceptTrelloImport(input: { projectId: string; columnId: string; columnByListId?: Record<string, string>; json: string; fingerprint: string; sourceIds: string[] }): TrelloImportResult {
     this.project(input.projectId);
     if (this.column(input.columnId).projectId !== input.projectId) throw new Error('Die Zielspalte gehört zu einem anderen Projekt.');
     const parsed = parseTrelloBoard(input.json);
     if (parsed.fingerprint !== input.fingerprint) throw new Error('Die Trello-Datei hat sich seit der Vorschau geändert. Bitte erneut prüfen.');
     if (!Array.isArray(input.sourceIds) || input.sourceIds.length === 0 || input.sourceIds.length > parsed.cards.length || new Set(input.sourceIds).size !== input.sourceIds.length) throw new Error('Bitte gültige Karten-IDs einmalig auswählen.');
     const sourceCards = new Map(parsed.cards.map((item) => [item.sourceId, item]));
+    const columnByListId = new Map<string, string>();
+    if (input.columnByListId !== undefined) {
+      if (!input.columnByListId || typeof input.columnByListId !== 'object' || Array.isArray(input.columnByListId)) throw new Error('Ungültige Trello-Listen-Zuordnung.');
+      const entries = Object.entries(input.columnByListId);
+      if (entries.length > parsed.cards.length) throw new Error('Zu viele Trello-Listen-Zuordnungen.');
+      const availableListIds = new Set(parsed.cards.map((item) => item.listId).filter((id): id is string => id !== null));
+      for (const [listId, destinationId] of entries) {
+        if (!availableListIds.has(listId) || typeof destinationId !== 'string') throw new Error('Eine Trello-Listen-Zuordnung ist ungültig.');
+        if (this.column(destinationId).projectId !== input.projectId) throw new Error('Eine Zielspalte gehört zu einem anderen Projekt.');
+        columnByListId.set(listId, destinationId);
+      }
+    }
     for (const sourceId of input.sourceIds) {
       const item = sourceCards.get(sourceId);
       if (!item || !item.eligible) throw new Error('Eine gewählte Trello-Karte kann nicht importiert werden.');
@@ -547,7 +559,7 @@ export class StudioStore {
         }
         const item = sourceCards.get(sourceId)!;
         // Direct store insertion intentionally bypasses the IPC move-to-column auto-start path.
-        const added = this.createCard({ projectId: input.projectId, columnId: input.columnId, title: item.title, description: item.description, labels: item.labels });
+        const added = this.createCard({ projectId: input.projectId, columnId: (item.listId && columnByListId.get(item.listId)) || input.columnId, title: item.title, description: item.description, labels: item.labels });
         const newCard = item.archived ? this.setCardArchived({ id: added.id, archived: true }) : added;
         insert.run(input.projectId, sourceId, newCard.id, now());
         created.push(newCard);

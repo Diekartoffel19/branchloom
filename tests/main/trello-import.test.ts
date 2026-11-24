@@ -10,6 +10,7 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 const ids = {
   board: 'aaaaaaaaaaaaaaaaaaaaaaaa',
   list: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+  list2: '999999999999999999999999',
   first: 'cccccccccccccccccccccccc',
   second: 'dddddddddddddddddddddddd',
   archived: 'eeeeeeeeeeeeeeeeeeeeeeee',
@@ -81,6 +82,29 @@ describe('local Trello board import', () => {
     store.acceptTrelloImport({ projectId: project.id, columnId: autoColumn.id, json, fingerprint: preview.fingerprint, sourceIds: [ids.first] });
     expect(store.snapshot(project.id).sessions).toHaveLength(0);
     expect(store.snapshot(project.id).cards[0]?.columnId).toBe(autoColumn.id);
+    store.close();
+  });
+
+  it('maps selected Trello lists to project columns atomically without starting agents', () => {
+    const { store, project, column } = fixture();
+    const secondColumn = store.createColumn({ projectId: project.id, name: 'Trello Planning' });
+    const otherRoot = mkdtempSync(join(tmpdir(), 'jarvis-studio-other-'));
+    roots.push(otherRoot);
+    const other = store.createProject({ name: 'Other', path: otherRoot });
+    const foreignColumn = store.snapshot(other.id).columns[0]!;
+    const source = JSON.parse(board()) as { lists: Array<{ id: string; name: string }>; cards: Array<{ idList: string }> };
+    source.lists.push({ id: ids.list2, name: 'Planning' });
+    source.cards[1]!.idList = ids.list2;
+    const json = JSON.stringify(source);
+    const preview = store.previewTrelloImport({ projectId: project.id, json });
+    expect(preview.cards.map((card) => card.listId)).toEqual([ids.list, ids.list2, ids.list]);
+    const input = { projectId: project.id, columnId: column.id, json, fingerprint: preview.fingerprint, sourceIds: [ids.first, ids.second] };
+    expect(() => store.acceptTrelloImport({ ...input, columnByListId: { [ids.list2]: foreignColumn.id } })).toThrow('anderen Projekt');
+    expect(() => store.acceptTrelloImport({ ...input, columnByListId: { ffffffffffffffffffffffff: secondColumn.id } })).toThrow('ungültig');
+    expect(store.snapshot(project.id).cards).toHaveLength(0);
+    const result = store.acceptTrelloImport({ ...input, columnByListId: { [ids.list2]: secondColumn.id } });
+    expect(result.created.map((card) => card.columnId)).toEqual([column.id, secondColumn.id]);
+    expect(store.snapshot(project.id).sessions).toHaveLength(0);
     store.close();
   });
 

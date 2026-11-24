@@ -11,6 +11,7 @@ export interface ParsedTrelloCard {
   description: string;
   labels: string[];
   labelNote: string | null;
+  listId: string | null;
   listName: string | null;
   archived: boolean;
   eligible: boolean;
@@ -70,7 +71,7 @@ export function parseTrelloBoard(rawJson: string): ParsedTrelloBoard {
   const listNames = new Map<string, string>();
   for (const item of root.lists) {
     const list = record(item);
-    if (list && typeof list.id === 'string' && TRELLO_ID.test(list.id) && typeof list.name === 'string') listNames.set(list.id, list.name.trim().slice(0, 200));
+    if (list && typeof list.id === 'string' && TRELLO_ID.test(list.id) && typeof list.name === 'string') listNames.set(list.id.toLowerCase(), list.name.trim().slice(0, 200));
   }
   const boardNames = new Map<string, string>();
   if (Array.isArray(root.labels)) for (const item of root.labels) {
@@ -92,13 +93,15 @@ export function parseTrelloBoard(rawJson: string): ParsedTrelloBoard {
     const parsedLabels = parseLabels(source, boardNames);
     const reason = !title || title.length > 200 || title.includes('\0') ? 'Ungültiger oder zu langer Titel (maximal 200 Zeichen).'
       : description.length > 30000 || description.includes('\0') ? 'Beschreibung ist zu lang oder enthält ein Nullzeichen.' : parsedLabels.reason;
+    const listId = typeof source.idList === 'string' && TRELLO_ID.test(source.idList) ? source.idList.toLowerCase() : null;
     cards.push({
       sourceId,
       title: title.slice(0, 200),
       description: description.slice(0, 30000),
       labels: parsedLabels.labels,
       labelNote: parsedLabels.labelNote,
-      listName: typeof source.idList === 'string' ? listNames.get(source.idList) ?? null : null,
+      listId,
+      listName: listId ? listNames.get(listId) ?? null : null,
       archived: source.closed === true,
       eligible: reason === null,
       reason,

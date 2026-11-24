@@ -2,10 +2,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Column, TrelloImportCard, TrelloImportPreview } from '../../src/shared/types';
-import { defaultTrelloSelection, importable, trelloCardStatus, TrelloCardRow, TrelloImportPanel } from '../../src/renderer/components/TrelloImportPanel';
+import { defaultTrelloSelection, importable, suggestedTrelloListColumns, trelloCardStatus, TrelloCardRow, TrelloImportPanel } from '../../src/renderer/components/TrelloImportPanel';
 
 function card(sourceId: string, overrides: Partial<TrelloImportCard> = {}): TrelloImportCard {
-  return { sourceId, title: `Testkarte ${sourceId}`, description: '', labels: [], labelNote: null, listName: 'Ideen', archived: false, eligible: true, reason: null, importedCardId: null, ...overrides };
+  return { sourceId, title: `Testkarte ${sourceId}`, description: '', labels: [], labelNote: null, listId: 'aaaaaaaaaaaaaaaaaaaaaaaa', listName: 'Ideen', archived: false, eligible: true, reason: null, importedCardId: null, ...overrides };
 }
 
 const preview: TrelloImportPreview = {
@@ -48,5 +48,14 @@ describe('Trello import UI', () => {
     expect(html).toContain('Labels: Planung, Bug');
     expect(html).toContain('wird ausgelassen');
     expect(html).toContain('checked=""');
+  });
+
+  it('suggests name-matched target columns and a visible fallback for other Trello lists', () => {
+    const columns: Column[] = [
+      { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null },
+      { id: 'ideas', projectId: 'p', name: 'Ideen', position: 1, autoStart: false, agentId: null, model: null, effort: null },
+    ];
+    expect(suggestedTrelloListColumns({ ...preview, cards: [card('one'), card('two', { listId: 'bbbbbbbbbbbbbbbbbbbbbbbb', listName: 'Anderes' })] }, columns, 'todo'))
+      .toEqual({ aaaaaaaaaaaaaaaaaaaaaaaa: 'ideas', bbbbbbbbbbbbbbbbbbbbbbbb: 'todo' });
   });
 });

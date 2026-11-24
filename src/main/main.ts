@@ -300,7 +300,7 @@ function installIpc(): void {
   bind('discussTaskDraft', (input: Parameters<StudioAPI['discussTaskDraft']>[0]) => discussTaskDraft(db, input));
   bind('acceptWorkflowProposal', (input: { projectId: string; proposal: WorkflowProposal }) => db.acceptWorkflowProposal(input));
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
-  bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
+  bind('acceptTrelloImport', (input: Parameters<StudioAPI['acceptTrelloImport']>[0]) => db.acceptTrelloImport(input));
   bind('trelloConnectionStatus', () => trello.status());
   bind('openTrelloAppAdmin', async () => { await shell.openExternal('https://trello.com/apps/admin'); });
   bind('openTrelloAuthorization', async (key: string) => { await shell.openExternal(trello.authorizationUrl(key)); });
@@ -308,7 +308,7 @@ function installIpc(): void {
   bind('disconnectTrello', () => trello.disconnect());
   bind('trelloBoards', () => trello.boards());
   bind('previewTrelloBoard', async (input: { projectId: string; boardId: string }) => db.previewTrelloImport({ projectId: input.projectId, json: await trello.boardJson(input.boardId) }));
-  bind('acceptTrelloBoard', async (input: { projectId: string; columnId: string; boardId: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport({ projectId: input.projectId, columnId: input.columnId, fingerprint: input.fingerprint, sourceIds: input.sourceIds, json: await trello.boardJson(input.boardId) }));
+  bind('acceptTrelloBoard', async (input: Parameters<StudioAPI['acceptTrelloBoard']>[0]) => db.acceptTrelloImport({ projectId: input.projectId, columnId: input.columnId, columnByListId: input.columnByListId, fingerprint: input.fingerprint, sourceIds: input.sourceIds, json: await trello.boardJson(input.boardId) }));
   bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
   bind('previewCardWorktreeCleanup', (cardId: string) => previewCardWorktreeCleanup(db, cardId));
   bind('previewPrDraft', (cardId: string) => previewPrDraft(db, cardId));
