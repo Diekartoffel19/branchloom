@@ -26,6 +26,7 @@ import { installDesignInspection } from './design-inspection';
 import { installDesignStateRoutes } from './design-state-routes';
 import { installMemoryGitSources } from './memory-git-source';
 import { installCardWireframes } from './card-wireframe';
+import { installWireframeComponents } from './wireframe-components';
 import { wireframeStartBlockReason } from './card-wireframe-gate';
 
 const now = (): string => new Date().toISOString();
@@ -139,6 +140,7 @@ export class StudioStore {
     installDesignStateRoutes(this.db);
     installMemoryGitSources(this.db);
     installCardWireframes(this.db);
+    installWireframeComponents(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

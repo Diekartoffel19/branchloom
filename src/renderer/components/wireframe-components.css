@@ -1,0 +1,14 @@
+.task-wireframe-components { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); margin: 8px 0; }
+.task-wireframe-components > summary { cursor: pointer; padding: 10px 12px; font-weight: 600; }
+.task-wireframe-components > summary span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+.task-wireframe-components > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.task-wireframe-components-body { padding: 0 12px 12px; }
+.task-wireframe-components-body > p { color: var(--muted); font-size: 12px; margin: 3px 0 12px; }
+.task-wireframe-components form { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-bottom: 12px; }
+.task-wireframe-components form label { flex: 1 1 220px; font-size: 12px; }
+.task-wireframe-components form input { width: 100%; margin-top: 4px; }
+.task-wireframe-components ul { padding: 0; margin: 0; list-style: none; display: grid; gap: 6px; max-height: 250px; overflow: auto; }
+.task-wireframe-components li { border-top: 1px solid var(--border); padding: 9px 0; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.task-wireframe-components li strong, .task-wireframe-components li small { display: block; }
+.task-wireframe-components li small { color: var(--muted); margin-top: 3px; }
+.task-wireframe-component-actions { display: flex; gap: 6px; flex-wrap: wrap; }

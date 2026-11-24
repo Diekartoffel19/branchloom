@@ -15,6 +15,7 @@ import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeProposal } from './card-wireframe';
+import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -236,6 +237,9 @@ export interface StudioAPI {
   saveCardWireframe(input: SaveCardWireframeInput): Promise<CardWireframe>;
   approveCardWireframe(input: CardWireframeKey & { expectedRevision: number }): Promise<CardWireframe>;
   proposeCardWireframe(input: CardWireframeKey): Promise<WireframeProposal>;
+  listWireframeComponents(projectId: string): Promise<WireframeComponent[]>;
+  saveWireframeComponent(input: SaveWireframeComponentInput): Promise<WireframeComponent>;
+  removeWireframeComponent(input: { projectId: string; id: string }): Promise<void>;
   designStateRoutes(projectId: string): Promise<DesignStateRoute[]>;
   saveDesignStateRoute(input: DesignStateRouteInput): Promise<DesignStateRoute>;
   removeDesignStateRoute(input: DesignStateRouteKey): Promise<void>;
