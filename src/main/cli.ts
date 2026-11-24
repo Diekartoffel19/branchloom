@@ -11,6 +11,8 @@ import { buildAntigravityArgs } from './antigravity';
 import { CodexJsonlOutput } from './codex-jsonl';
 import { approvedCardWireframeContext } from './card-wireframe';
 import { assertCardWireframeReady } from './card-wireframe-gate';
+import { captureRunGit, recordSessionLaunch, recordSessionPromptWrite, recordSessionVersion } from './session-evidence';
+import type { PromptDelivery, RunSource } from '../shared/session-evidence';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -247,6 +249,7 @@ export class SessionRunner {
     const prompt = wireframeContext ? `${taskPrompt}\n\n${wireframeContext}` : taskPrompt;
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
+    const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const row = this.store.createSession({ cardId: card.id, agentId, worktreePath: worktree?.path });
     let finalFile: { directory: string; path: string } | null = null;
     try {
@@ -284,12 +287,29 @@ export class SessionRunner {
       throw new AgentSpawnError(error instanceof Error ? error.message : String(error));
     }
     this.attachProcess(row, child, agent.kind === 'codex' && input.mode === 'one-shot');
+    const mode = input.mode ?? 'interactive';
+    const sources: RunSource[] = input.prompt === undefined ? ['card-text'] : input.prompt.trim() ? ['manual-prompt'] : [];
+    if (wireframeContext) sources.push('approved-wireframe');
+    const promptDelivery: PromptDelivery = !prompt ? 'none' : agent.kind === 'codex' || agent.kind === 'antigravity' || (mode === 'one-shot' && ['claude', 'gemini'].includes(agent.kind))
+      || (mode === 'one-shot' && agent.kind === 'custom' && agent.args.some((arg) => arg.includes('{prompt}')))
+      ? 'argv' : mode === 'interactive' ? 'pty-delayed' : 'unknown';
+    try {
+      recordSessionLaunch(this.store, { sessionId: row.id, agentName: agent.name, agentKind: agent.kind, mode,
+        configuredModel: launchOverrides.model ?? agent.model, configuredEffort: launchOverrides.effort,
+        profileArgumentCount: agent.args.length, sources, promptDelivery, git: runGit });
+      this.checkVersion(row.id, agent, launcher);
+    } catch { this.store.appendOutput(row.id, '\n[Startbeleg konnte nicht gespeichert werden.]\n'); }
     if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && agent.kind !== 'antigravity' && prompt) {
       // The CLI may show a login/trust prompt. Delay only the initial turn;
       // users can inspect the terminal and send it manually if it did not land.
       this.pendingFirstTurn.set(row.id, setTimeout(() => {
-        if (this.processes.has(row.id)) child.write(`${prompt}\r`);
-        this.pendingFirstTurn.delete(row.id);
+        try {
+          if (this.processes.has(row.id)) {
+            child.write(`${prompt}\r`);
+            recordSessionPromptWrite(this.store, row.id);
+          }
+        } catch { this.store.appendOutput(row.id, '\n[Verzögerte PTY-Eingabe konnte nicht belegt werden.]\n'); }
+        finally { this.pendingFirstTurn.delete(row.id); }
       }, 1_500));
     }
     return row;
@@ -312,6 +332,7 @@ export class SessionRunner {
     if (previous.worktreePath && this.store.cardWorktree(card.id)?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree ist nicht mehr verknüpft.');
     const worktree = previous.worktreePath ? ensureCardWorktree(this.store, card.id) : null;
     if (previous.worktreePath && worktree?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree stimmt nicht mehr überein.');
+    const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const exactId = input.picker === true ? null : previous.codexThreadId ?? null;
     const row = this.store.createSession({ cardId: card.id, agentId: agent.id, worktreePath: worktree?.path, codexThreadId: exactId });
     let child: IPty;
@@ -332,7 +353,22 @@ export class SessionRunner {
     }
     this.attachProcess(row, child);
     this.recordCapability(row.id, 'resume');
+    try {
+      recordSessionLaunch(this.store, { sessionId: row.id, agentName: agent.name, agentKind: agent.kind, mode: 'resume',
+        configuredModel: agent.model, configuredEffort: null, profileArgumentCount: agent.args.length,
+        sources: [exactId ? 'codex-resume-id' : 'codex-resume-picker'], promptDelivery: 'resume', git: runGit });
+      this.checkVersion(row.id, agent, launcher);
+    } catch { this.store.appendOutput(row.id, '\n[Startbeleg konnte nicht gespeichert werden.]\n'); }
     return row;
+  }
+
+  private checkVersion(sessionId: string, agent: AgentPreset, launcher: AgentLauncher): void {
+    const binary = agent.kind === 'antigravity' ? 'agy' : agent.kind;
+    if (agent.kind === 'custom' || !new RegExp(`^${binary}(?:\\.(?:exe|cmd))?$`, 'i').test(basename(agent.command))) return;
+    void readVersion(launcher, agent.kind === 'antigravity' ? 20_000 : 8_000).then((result) => {
+      try { recordSessionVersion(this.store, sessionId, result.status, result.version); }
+      catch { /* A closed profile cannot receive a late diagnostic result. */ }
+    });
   }
 
   private recordCapability(sessionId: string, capability: AgentCapability): void {

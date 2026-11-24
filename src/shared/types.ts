@@ -16,6 +16,7 @@ import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
 import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance';
 import type { IdeaMatchKind, IdeaMatchPreview } from './idea-matches';
+import type { SessionRunEvidence } from './session-evidence';
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 
@@ -190,6 +191,9 @@ export interface StudioAPI {
   onCommandTerminalEvent(callback: (event: CommandTerminalEvent) => void): () => void;
   searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
   sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;
+  sessionRunEvidence(input: { projectId: string; sessionId: string }): Promise<SessionRunEvidence>;
+  linkSessionQa(input: { projectId: string; sessionId: string; reportId: string }): Promise<SessionRunEvidence>;
+  unlinkSessionQa(input: { projectId: string; sessionId: string; reportId: string }): Promise<SessionRunEvidence>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   updateDraftWorkflow(input: { id: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   deleteDraftWorkflow(id: string): Promise<string>;

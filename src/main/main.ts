@@ -44,6 +44,7 @@ import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
+import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
@@ -293,6 +294,9 @@ function installIpc(): void {
   bind('stopCommandTerminal', (terminalId: string) => commandRunner?.stop(terminalId));
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
+  bind('sessionRunEvidence', (input: Parameters<StudioAPI['sessionRunEvidence']>[0]) => sessionRunEvidence(db, input));
+  bind('linkSessionQa', (input: Parameters<StudioAPI['linkSessionQa']>[0]) => linkSessionQa(db, input));
+  bind('unlinkSessionQa', (input: Parameters<StudioAPI['unlinkSessionQa']>[0]) => unlinkSessionQa(db, input));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
   bind('updateDraftWorkflow', (input: Parameters<StudioAPI['updateDraftWorkflow']>[0]) => {
     const result = db.updateDraftWorkflow(input);
@@ -624,6 +628,10 @@ function createWindow(): void {
             if (capabilityProof.some((item) => item.agentId === agent.id && item.capability !== 'start')) {
               throw new Error('Der reine Agentenstart behauptete weitere Fähigkeiten.');
             }
+            const launchProof = await window.studio.sessionRunEvidence({ projectId: project.id, sessionId: session.id });
+            if (launchProof.launch?.agentName !== 'Smoke-Agent' || launchProof.launch.sources.length !== 0 || launchProof.launch.promptDelivery !== 'none'
+              || launchProof.launch.versionCheck !== 'unchecked' || launchProof.launch.git.scope !== 'project'
+              || launchProof.linkedQa.length) throw new Error('Lokaler Agentenlauf hat keinen begrenzten Startbeleg: ' + JSON.stringify(launchProof));
           }
           return true;
         })()
@@ -935,6 +943,28 @@ function createWindow(): void {
               if (qaReport?.status !== 'failed' || qaReport.viewportWidth !== 768 || qaReport.viewportHeight !== 1024 || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR')) || qaReport.pageCheck !== 'complete' || !qaReport.pageObservations.some((item) => item.kind === 'missing-image-alt') || !qaReport.pageObservations.some((item) => item.kind === 'horizontal-overflow')) throw new Error('Lokale Karten-QA hat Tablet-Viewport, Browserfehler oder DOM-Hinweise nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR') || !document.querySelector('.card-qa-report')?.textContent?.includes('Bildern ohne alt-Attribut') || !document.querySelector('.card-qa-report')?.textContent?.includes('breiter als der sichtbare Inhaltsbereich') || !document.querySelector('.card-qa-report')?.textContent?.includes('Git im Projektordner')) throw new Error('Karten-QA-Bericht wurde nicht samt DOM- und Git-Belegen sichtbar gerendert.');
+              const runSession = (await window.studio.snapshot(boardProject.id)).sessions.find((item) => item.cardId === qaCard.id);
+              if (!runSession) throw new Error('Agentenlauf für Laufbeleg fehlt.');
+              const runPanel = document.querySelector('.card-drawer .session-evidence');
+              if (!runPanel) throw new Error('Laufbeleg fehlt in der Kartenansicht.');
+              runPanel.querySelector('summary')?.click();
+              for (let attempt = 0; attempt < 100 && !runPanel.querySelector('.session-evidence-facts'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!runPanel.textContent?.includes('Kein Starttext') || !runPanel.textContent?.includes('CLI-Version') || !runPanel.textContent?.includes('Kein verifizierter Git-HEAD')) throw new Error('Startquellen oder offene Nachweise fehlen im sichtbaren Laufbeleg.');
+              runPanel.querySelector('.session-evidence-qa-head button')?.click();
+              let runQaSelect;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                runQaSelect = runPanel.querySelector('.session-evidence-qa form select');
+                if (runQaSelect?.querySelector('option[value="' + qaReport.id + '"]')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!runQaSelect?.querySelector('option[value="' + qaReport.id + '"]')) throw new Error('Gespeicherter QA-Bericht erschien nicht zur bewussten Laufzuordnung.');
+              viewportSetter.call(runQaSelect, qaReport.id); runQaSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              const runQaForm = runPanel.querySelector('.session-evidence-qa form');
+              for (let attempt = 0; attempt < 100 && runQaForm?.querySelector('button[type="submit"]')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              runQaForm?.querySelector('button[type="submit"]')?.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.sessionRunEvidence({ projectId: boardProject.id, sessionId: runSession.id })).linkedQa.length; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const linkedRunQa = await window.studio.sessionRunEvidence({ projectId: boardProject.id, sessionId: runSession.id });
+              if (linkedRunQa.linkedQa[0]?.reportId !== qaReport.id || linkedRunQa.linkedQa[0]?.status !== 'failed' || !runPanel.textContent?.includes('Mit Fehlern')) throw new Error('Fehlgeschlagene QA wurde dem Lauf nicht korrekt und sichtbar zugeordnet.');
               const acceptance = document.querySelector('.card-drawer .card-acceptance');
               const acceptanceForm = acceptance?.querySelector('.card-acceptance-create');
               const acceptanceInput = acceptanceForm?.querySelector('input');

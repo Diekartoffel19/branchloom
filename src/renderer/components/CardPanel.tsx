@@ -9,6 +9,7 @@ import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
 import { CardAcceptancePanel } from './CardAcceptancePanel';
 import { CardSplitPanel } from './CardSplitPanel';
+import { SessionEvidencePanel } from './SessionEvidencePanel';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
 import { CardQaPanel } from './CardQaPanel';
 import { PrDraftPanel } from './PrDraftPanel';
@@ -275,6 +276,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
             {snapshot.queue.state === 'running' ? <p className="inline-note">Projektwarteschlange zuerst pausieren.</p> : null}
           </div> : null}
           {session.worktreePath ? <p className="run-meta">Git-Worktree: <code>{session.worktreePath}</code>. Änderungen bleiben dort nach dem Stoppen erhalten.</p> : null}<p className="run-meta">Gestartet {new Date(session.startedAt).toLocaleString('de-DE')} · {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</p>
+          <SessionEvidencePanel key={`run-evidence-${card.id}`} sessions={sessions} archived={Boolean(card.archivedAt)} onOpenQa={(reportId) => setCriterionQaFocus((old) => ({ id: reportId, token: (old?.token ?? 0) + 1 }))} />
           {session.state !== 'running' ? <OutputErrorPanel key={session.id} projectId={card.projectId} sourceKind="session" sourceId={session.id} columns={snapshot.columns} onCreated={async (created) => { await mutate(async () => created); onOpenCard(created.id); }} /> : null}
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
