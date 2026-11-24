@@ -73,6 +73,50 @@ describe('whiteboard direct-import impact', () => {
     store.close();
   });
 
+  it('does not count imports written only in comments, strings or template bodies', () => {
+    const { store, project, file } = fixture();
+    file('src/ui/Button.tsx', 'export const Button = 1;');
+    file('src/App.tsx', [
+      "// import './ui/Button';",
+      `const copy = "import './ui/Button'; require('./ui/Button')";`,
+      "/* import './ui/Button';",
+      "require('./ui/Button'); */",
+      "const template = `import './ui/Button'`;",
+      "import './ui/Button';",
+    ].join('\n'));
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Button', x: 0, y: 0, reference: { kind: 'file', path: 'src/ui/Button.tsx' } });
+    expect(analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: node.id }).importers).toMatchObject([{ path: 'src/App.tsx', line: 6 }]);
+    store.close();
+  });
+
+  it('marks an exact file-limit boundary incomplete if folders remain unvisited', () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-impact-limit-'));
+    roots.push(root);
+    const repo = join(root, 'repo');
+    mkdirSync(join(repo, 'a'), { recursive: true });
+    mkdirSync(join(repo, 'z'));
+    for (let index = 0; index < 1000; index++) writeFileSync(join(repo, 'a', `file-${String(index).padStart(4, '0')}.ts`), 'export {};');
+    const store = new StudioStore(join(root, 'studio.sqlite'));
+    const project = store.createProject({ name: 'Limit', path: repo });
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'A', x: 0, y: 0, reference: { kind: 'folder', path: 'a' } });
+    const result = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: node.id });
+    expect(result.partial).toBe(true);
+    expect(result.notes.join(' ')).toContain('weitere Ordner');
+    store.close();
+  });
+
+  it('caps import evidence while marking the list incomplete', () => {
+    const { store, project, file } = fixture();
+    file('src/ui/Button.tsx', 'export const Button = 1;');
+    file('src/App.tsx', Array.from({ length: 80 }, () => "import './ui/Button';").join('\n'));
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Button', x: 0, y: 0, reference: { kind: 'file', path: 'src/ui/Button.tsx' } });
+    const result = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: node.id });
+    expect(result.importers).toHaveLength(50);
+    expect(result.partial).toBe(true);
+    expect(result.notes.filter((note) => note.includes('Mehr als 50'))).toHaveLength(1);
+    store.close();
+  });
+
   it('refuses a saved reference retargeted through a symlink when supported', () => {
     const { root, repo, store, project, file } = fixture();
     file('src/ui/Button.tsx', 'export const Button = 1;');

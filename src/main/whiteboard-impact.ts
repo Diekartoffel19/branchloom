@@ -67,7 +67,10 @@ function sourceFiles(root: string): { files: string[]; notes: string[]; partial:
         }
       } finally { handle.closeSync(); }
     } catch { partial = true; notes.push(`Ordner nicht lesbar: ${display(root, dir) || '.'}`); }
-    if (entriesSeen > MAX_ENTRIES || files.length >= MAX_FILES || Date.now() - started > MAX_MS) break;
+    if (entriesSeen > MAX_ENTRIES || files.length >= MAX_FILES || Date.now() - started > MAX_MS) {
+      if (pending.length && !partial) { partial = true; notes.push('Datei- oder Zeitlimit erreicht; weitere Ordner wurden nicht untersucht.'); }
+      break;
+    }
   }
   if (skippedSymlink) notes.push('Symlinks wurden aus Sicherheitsgründen ausgelassen.');
   if (skippedIgnored) notes.push('Build-, Abhängigkeits- oder andere Standardordner wurden ausgelassen.');
@@ -99,14 +102,59 @@ function resolveImport(importer: string, specifier: string, known: Set<string>):
   return candidates.find((path) => known.has(path)) ?? null;
 }
 
-/** Heuristic: single-line literal relative import/export/require only. No transitive or alias analysis. */
+type Token = { value: string; kind: 'word' | 'string' | 'punct'; start: number };
+
+/** Tiny lexer for single-line static imports. Comments, ordinary strings and template bodies cannot create import keywords. */
 function importsOf(source: string): Array<{ specifier: string; line: number }> {
   const found: Array<{ specifier: string; line: number }> = [];
-  const pattern = /\b(?:import\s*(?:[^'"\n]{0,240}?\sfrom\s*)?|export\s+[^'"\n]{0,240}?\sfrom\s*|require\s*\(\s*)['"](\.{1,2}\/[^'"\n]+)['"]/g;
+  let blockComment = false;
+  let template = false;
   for (const [index, line] of source.split(/\r?\n/).entries()) {
-    pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(line))) found.push({ specifier: match[1]!, line: index + 1 });
+    const tokens: Token[] = [];
+    for (let pos = 0; pos < line.length;) {
+      const char = line[pos]!;
+      const next = line[pos + 1];
+      if (blockComment) { if (char === '*' && next === '/') { blockComment = false; pos += 2; } else pos++; continue; }
+      if (template) { if (char === '\\') pos += 2; else if (char === '`') { template = false; pos++; } else pos++; continue; }
+      if (char === '/' && next === '/') break;
+      if (char === '/' && next === '*') { blockComment = true; pos += 2; continue; }
+      if (char === '`') { template = true; pos++; continue; }
+      if (char === '\'' || char === '"') {
+        const start = pos++;
+        let value = '';
+        let escaped = false;
+        while (pos < line.length) {
+          if (line[pos] === '\\') { escaped = true; pos += 2; continue; }
+          if (line[pos] === char) { pos++; break; }
+          value += line[pos++]!;
+        }
+        if (!escaped && line[pos - 1] === char) tokens.push({ value, kind: 'string', start });
+        continue;
+      }
+      if (/[A-Za-z_$]/.test(char)) {
+        const start = pos++;
+        while (pos < line.length && /[A-Za-z0-9_$]/.test(line[pos]!)) pos++;
+        tokens.push({ value: line.slice(start, pos), kind: 'word', start });
+        continue;
+      }
+      if (!/\s/.test(char)) tokens.push({ value: char, kind: 'punct', start: pos });
+      pos++;
+    }
+    for (let item = 0; item < tokens.length; item++) {
+      const token = tokens[item]!;
+      if (token.kind !== 'word') continue;
+      let specifier: Token | undefined;
+      if (token.value === 'require' && tokens[item + 1]?.value === '(' && tokens[item + 2]?.kind === 'string') specifier = tokens[item + 2];
+      if (token.value === 'import' && tokens[item + 1]?.kind === 'string') specifier = tokens[item + 1];
+      if ((token.value === 'import' || token.value === 'export') && !specifier && tokens[item + 1]?.value !== '(') {
+        for (let cursor = item + 1; cursor < tokens.length && tokens[cursor]!.start - token.start <= 240; cursor++) {
+          if (tokens[cursor]?.value === 'from' && tokens[cursor]?.kind === 'word' && tokens[cursor + 1]?.kind === 'string') {
+            specifier = tokens[cursor + 1]; break;
+          }
+        }
+      }
+      if (specifier?.value.startsWith('./') || specifier?.value.startsWith('../')) found.push({ specifier: specifier.value, line: index + 1 });
+    }
   }
   return found;
 }
@@ -121,6 +169,7 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
   let partial = listing.partial;
   let scannedFiles = 0;
   let totalBytes = 0;
+  let importerLimitNoted = false;
   const started = Date.now();
   for (const file of listing.files) {
     if (Date.now() - started > MAX_MS || totalBytes >= MAX_TOTAL_BYTES) { partial = true; notes.push('Zeit- oder Leselimit erreicht; weitere Dateien wurden nicht untersucht.'); break; }
@@ -136,7 +185,7 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
         const resolved = resolveImport(file, item.specifier, known);
         if (resolved && (resolved === target || (node.reference.kind === 'folder' && within(target, resolved)))) {
           if (importers.length < MAX_IMPORTERS) importers.push({ path: display(root, file), targetPath: display(root, resolved), specifier: item.specifier, line: item.line });
-          else { partial = true; notes.push('Mehr als 50 direkte Importstellen gefunden; Liste gekürzt.'); }
+          else if (!importerLimitNoted) { partial = true; importerLimitNoted = true; notes.push('Mehr als 50 direkte Importstellen gefunden; Liste gekürzt.'); }
         }
       }
     } catch { partial = true; notes.push('Mindestens eine Datei konnte nicht gelesen werden.'); }

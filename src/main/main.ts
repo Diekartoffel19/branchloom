@@ -524,6 +524,14 @@ function createWindow(): void {
               impactButton.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-impact-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.wb-impact-result')?.textContent?.includes('screen.ts:1')) throw new Error('Whiteboard-Importbeleg fehlt im Inspector.');
+              if (!document.querySelector('.wb-impact-result')?.textContent?.includes('Bezug: Ordner src')) throw new Error('Whiteboard-Importbeleg zeigt keinen geprüften Bezug.');
+              const pathInput = [...document.querySelectorAll('.wb-inspector label')].find((item) => item.textContent?.includes('Relativer Ordnerpfad'))?.querySelector('input');
+              const pathSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!pathInput || !pathSetter) throw new Error('Whiteboard-Pfadeditor fehlt.');
+              pathSetter.call(pathInput, 'anderer-pfad');
+              pathInput.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && document.querySelector('.wb-impact-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.wb-impact-result')) throw new Error('Veralteter Whiteboard-Importbeleg bleibt nach Pfadänderung sichtbar.');
               const linkedNode = [...document.querySelectorAll('.wb-node')].find((item) => item.textContent?.includes('Smoke-Aufgabe'));
               if (!linkedNode) throw new Error('Verknüpfte Whiteboard-Box fehlt im Canvas.');
               linkedNode.click();

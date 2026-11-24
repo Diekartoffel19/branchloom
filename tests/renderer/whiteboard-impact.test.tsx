@@ -12,6 +12,8 @@ describe('whiteboard impact result', () => {
     const html = renderToStaticMarkup(createElement(WhiteboardImpactResult, { impact }));
     expect(html).toContain('Unvollständige Prüfung');
     expect(html).toContain('src/App.tsx:4');
+    expect(html).toContain('Bezug: Ordner');
+    expect(html).toContain('src/ui');
     expect(html).toContain('src/ui/Button.tsx');
     expect(html).toContain('Keine indirekten Abhängigkeiten geprüft.');
     expect(html).not.toContain('sicher');

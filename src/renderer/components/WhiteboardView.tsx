@@ -103,6 +103,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     impactRequest.current++;
     setImpact(null); setImpactError(''); setImpactBusy(false);
   }, [selectedNode?.id, selectedNode?.reference?.kind, selectedNode?.reference?.kind === 'file' || selectedNode?.reference?.kind === 'folder' ? selectedNode.reference.path : null]);
+  useEffect(() => {
+    impactRequest.current++;
+    setImpact(null); setImpactError(''); setImpactBusy(false);
+  }, [draft.referenceKind, draft.folderPath]);
 
   async function inspectImpact() {
     if (!selectedNode || (selectedNode.reference?.kind !== 'file' && selectedNode.reference?.kind !== 'folder')) return;
