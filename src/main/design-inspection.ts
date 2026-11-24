@@ -3,6 +3,8 @@ import { WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type Database from 'better-sqlite3';
 import type { BrowserBounds } from '../shared/types';
 import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from '../shared/design-inspection';
+import type { DesignA11yCheck } from '../shared/design-a11y';
+import { a11yMeasurementScript, evaluateA11yMeasurement, type RawA11yMeasurement } from './design-a11y';
 import { normalizeThemeTokenValue } from '../shared/theme-token-value';
 import type { DesignViewportResult } from '../shared/design-viewports';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
@@ -195,6 +197,22 @@ export class DesignInspector {
       if (!selection) throw new Error('Der Selektor fand kein Element oder die Vorschau änderte sich.');
       return selection;
     } finally { this.busy = false; }
+  }
+
+  async checkA11y(projectId: string, selectionId: string): Promise<DesignA11yCheck> {
+    const view = this.requireThemePreview(projectId);
+    if (this.busy || this.themeBusy || this.viewportCapture) throw new Error('Warte, bis die laufende Design-Prüfung abgeschlossen ist.');
+    if (typeof selectionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(selectionId)) throw new Error('Wähle einen gespeicherten Elementbeleg.');
+    const selection = designSelections(this.store, projectId).find((item) => item.id === selectionId);
+    if (!selection) throw new Error('Dieser Elementbeleg gehört nicht zu diesem Projekt oder wurde entfernt.');
+    const contents = view.webContents;
+    const pageUrl = contents.getURL();
+    const generation = this.pageGeneration;
+    if (diagnosticSource(pageUrl) !== selection.sourceUrl) throw new Error('Der Beleg stammt von einer anderen Route. Öffne sie und wähle das Element erneut aus.');
+    const raw = await contents.executeJavaScript(a11yMeasurementScript(selection.selector), false) as RawA11yMeasurement;
+    if (this.view !== view || contents.isDestroyed() || this.projectId !== projectId || this.pageGeneration !== generation || contents.getURL() !== pageUrl) throw new Error('Die Vorschau hat sich während der Prüfung geändert. Starte die Messung erneut.');
+    if (raw?.found && raw.tag !== selection.tag) throw new Error('Das Element hinter dem gespeicherten Selektor hat sich geändert. Wähle es erneut aus.');
+    return evaluateA11yMeasurement({ projectId, selectionId, selector: selection.selector, sourceUrl: selection.sourceUrl }, raw);
   }
 
   async applyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState> {

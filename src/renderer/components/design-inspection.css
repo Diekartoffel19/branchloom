@@ -29,4 +29,12 @@
 .design-inspection-evidence details { margin-top: 9px; font-size: 11px; }
 .design-inspection-evidence summary { cursor: pointer; }
 .design-inspection-evidence summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.design-a11y-check { display: grid; justify-items: start; gap: 8px; margin-top: 10px; }
+.design-a11y-check > button { min-height: 32px; }
+.design-a11y-check > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.design-a11y-check > .inline-error { margin: 0; }
+.design-a11y-result { width: 100%; border-top: 1px solid var(--border); padding-top: 8px; }
+.design-a11y-result > p { margin: 0; }
+.design-a11y-result dl { margin-top: 6px; }
+.design-a11y-result .design-a11y-limit { margin-top: 8px; color: var(--muted); }
 @media (max-width: 700px) { .design-inspection { padding: 14px; } .design-inspection-toolbar button { flex: 1 1 auto; } }

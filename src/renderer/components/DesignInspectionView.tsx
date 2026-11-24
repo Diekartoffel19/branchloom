@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MousePointer2 } from 'lucide-react';
 import type { DesignInspectionState, DesignSelection } from '../../shared/design-inspection';
 import type { DesignStateRoute } from '../../shared/design-state-routes';
+import type { DesignA11yCheck } from '../../shared/design-a11y';
 import { ComponentCatalogPanel } from './ComponentCatalogPanel';
 import { ThemeTokensPanel } from './ThemeTokensPanel';
 import { DesignViewportCanvas } from './DesignViewportCanvas';
@@ -19,6 +20,9 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [previewRevision, setPreviewRevision] = useState(0);
+  const [a11yCheck, setA11yCheck] = useState<DesignA11yCheck | null>(null);
+  const [a11yBusyId, setA11yBusyId] = useState<string | null>(null);
+  const [a11yError, setA11yError] = useState<{ id: string; message: string } | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const currentProject = useRef(projectId);
   currentProject.current = projectId;
@@ -31,18 +35,19 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
 
   useEffect(() => {
     let mounted = true;
-    setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector('');
+    setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null);
     void window.studio.designSelections(projectId).then((items) => { if (mounted) setSelections(items); }).catch((reason: unknown) => { if (mounted) setError(messageOf(reason)); });
     const unsubscribe = window.studio.onDesignSelection((selection) => {
       if (!mounted || selection.projectId !== projectId) return;
       setSelections((items) => [selection, ...items.filter((item) => item.id !== selection.id)].slice(0, 20));
+      setA11yCheck(null); setA11yError(null);
       setState((old) => ({ ...old, armed: false }));
     });
     return () => { mounted = false; unsubscribe(); void window.studio.designInspectionSetVisible(false).catch(() => undefined); };
   }, [projectId]);
 
   useEffect(() => {
-    if (!active) { void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
+    if (!active) { setA11yCheck(null); setA11yError(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
     const element = viewport.current;
     if (!element) return;
     let scheduled = 0;
@@ -59,7 +64,7 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
   async function start(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setA11yCheck(null); setA11yError(null);
     setPreviewRevision((value) => value + 1);
     try { setState(await window.studio.designInspectionStart({ projectId, url })); }
     catch (reason) { setState(emptyState); setError(messageOf(reason)); }
@@ -67,12 +72,12 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
   }
 
   async function openStateRoute(route: DesignStateRoute) {
-    if (busy || !active) throw new Error('Warte, bis die Design-Vorschau bereit ist.');
-    setBusy(true); setError('');
+    if (busy || a11yBusyId || !active) throw new Error('Warte, bis die Design-Vorschau bereit ist.');
+    setBusy(true); setError(''); setA11yCheck(null); setA11yError(null);
     try {
       const opened = await window.studio.openDesignStateRoute({ projectId, kind: route.kind });
       if (currentProject.current !== projectId) return;
-      setState(opened); setUrl(route.url); setPreviewRevision((value) => value + 1);
+      setState(opened); setUrl(route.url); setPreviewRevision((value) => value + 1); setA11yCheck(null); setA11yError(null);
     } catch (reason) {
       const current = await window.studio.designInspectionState().catch(() => emptyState);
       if (currentProject.current === projectId) setState(current);
@@ -102,6 +107,16 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
     finally { setBusy(false); }
   }
 
+  async function checkA11y(selection: DesignSelection) {
+    if (a11yBusyId) return;
+    setA11yBusyId(selection.id); setA11yCheck(null); setA11yError(null);
+    try {
+      const result = await window.studio.designInspectionCheckA11y({ projectId, selectionId: selection.id });
+      if (currentProject.current === projectId) setA11yCheck(result);
+    } catch (reason) { if (currentProject.current === projectId) setA11yError({ id: selection.id, message: messageOf(reason) }); }
+    finally { if (currentProject.current === projectId) setA11yBusyId(null); }
+  }
+
   return <section className="design-inspection" aria-label="Design-Inspektion">
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>
@@ -111,7 +126,7 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     <p className="design-inspection-state" role="status">{state.armed ? 'Auswahl aktiv: Klicke ein Element in der Vorschau. Der Seitenklick wird abgefangen.' : state.ready ? `Vorschau geladen: ${state.sourceUrl}` : 'Noch keine Vorschau geöffnet.'}</p>
-    <DesignStateRoutes key={projectId} projectId={projectId} active={active} previewBusy={busy} themePreviewActive={Boolean(state.themePreview)} onOpen={openStateRoute} />
+    <DesignStateRoutes key={projectId} projectId={projectId} active={active} previewBusy={busy || Boolean(a11yBusyId)} themePreviewActive={Boolean(state.themePreview)} onOpen={openStateRoute} />
     <details className="design-inspection-selector"><summary>Mit Tastatur oder CSS-Selektor auswählen</summary><form onSubmit={(event) => void selectBySelector(event)}><label>CSS-Selektor<input value={selector} maxLength={320} disabled={!state.ready || busy} onChange={(event) => setSelector(event.target.value)} placeholder="#header oder main button" /></label><button className="secondary-button" type="submit" disabled={!state.ready || busy || !selector.trim()}>Element prüfen</button></form></details>
     <div className="design-inspection-viewport" ref={viewport} aria-label="Lokale Design-Vorschau">{!state.ready ? <p>Die laufende Seite erscheint hier nach „Vorschau öffnen“.</p> : null}</div>
     <DesignViewportCanvas projectId={projectId} ready={state.ready && active} themePreviewActive={Boolean(state.themePreview)} revision={previewRevision} />
@@ -120,11 +135,23 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
         <div className="design-inspection-item-head"><strong><code>{item.selector}</code></strong><time dateTime={item.capturedAt}>{new Date(item.capturedAt).toLocaleString('de-DE')}</time></div>
         <p><span>Tag: <code>{item.tag}</code></span><span>Quelle: {item.sourceUrl}</span>{item.text ? <span>Text: {item.text}</span> : null}</p>
         <dl>{Object.entries(item.styles).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>
+        <div className="design-a11y-check">
+          <button type="button" className="secondary-button" disabled={!active || !state.ready || busy || Boolean(a11yBusyId)} onClick={() => void checkA11y(item)}>{a11yBusyId === item.id ? 'Prüfe…' : 'Kontrast und Zielgröße prüfen'}</button>
+          {a11yError?.id === item.id ? <p className="inline-error" role="alert">{a11yError.message}</p> : null}
+          {a11yCheck?.selectionId === item.id ? <div className="design-a11y-result" role="status">
+            <p>Aktuelle lokale Vorschau · <time dateTime={a11yCheck.checkedAt}>{new Date(a11yCheck.checkedAt).toLocaleString('de-DE')}</time></p>
+            <dl>
+              <div><dt>Textkontrast</dt><dd>{a11yCheck.contrast.ratio === null ? a11yCheck.contrast.reason : `${(Math.floor(a11yCheck.contrast.ratio * 1000) / 1000).toFixed(3)}:1 · ${a11yCheck.contrast.belowBodyTextReference ? 'unter' : 'ab'} 4,5:1 Referenz für normalen Text`}</dd></div>
+              <div><dt>Interaktives Ziel</dt><dd>{!a11yCheck.target.interactive ? 'Kein erkanntes interaktives Element.' : a11yCheck.target.width === null || a11yCheck.target.height === null ? 'Größe nicht messbar.' : `${a11yCheck.target.width} × ${a11yCheck.target.height} CSS-px · ${a11yCheck.target.belowSizeReference ? 'unter' : 'ab'} 24 × 24 px Referenz`}</dd></div>
+            </dl>
+            <p className="design-a11y-limit">Einzelmessung mit vereinfachten Grenzwerten; kein vollständiger Barrierefreiheitstest.</p>
+          </div> : null}
+        </div>
         {item.tokens.length ? <details><summary>{item.tokens.length} CSS-Variablen am Element</summary><dl>{item.tokens.map((token) => <div key={token.name}><dt>{token.name}</dt><dd>{token.value}</dd></div>)}</dl></details> : <small>Keine berechneten CSS-Variablen erfasst.</small>}
       </li>)}</ol>}
     </div>
     <ComponentCatalogPanel projectId={projectId} />
-    <ThemeTokensPanel projectId={projectId} previewState={active ? state : emptyState} onPreviewState={setState} />
-    <p className="design-inspection-limit">Die Auswahl liest berechnete Werte aus einer lokalen Seite. Sie ändert keine Projektdateien und startet keinen Agenten. Die Seite führt beim Laden weiterhin eigenes JavaScript aus.</p>
+    <ThemeTokensPanel projectId={projectId} previewState={active ? state : emptyState} onPreviewState={(next) => { setState(next); setA11yCheck(null); setA11yError(null); }} />
+    <p className="design-inspection-limit">Die Auswahl und die freiwillige Einzelprüfung lesen berechnete Werte aus einer lokalen Seite. Sie ändern keine Projektdateien und starten keinen Agenten. Die Seite führt beim Laden weiterhin eigenes JavaScript aus.</p>
   </section>;
 }

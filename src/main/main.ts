@@ -391,6 +391,7 @@ function installIpc(): void {
   bind('designInspectionStart', (input: Parameters<StudioAPI['designInspectionStart']>[0]) => designInspector?.start(input));
   bind('designInspectionArm', (projectId: string) => designInspector?.arm(projectId));
   bind('designInspectionSelectSelector', (input: Parameters<StudioAPI['designInspectionSelectSelector']>[0]) => designInspector?.selectSelector(input.projectId, input.selector));
+  bind('designInspectionCheckA11y', (input: Parameters<StudioAPI['designInspectionCheckA11y']>[0]) => designInspector?.checkA11y(input.projectId, input.selectionId));
   bind('designInspectionSetBounds', (bounds: Parameters<StudioAPI['designInspectionSetBounds']>[0]) => designInspector?.setBounds(bounds));
   bind('designInspectionSetVisible', (visible: boolean) => designInspector?.setVisible(visible === true));
   bind('designViewportCapture', (projectId: string) => designInspector?.captureViewports(projectId));
@@ -442,7 +443,7 @@ function createWindow(): void {
       smokeQaServer = createServer((request, response) => {
         if (request.url?.startsWith('/?state=empty')) stateRouteHits++;
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        response.end('<!doctype html><title>Branchloom QA Smoke</title><style>:root{--smoke-ink:#243b32}body{min-width:1600px}#design-smoke-target{color:var(--smoke-ink);padding:8px}</style><img id="qa-observation-image"><button id="design-smoke-target">Synthetic design target</button><script>window.__designSmokeClicks=0;document.querySelector("#design-smoke-target").addEventListener("click",()=>window.__designSmokeClicks++);console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
+        response.end('<!doctype html><title>Branchloom QA Smoke</title><style>:root{--smoke-ink:#243b32}body{min-width:1600px;background:#fff}#design-smoke-target{color:var(--smoke-ink);padding:8px}</style><img id="qa-observation-image"><button id="design-smoke-target">Synthetic design target</button><script>window.__designSmokeClicks=0;document.querySelector("#design-smoke-target").addEventListener("click",()=>window.__designSmokeClicks++);console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
       });
       smokeQaServer.once('error', reject);
       smokeQaServer.listen(0, '127.0.0.1', () => {
@@ -1185,6 +1186,17 @@ function createWindow(): void {
               return document.querySelector('.design-inspection-evidence')?.textContent?.includes('#design-smoke-target') && document.querySelector('.design-inspection-evidence')?.textContent?.includes('rgb(');
             })()`);
             if (!visible) throw new Error('Design-Auswahl erschien nicht sichtbar in der App.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const evidence = document.querySelector('.design-inspection-evidence li');
+              const check = [...(evidence?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Kontrast und Zielgröße prüfen'));
+              if (!check || check.disabled) throw new Error('Die freiwillige Elementprüfung ist nicht bedienbar.');
+              check.click();
+              for (let attempt = 0; attempt < 100 && !evidence?.querySelector('.design-a11y-result') && !evidence?.querySelector('.inline-error'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const report = evidence?.querySelector('.design-a11y-result');
+              if (!report?.textContent?.includes('Textkontrast') || !report.textContent.includes('Interaktives Ziel') || !report.textContent.includes('CSS-px') || !report.textContent.includes('4,5:1')) throw new Error('Live-Elementmessung fehlt: ' + (evidence?.textContent ?? '').slice(-600));
+              return true;
+            })()`);
+            if (designSelections(smokeStore, smokeProject.id).length !== 1) throw new Error('Die lesende Elementprüfung veränderte gespeicherte Belege.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               document.querySelector('.design-inspection-selector summary')?.click();
               const field = document.querySelector('.design-inspection-selector input');

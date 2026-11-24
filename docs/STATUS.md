@@ -4,6 +4,8 @@ Stand: 24.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Aktueller Branchloom-Schritt
 
+- Die [Design-Einzelprüfung](DESIGN_INSPECTION.md) misst nach ausdrücklichem Klick an einem gespeicherten Elementbeleg in der noch geöffneten isolierten lokalen Vorschau den berechneten deckenden RGB-Textkontrast und die Bounding-Box eines erkannten interaktiven Ziels. Der Hauptprozess prüft Projekt, Beleg, Quellpfad, Tag und unveränderte Seitengeneration; das Ergebnis bleibt flüchtig und zeigt Referenzwerte samt Unsicherheit. Sechs gezielte Tests, die isolierte Gesamtsuite mit 433 bestandenen Tests und fünf optionalen Live-Skips, Typprüfung, Build, Doctor, Audit ohne Funde und Quell-Electron-Smoke bestanden. Der Smoke klickte den Prüfknopf an einem synthetischen Beleg, sah Kontrast/Zielgröße und prüfte, dass kein weiterer Beleg gespeichert wurde. Bild-/Verlaufshintergründe, Transparenz, verschachtelte Textfarben, Überlappung, Zustände, Ressourcen und WCAG-Konformität werden nicht vollständig bewertet. Kein Agent und keine Dateiänderung.
+
 - Die gemeinsame Integration von Zeitmaschinen-Screenshots und Changelog-Worktree-Quellen bestand mit **445 Tests und fünf optionalen Live-Skips**, Typprüfung, Build, Quell-Electron-Smoke mit beiden neuen UI-/IPC-Pfaden, Doctor und Audit ohne Funde. Der Public-Scan und Windows-CI folgen nach dem dokumentierten Commit.
 - [Windows-CI 45323001688](https://github.com/mschr703/branchloom/actions/runs/45323001688) für die zuvor gepushten UI-Zustandsrouten bestand einschließlich portablem Paket und Paket-Smoke.
 

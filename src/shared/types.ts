@@ -9,6 +9,7 @@ import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind }
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
 import type { DesignStateRoute, DesignStateRouteInput, DesignStateRouteKey } from './design-state-routes';
+import type { DesignA11yCheck } from './design-a11y';
 import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
@@ -216,6 +217,7 @@ export interface StudioAPI {
   designInspectionStart(input: { projectId: string; url: string }): Promise<DesignInspectionState>;
   designInspectionArm(projectId: string): Promise<DesignInspectionState>;
   designInspectionSelectSelector(input: { projectId: string; selector: string }): Promise<DesignSelection>;
+  designInspectionCheckA11y(input: { projectId: string; selectionId: string }): Promise<DesignA11yCheck>;
   designInspectionSetBounds(bounds: BrowserBounds | null): Promise<DesignInspectionState>;
   designInspectionSetVisible(visible: boolean): Promise<DesignInspectionState>;
   designViewportCapture(projectId: string): Promise<DesignViewportResult>;

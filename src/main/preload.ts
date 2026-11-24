@@ -155,6 +155,7 @@ const studio: StudioAPI = {
   designInspectionStart: (input) => invoke('designInspectionStart', input),
   designInspectionArm: (projectId) => invoke('designInspectionArm', projectId),
   designInspectionSelectSelector: (input) => invoke('designInspectionSelectSelector', input),
+  designInspectionCheckA11y: (input) => invoke('designInspectionCheckA11y', input),
   designInspectionSetBounds: (bounds) => invoke('designInspectionSetBounds', bounds),
   designInspectionSetVisible: (visible) => invoke('designInspectionSetVisible', visible),
   designViewportCapture: (projectId) => invoke('designViewportCapture', projectId),

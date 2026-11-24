@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserWindow } from 'electron';
 
-const fake = vi.hoisted(() => ({ views: [] as Array<{ webContents: unknown; options: { webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } } }>, nullSelection: false }));
+const fake = vi.hoisted(() => ({ views: [] as Array<{ webContents: unknown; options: { webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } } }>, nullSelection: false, measurement: { found: true, tag: 'button', text: true, foreground: 'rgb(0, 0, 0)', background: 'rgb(255, 255, 255)', interactive: true, width: 30, height: 30 } as Record<string, unknown> }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
   class Contents extends EventEmitter {
@@ -29,6 +29,7 @@ vi.mock('electron', async () => {
     setWindowOpenHandler(_handler: unknown) { /* one-page preview */ }
     async loadURL(url: string) { this.url = url; }
     async executeJavaScript(script: string) {
+      if (script.includes('backgroundUnknown')) return fake.measurement;
       if (script.includes('root.style.setProperty')) return { original: '', priority: '', applied: '#aabbcc' };
       if (script.includes('root.style.removeProperty')) return true;
       return fake.nullSelection ? null : { selector: 'button#save', tag: 'button', text: 'Save', styles: { color: 'rgb(1, 2, 3)' }, tokens: [{ name: '--ink', value: '#010203' }] };
@@ -46,7 +47,7 @@ import { DesignInspector, designSelections } from '../../src/main/design-inspect
 import { scanThemeTokens } from '../../src/main/theme-tokens';
 
 const roots: string[] = [];
-afterEach(() => { fake.views.length = 0; fake.nullSelection = false; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { fake.views.length = 0; fake.nullSelection = false; fake.measurement = { found: true, tag: 'button', text: true, foreground: 'rgb(0, 0, 0)', background: 'rgb(255, 255, 255)', interactive: true, width: 30, height: 30 }; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe('isolated design browser', () => {
   it('revalidates a scanned token, isolates projects, and forgets a preview when closed', async () => {
@@ -141,6 +142,15 @@ describe('isolated design browser', () => {
     expect((await inspector.selectSelector(project.id, '#save')).selector).toBe('button#save');
     expect(emitted).toEqual(['button#save', 'button#save']);
     expect(designSelections(store, project.id)[0]?.sourceUrl).toBe('http://127.0.0.1:5173/page');
+    const selectionId = designSelections(store, project.id)[0]!.id;
+    expect((await inspector.checkA11y(project.id, selectionId)).contrast.ratio).toBe(21);
+    await expect(inspector.checkA11y('wrong-project', selectionId)).rejects.toThrow();
+    await expect(inspector.checkA11y(project.id, 'not-an-id')).rejects.toThrow();
+    fake.measurement = { found: false };
+    await expect(inspector.checkA11y(project.id, selectionId)).rejects.toThrow('nicht mehr vorhanden');
+    fake.measurement = { found: true, tag: 'div' };
+    await expect(inspector.checkA11y(project.id, selectionId)).rejects.toThrow('hat sich geändert');
+    fake.measurement = { found: true, tag: 'button' };
     await expect(inspector.start({ projectId: project.id, url: 'https://example.com/' })).rejects.toThrow();
     expect(inspector.state().ready).toBe(false);
     inspector.setVisible(false);
