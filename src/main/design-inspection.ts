@@ -8,6 +8,7 @@ import type { DesignViewportResult } from '../shared/design-viewports';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import type { StudioStore } from './store';
 import { scanThemeTokens } from './theme-tokens';
+import { captureDesignViewports } from './design-viewports';
 
 const MAX_SELECTIONS = 20;
 const STYLE_KEYS = ['color', 'backgroundColor', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'borderRadius', 'padding', 'display'] as const;
@@ -117,6 +118,7 @@ export class DesignInspector {
   private attached = false;
   private pageGeneration = 0;
   private themeBusy = false;
+  private viewportCapture: AbortController | null = null;
   private themePreview: { name: string; value: string; path: string; line: number; original: string; priority: string } | null = null;
   private readonly preventDownload = (event: Electron.Event): void => event.preventDefault();
   private readonly resize = (): void => this.layout();
@@ -196,6 +198,7 @@ export class DesignInspector {
   }
 
   async applyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState> {
+    if (this.viewportCapture) throw new Error('Warte, bis die Größenaufnahme abgeschlossen ist.');
     const { projectId, token } = input ?? ({} as ThemePreviewInput);
     const value = normalizeThemePreviewValue(input?.value);
     if (!token || typeof token.name !== 'string' || !/^--[A-Za-z0-9_-]{1,98}$/.test(token.name) ||
@@ -237,6 +240,29 @@ export class DesignInspector {
     } finally { this.themeBusy = false; }
   }
 
+  async captureViewports(projectId: string): Promise<DesignViewportResult> {
+    if (!this.ready || !this.visible || !this.view || this.projectId !== projectId || !this.sourceUrl) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
+    if (this.themeBusy) throw new Error('Warte, bis die Theme-Vorschau abgeschlossen ist.');
+    if (this.themePreview) throw new Error('Setze die flüchtige Theme-Vorschau vor der Größenaufnahme zurück.');
+    if (this.viewportCapture) throw new Error('Eine Größenaufnahme läuft bereits.');
+    const controller = new AbortController();
+    const generation = this.pageGeneration;
+    const sourceUrl = this.sourceUrl;
+    this.viewportCapture = controller;
+    try {
+      const result = await captureDesignViewports(projectId, sourceUrl, controller.signal);
+      if (controller.signal.aborted || this.pageGeneration !== generation || this.projectId !== projectId || this.sourceUrl !== sourceUrl) throw new Error('Größenaufnahme abgebrochen: Die Vorschau hat sich geändert.');
+      return result;
+    } finally {
+      if (this.viewportCapture === controller) this.viewportCapture = null;
+    }
+  }
+
+  cancelViewportCapture(projectId: string): void {
+    if (this.projectId !== projectId) throw new Error('Die Design-Vorschau gehört zu einem anderen Projekt.');
+    this.viewportCapture?.abort();
+  }
+
   private requireThemePreview(projectId: string): WebContentsView {
     // The live view is detached while its viewport is scrolled off screen.
     // Theme controls sit below it and must still work on the open page.
@@ -258,6 +284,8 @@ export class DesignInspector {
   }
 
   close(): DesignInspectionState {
+    this.viewportCapture?.abort();
+    this.viewportCapture = null;
     this.pageGeneration++;
     this.themePreview = null;
     this.armed = false;
