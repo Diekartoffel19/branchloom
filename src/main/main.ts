@@ -647,7 +647,7 @@ function createWindow(): void {
               || launchProof.launch.versionCheck !== 'unchecked' || launchProof.launch.git.scope !== 'project'
               || launchProof.linkedQa.length) throw new Error('Lokaler Agentenlauf hat keinen begrenzten Startbeleg: ' + JSON.stringify(launchProof));
             const recovery = await window.studio.sessionRecovery(session.id);
-            if (recovery.process !== 'ended' || recovery.signal !== 'online') throw new Error('Lokaler Agentenlauf oder sein aktuelles Netzsignal fehlt im Wiederaufnahmebeleg.');
+            if (recovery.process !== 'ended' || !['online', 'offline'].includes(recovery.signal) || !recovery.checkedAt) throw new Error('Lokaler Agentenlauf oder sein aktuelles Netzsignal fehlt im Wiederaufnahmebeleg.');
           }
           return true;
         })()
