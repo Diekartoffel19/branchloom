@@ -89,6 +89,7 @@ const studio: StudioAPI = {
   setProjectRunCapacity: (input) => invoke('setProjectRunCapacity', input),
   approveCardDependency: (input) => invoke('approveCardDependency', input),
   saveAgent: (input) => invoke('saveAgent', input),
+  deleteAgent: (id) => invoke('deleteAgent', id),
   startSession: (input) => invoke('startSession', input),
   resumeCodexSession: (input) => invoke('resumeCodexSession', input),
   acknowledgeInterruptedSession: (input) => invoke('acknowledgeInterruptedSession', input),

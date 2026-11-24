@@ -182,6 +182,7 @@ export interface StudioAPI {
   setProjectRunCapacity(input: { projectId: string; capacity: number }): Promise<number>;
   approveCardDependency(input: { cardId: string; qaReportId: string; note: string }): Promise<CardRunGate>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
+  deleteAgent(id: string): Promise<void>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   resumeCodexSession(input: { sessionId: string; picker?: boolean }): Promise<Session>;
   acknowledgeInterruptedSession(input: { projectId: string; sessionId: string }): Promise<void>;

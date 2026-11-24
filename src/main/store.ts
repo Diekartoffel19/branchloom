@@ -118,6 +118,9 @@ export class StudioStore {
       CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id, updated_at DESC);
     `);
     const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
+    const agentColumns = this.db.pragma('table_info(agents)') as Array<{ name: string }>;
+    // Removed agents stay as hidden rows: session history keeps its NOT NULL agent reference and the default presets are not re-seeded.
+    if (!agentColumns.some((item) => item.name === 'deleted_at')) this.db.exec('ALTER TABLE agents ADD COLUMN deleted_at TEXT');
     const terminalColumns = this.db.pragma('table_info(command_terminals)') as Array<{ name: string }>;
     if (!terminalColumns.some((item) => item.name === 'card_id')) this.db.exec('ALTER TABLE command_terminals ADD COLUMN card_id TEXT');
     if (!terminalColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE command_terminals ADD COLUMN worktree_path TEXT');
@@ -608,7 +611,7 @@ export class StudioStore {
     })();
   }
 
-  agents(): AgentPreset[] { return (this.db.prepare('SELECT * FROM agents ORDER BY name').all() as AgentRow[]).map(agent); }
+  agents(): AgentPreset[] { return (this.db.prepare('SELECT * FROM agents WHERE deleted_at IS NULL ORDER BY name').all() as AgentRow[]).map(agent); }
   agent(id: string): AgentPreset { return agent(required(this.db.prepare('SELECT * FROM agents WHERE id = ?').get(id) as AgentRow | undefined, 'Agent not found')); }
   agentCapabilityEvidence(): AgentCapabilityEvidence[] { return listAgentCapabilityEvidence(this.db); }
   recordAgentCapability(sessionId: string, capability: AgentCapability): void { recordAgentCapability(this.db, sessionId, capability); }
@@ -623,9 +626,17 @@ export class StudioStore {
     if (launchChanged && this.db.prepare("SELECT 1 FROM sessions WHERE agent_id = ? AND state = 'running' LIMIT 1").get(value.id)) {
       throw new Error('Laufendes Agentenprofil zuerst stoppen, bevor Startparameter geändert werden.');
     }
-    this.db.prepare('INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, command=excluded.command, args_json=excluded.args_json, model=excluded.model, enabled=excluded.enabled').run(value.id, value.name, value.kind, value.command, json(value.args), value.model, Number(value.enabled));
+    this.db.prepare('INSERT INTO agents (id, name, kind, command, args_json, model, enabled) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, command=excluded.command, args_json=excluded.args_json, model=excluded.model, enabled=excluded.enabled').run(value.id, value.name, value.kind, value.command, json(value.args), value.model, Number(value.enabled));
     if (launchChanged) clearAgentCapabilityEvidence(this.db, value.id);
     return value;
+  }
+  deleteAgent(id: string): void {
+    this.db.transaction(() => {
+      this.agent(id);
+      if (this.db.prepare("SELECT 1 FROM sessions WHERE agent_id = ? AND state = 'running' LIMIT 1").get(id)) throw new Error('Laufenden Agenten zuerst stoppen, bevor er entfernt wird.');
+      this.db.prepare('UPDATE agents SET deleted_at = ?, enabled = 0 WHERE id = ?').run(now(), id);
+      this.db.prepare('UPDATE columns SET agent_id = NULL, auto_start = 0, model = NULL, effort = NULL WHERE agent_id = ?').run(id);
+    })();
   }
 
   latestSession(cardId: string): Session | null { const row = this.db.prepare('SELECT * FROM sessions WHERE card_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1').get(cardId) as SessionRow | undefined; return row ? session(row) : null; }

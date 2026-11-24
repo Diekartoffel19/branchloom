@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bot, Check, CircleHelp, Plus, Radar, RefreshCw, Terminal } from 'lucide-react';
+import { Bot, Check, CircleHelp, Plus, Radar, RefreshCw, Terminal, Trash2 } from 'lucide-react';
 import type { AgentCapability, AgentCapabilityEvidence, AgentDetection, AgentPreset, ProjectSnapshot } from '../../shared/types';
 import type { Mutate } from './shared';
 
@@ -52,6 +52,14 @@ export function AgentView({ snapshot, mutate }: Props) {
   const [evidenceError, setEvidenceError] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState(snapshot.agents[0]?.id ?? '');
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [menu, setMenu] = useState<{ agent: AgentPreset; x: number; y: number; confirm: boolean } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (event: Event) => { if (!(event.target instanceof Element && event.target.closest('.agent-context-menu'))) setMenu(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenu(null); };
+    window.addEventListener('mousedown', close); window.addEventListener('keydown', escape);
+    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', escape); };
+  }, [menu]);
 
   async function refreshEvidence() {
     try { setEvidence(await window.studio.agentCapabilityEvidence()); setEvidenceError(''); }
@@ -71,6 +79,11 @@ export function AgentView({ snapshot, mutate }: Props) {
   function edit(agent: AgentPreset) { setDraft({ ...agent, argumentsText: agent.args.join('\n') }); }
   function fromDetection(detection: AgentDetection) {
     setDraft({ ...emptyDraft, name: kindName(detection.kind), kind: detection.kind, command: detection.command });
+  }
+
+  async function remove(agent: AgentPreset) {
+    setMenu(null);
+    await mutate(() => window.studio.deleteAgent(agent.id));
   }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -93,7 +106,7 @@ export function AgentView({ snapshot, mutate }: Props) {
       <section className="panel">
         <div className="panel-heading"><div><Bot size={18} /><h3>Gespeicherte Agenten</h3></div><span className="count-pill">{snapshot.agents.length}</span></div>
         <p className="panel-subtitle">Ein Agentenprofil ist eine ausführbare CLI mit festen Argumenten. Spalten und Karten können sie auswählen.</p>
-        {snapshot.agents.length ? <div className="preset-list">{snapshot.agents.map((agent) => { const check = detections.find((item) => item.profileId === agent.id); return <button className="preset-item" type="button" key={agent.id} onClick={() => edit(agent)}><span className="preset-avatar"><Bot size={19} /></span><span><strong>{agent.name}</strong><small>{agent.kind} · {agent.command}{agent.model ? ` · ${agent.model}` : ''}</small>{check ? <small className="agent-diagnostic-hint">{diagnosticHint(check)}</small> : null}</span>{check ? <DiagnosticStatus item={check} /> : null}<span className={agent.enabled ? 'available-badge' : 'unavailable-badge'}>{agent.enabled ? 'Aktiv' : 'Inaktiv'}</span></button>; })}</div> : <div className="agent-empty"><CircleHelp size={22} /><p>Noch kein Agent gespeichert. Nutze einen erkannten CLI-Eintrag oder lege einen eigenen an.</p></div>}
+        {snapshot.agents.length ? <div className="preset-list">{snapshot.agents.map((agent) => { const check = detections.find((item) => item.profileId === agent.id); return <button className="preset-item" type="button" key={agent.id} onClick={() => edit(agent)} onContextMenu={(event) => { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ agent, x: event.clientX || box.left + 24, y: event.clientY || box.bottom, confirm: false }); }}><span className="preset-avatar"><Bot size={19} /></span><span><strong>{agent.name}</strong><small>{agent.kind} · {agent.command}{agent.model ? ` · ${agent.model}` : ''}</small>{check ? <small className="agent-diagnostic-hint">{diagnosticHint(check)}</small> : null}</span>{check ? <DiagnosticStatus item={check} /> : null}<span className={agent.enabled ? 'available-badge' : 'unavailable-badge'}>{agent.enabled ? 'Aktiv' : 'Inaktiv'}</span></button>; })}</div> : <div className="agent-empty"><CircleHelp size={22} /><p>Noch kein Agent gespeichert. Nutze einen erkannten CLI-Eintrag oder lege einen eigenen an.</p></div>}
       </section>
     </div>
     <section className="panel agent-capability-panel">
@@ -104,6 +117,11 @@ export function AgentView({ snapshot, mutate }: Props) {
         {snapshot.agents.filter((agent) => agent.id === selectedAgentId).map((agent) => <AgentCapabilityRows key={agent.id} agent={agent} evidence={evidence} />)}</> : <p className="list-empty">Erst ein Agentenprofil anlegen.</p>}
     </section>
     <div className="info-strip"><CircleHelp size={18} /><p>CLI-Agenten können Dateien im Projektordner ändern und eigene Netzwerkzugriffe durchführen. Verwende nur Programme und Modelle, denen du vertraust.</p></div>
+    {menu ? <div className="agent-context-menu" role="menu" aria-label={`Aktionen für ${menu.agent.name}`} style={{ left: Math.min(menu.x, window.innerWidth - 220), top: Math.min(menu.y, window.innerHeight - 110) }}>
+      {menu.confirm
+        ? <><p>„{menu.agent.name}“ entfernen? Bisherige Sitzungen bleiben erhalten.</p><button type="button" role="menuitem" className="danger" autoFocus onClick={() => void remove(menu.agent)}><Trash2 size={15} /> Endgültig entfernen</button><button type="button" role="menuitem" onClick={() => setMenu(null)}>Abbrechen</button></>
+        : <><button type="button" role="menuitem" autoFocus onClick={() => { edit(menu.agent); setMenu(null); }}>Bearbeiten</button><button type="button" role="menuitem" className="danger" onClick={() => setMenu({ ...menu, confirm: true })}><Trash2 size={15} /> Agent entfernen</button></>}
+    </div> : null}
     {draft ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDraft(null); }}><form className="dialog" onSubmit={(event) => void save(event)}><div className="dialog-heading"><div><small>AGENTENPROFIL</small><h2>{draft.id ? 'Agent bearbeiten' : 'Agent anlegen'}</h2></div><button className="icon-button" type="button" onClick={() => setDraft(null)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={draft.name} onChange={(event) => setDraft((old) => old && ({ ...old, name: event.target.value }))} placeholder="Codex" /></label><label>Typ<select value={draft.kind} onChange={(event) => setDraft((old) => old && ({ ...old, kind: event.target.value as AgentPreset['kind'] }))}><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="gemini">Gemini CLI</option><option value="antigravity">Antigravity CLI</option><option value="custom">Eigener CLI-Agent</option></select></label><label>Programm<input required value={draft.command} onChange={(event) => setDraft((old) => old && ({ ...old, command: event.target.value }))} placeholder="codex, agy oder C:\\Pfad\\agent.exe" /></label><label>Argumente – eine Zeile pro Argument<textarea rows={4} value={draft.argumentsText} onChange={(event) => setDraft((old) => old && ({ ...old, argumentsText: event.target.value }))} placeholder="--agent&#10;mein-agent" /></label><label>Modell (optional)<input value={draft.model ?? ''} onChange={(event) => setDraft((old) => old && ({ ...old, model: event.target.value }))} placeholder="Modellkennung" /></label><label className="check-option"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((old) => old && ({ ...old, enabled: event.target.checked }))} /> Profil aktivieren</label><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setDraft(null)}>Abbrechen</button><button className="primary-button" type="submit">Speichern</button></div></form></div> : null}
   </div>;
 }

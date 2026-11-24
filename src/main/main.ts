@@ -285,6 +285,7 @@ function installIpc(): void {
   bind('setProjectRunCapacity', (input: Parameters<StudioAPI['setProjectRunCapacity']>[0]) => setProjectRunCapacity(db, input));
   bind('approveCardDependency', (input: Parameters<StudioAPI['approveCardDependency']>[0]) => approveCardDependency(db, input));
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
+  bind('deleteAgent', (id: string) => db.deleteAgent(id));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string; picker?: boolean }) => runner?.resumeCodex(input));
   bind('acknowledgeInterruptedSession', (input: { projectId: string; sessionId: string }) => db.acknowledgeInterruptedSession(input));
