@@ -26,4 +26,19 @@ describe('wireframe artboard overview', () => {
     expect(html.match(/disabled=""/g)).toHaveLength(3);
     expect(html).toContain('aria-pressed="true"');
   });
+
+  it('draws ellipses and both line directions in all three mini artboards', () => {
+    const ellipse: WireframeElement = { id: 'circle', kind: 'ellipse', tone: 'plain', text: '', x: 30, y: 40, width: 120, height: 120, style: { fill: '#aabbcc', stroke: '#223344' } };
+    const rising: WireframeElement = { id: 'rising', kind: 'line', tone: 'accent', text: '', x: 40, y: 180, width: 180, height: 70, lineDirection: 'rising', style: { stroke: '#123456' } };
+    const falling: WireframeElement = { ...rising, id: 'falling', lineDirection: undefined, style: { stroke: '@stroke' } };
+    const html = renderToStaticMarkup(<WireframeArtboardOverview elements={[ellipse, rising]} artboards={{ tablet: [falling], mobile: [ellipse, rising] }} active="desktop" disabled={false} onSelect={() => undefined} />);
+    expect(html.match(/kind-ellipse/g)).toHaveLength(2);
+    expect(html).toContain('border-radius:50%');
+    expect(html).toContain('background-color:#aabbcc');
+    expect(html.match(/class="task-wireframe-overview-line"/g)).toHaveLength(3);
+    expect(html.match(/y1="98" x2="98" y2="2"/g)).toHaveLength(2);
+    expect(html).toContain('y1="2" x2="98" y2="98"');
+    expect(html).toContain('color:#123456');
+    expect(html).toContain('color:var(--accent)');
+  });
 });

@@ -33,6 +33,10 @@
 .task-wireframe-overview-element.kind-button { text-align: center; background: var(--surface-2); }
 .task-wireframe-overview-element.tone-muted { background: var(--surface-3); }
 .task-wireframe-overview-element.tone-accent.kind-button { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.task-wireframe-overview-element.kind-ellipse { padding: 0; border-radius: 50%; }
+.task-wireframe-overview-element.kind-line { padding: 0; border-color: transparent; background: transparent; overflow: visible; }
+.task-wireframe-overview-line { display: block; width: 100%; height: 100%; overflow: visible; }
+.task-wireframe-overview-line line { stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .task-wireframe-variant-empty { padding-block: 18px; }
 .task-wireframe-variant-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
 .task-wireframe-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
