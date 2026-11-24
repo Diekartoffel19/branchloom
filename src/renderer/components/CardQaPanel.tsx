@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import type { Card, CardQaBatchResult, CardQaPageObservation, CardQaReport, CardQaViewport } from '../../shared/types';
 import { CardQaComparison } from './CardQaComparison';
+import { CardQaViewportMatrix } from './CardQaViewportMatrix';
 import './card-qa.css';
 
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -125,6 +126,7 @@ export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: {
       {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === (showLatest ? reports[0]?.id : focusReport?.id ?? reports[0]?.id)} />)}
     </div>}
     {!loading ? <CardQaComparison cardId={card.id} reports={reports} /> : null}
+    {!loading ? <CardQaViewportMatrix cardId={card.id} reports={reports} /> : null}
     <p className="card-qa-limit">Der Bericht belegt diesen Seitenaufruf, Lade-/Konsolenfehler und bis zu drei einfache DOM-Beobachtungen bei der gewählten Größe. Interaktionen, vollständiges Layout und Barrierefreiheit bleiben separat zu prüfen.</p>
   </section>;
 }
