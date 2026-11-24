@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
 import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, checkedWireframeElements, saveCardWireframe } from '../../src/main/card-wireframe';
-import type { WireframeElement } from '../../src/shared/card-wireframe';
+import type { WireframeElement, WireframeInteraction } from '../../src/shared/card-wireframe';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -22,8 +22,39 @@ function fixture() {
 }
 
 const element: WireframeElement = { id: 'title', kind: 'text', x: 28, y: 36, width: 400, height: 42, text: 'Projektübersicht', tone: 'plain' };
+const button: WireframeElement = { id: 'open', kind: 'button', x: 30, y: 100, width: 130, height: 44, text: 'Öffnen', tone: 'accent' };
+const panel: WireframeElement = { id: 'drawer', kind: 'panel', x: 400, y: 100, width: 300, height: 320, text: 'Details', tone: 'plain' };
+const interaction: WireframeInteraction = { triggerElementId: 'open', panelElementId: 'drawer', trigger: 'click', action: 'toggle-panel', durationMs: 240, enterOffsetPx: 24, closedOpacity: 0, reducedMotionDurationMs: 0, focusOnOpen: 'panel', focusOnClose: 'trigger' };
 
 describe('task-linked wireframes', () => {
+  it('persists an interaction, gates its agent context by exact revision, and checks references and focus', () => {
+    const { dbFile, store, key } = fixture();
+    const elements = [button, panel];
+    expect(() => saveCardWireframe(store, { ...key, title: 'Dialog', elements, expectedRevision: 0, interaction: { ...interaction, durationMs: 1100 } })).toThrow('Dauer');
+    expect(() => saveCardWireframe(store, { ...key, title: 'Dialog', elements, expectedRevision: 0, interaction: { ...interaction, panelElementId: 'open' } })).toThrow('Knopf und eine Fläche');
+    expect(() => saveCardWireframe(store, { ...key, title: 'Dialog', elements, expectedRevision: 0, interaction: { ...interaction, focusOnClose: 'panel' as never } })).toThrow('Fokusvorgabe');
+    const saved = saveCardWireframe(store, { ...key, title: 'Dialog', elements, expectedRevision: 0, interaction });
+    expect(saved).toMatchObject({ revision: 1, interaction, approvedRevision: null });
+    expect(approvedCardWireframeContext(store, key)).toBe('');
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)?.interaction).toEqual(interaction);
+    approveCardWireframe(reopened, { ...key, expectedRevision: 1 });
+    expect(approvedCardWireframeContext(reopened, key)).toContain('"revision":1');
+    expect(approvedCardWireframeContext(reopened, key)).toContain('"durationMs":240');
+    expect(saveCardWireframe(reopened, { ...key, title: 'Dialog', elements, expectedRevision: 1, interaction })).toMatchObject({ revision: 1, approvedRevision: 1 });
+    const changed = saveCardWireframe(reopened, { ...key, title: 'Dialog', elements, expectedRevision: 1, interaction: { ...interaction, durationMs: 360 } });
+    expect(changed).toMatchObject({ revision: 2, approvedRevision: null });
+    expect(approvedCardWireframeContext(reopened, key)).toBe('');
+    expect(() => saveCardWireframe(reopened, { ...key, title: 'Dialog', elements: [button], expectedRevision: 2 })).toThrow('Knopf und eine Fläche');
+    approveCardWireframe(reopened, { ...key, expectedRevision: 2 });
+    expect(approvedCardWireframeContext(reopened, key)).toContain('"durationMs":360');
+    reopened.close();
+    const restarted = new StudioStore(dbFile);
+    expect(cardWireframe(restarted, key)).toMatchObject({ revision: 2, approvedRevision: 2, interaction: { durationMs: 360 } });
+    expect(approvedCardWireframeContext(restarted, key)).toContain('"revision":2');
+    restarted.close();
+  });
   it('persists an editable document and explicit approval across restart, then revokes approval on save', () => {
     const { dbFile, store, key } = fixture();
     expect(cardWireframe(store, key)).toBeNull();
@@ -196,7 +227,7 @@ describe('task-linked wireframes', () => {
       .run(key.cardId, key.projectId, 'Alter Entwurf', JSON.stringify([element]), 3, 3, new Date().toISOString());
     store.close();
     const reopened = new StudioStore(dbFile);
-    expect(cardWireframe(reopened, key)).toMatchObject({ title: 'Alter Entwurf', elements: [element], artboards: {}, revision: 3, approvedRevision: 3 });
+    expect(cardWireframe(reopened, key)).toMatchObject({ title: 'Alter Entwurf', elements: [element], artboards: {}, interaction: null, revision: 3, approvedRevision: 3 });
     expect(approvedCardWireframeContext(reopened, key)).toContain('Projektübersicht');
     reopened.close();
   });

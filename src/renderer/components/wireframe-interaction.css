@@ -1,0 +1,20 @@
+.wireframe-interaction { border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-top: 20px; background: var(--surface); max-width: 680px; }
+.wireframe-interaction-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.wireframe-interaction-heading h3 { margin: 0; font-size: 1rem; }
+.wireframe-interaction-heading span, .wireframe-interaction p, .wireframe-interaction-timing { color: var(--muted); font-size: .85rem; }
+.wireframe-interaction-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+.wireframe-interaction-fields label { display: grid; gap: 5px; font-size: .8rem; }
+.wireframe-interaction-fields output { justify-self: end; }
+.wireframe-interaction-fields select, .wireframe-interaction-fields input { width: 100%; }
+.wireframe-interaction-timing { display: flex; justify-content: space-between; gap: 10px; border-top: 2px solid var(--border); padding-top: 7px; }
+.wireframe-interaction-reduced { display: inline-flex; align-items: center; gap: 7px; font-size: .84rem; }
+.wireframe-interaction-preview { position: relative; min-height: 180px; margin: 12px 0; padding: 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; isolation: isolate; }
+.wireframe-interaction-backdrop { position: absolute; inset: 0; z-index: 1; background: var(--text); opacity: 0; pointer-events: none; transition: opacity var(--interaction-duration) ease; }
+.wireframe-interaction-backdrop.is-open { opacity: .17; }
+.wireframe-interaction-panel { position: absolute; z-index: 2; inset: 8px 8px 8px auto; width: min(55%, 260px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 7px 22px rgba(0,0,0,.12); padding: 14px; display: flex; flex-direction: column; justify-content: space-between; opacity: var(--interaction-opacity); transform: translateX(var(--interaction-offset)); visibility: hidden; transition: transform var(--interaction-duration) ease, opacity var(--interaction-duration) ease, visibility 0s linear var(--interaction-duration); }
+.wireframe-interaction-panel.is-open { opacity: 1; transform: translateX(0); visibility: visible; transition: transform var(--interaction-duration) ease, opacity var(--interaction-duration) ease, visibility 0s; }
+.wireframe-interaction-panel strong { font-size: .9rem; }
+.wireframe-interaction .text-button { margin-top: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .wireframe-interaction-backdrop, .wireframe-interaction-panel, .wireframe-interaction-panel.is-open { transition-duration: 0ms; transition-delay: 0ms; }
+}

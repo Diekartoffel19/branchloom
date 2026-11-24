@@ -1,4 +1,4 @@
-import type { WireframeElement, WireframeElementStyle, WireframeVariant } from '../../shared/card-wireframe';
+import type { WireframeElement, WireframeElementStyle, WireframeInteraction, WireframeVariant } from '../../shared/card-wireframe';
 import { WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
@@ -29,10 +29,10 @@ function sameStyle(left?: WireframeElementStyle, right?: WireframeElementStyle):
 }
 
 export function sameWireframeContent(
-  draft: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>> },
-  saved: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>> } | null,
+  draft: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>; interaction?: WireframeInteraction | null },
+  saved: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>; interaction?: WireframeInteraction | null } | null,
 ): boolean {
-  if (!saved || draft.title !== saved.title || !sameElements(draft.elements, saved.elements)) return false;
+  if (!saved || draft.title !== saved.title || !sameElements(draft.elements, saved.elements) || JSON.stringify(draft.interaction ?? null) !== JSON.stringify(saved.interaction ?? null)) return false;
   return (['tablet', 'mobile'] as const).every((name) => {
     const left = draft.artboards?.[name];
     const right = saved.artboards?.[name];

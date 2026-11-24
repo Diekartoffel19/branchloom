@@ -49,12 +49,27 @@ export interface WireframeElement {
   style?: WireframeElementStyle;
 }
 
+/** A deliberately small, testable interaction attached to one desktop wireframe. */
+export interface WireframeInteraction {
+  triggerElementId: string;
+  panelElementId: string;
+  trigger: 'click';
+  action: 'toggle-panel';
+  durationMs: number;
+  enterOffsetPx: number;
+  closedOpacity: number;
+  reducedMotionDurationMs: 0;
+  focusOnOpen: 'panel';
+  focusOnClose: 'trigger';
+}
+
 export interface CardWireframe {
   projectId: string;
   cardId: string;
   title: string;
   elements: WireframeElement[];
   artboards: Partial<Record<WireframeVariant, WireframeElement[]>>;
+  interaction: WireframeInteraction | null;
   revision: number;
   approvedRevision: number | null;
   updatedAt: string;
@@ -68,6 +83,8 @@ export interface SaveCardWireframeInput {
   elements: WireframeElement[];
   /** Omission by older callers preserves already saved variants. */
   artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>;
+  /** Omission by older callers preserves the current interaction. */
+  interaction?: WireframeInteraction | null;
 }
 
 export interface CardWireframeKey { projectId: string; cardId: string }
