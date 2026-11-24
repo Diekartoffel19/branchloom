@@ -30,8 +30,9 @@ export interface Column { id: string; projectId: string; name: string; position:
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
-export type CardContextKind = 'file' | 'folder' | 'url';
-export interface CardContextReference { id: string; cardId: string; projectId: string; kind: CardContextKind; target: string; addedAt: string; available: boolean }
+export type CardContextKind = 'file' | 'folder' | 'url' | 'design';
+export interface CardDesignContextCandidate { selectionId: string; fingerprint: string; label: string; sourceUrl: string }
+export interface CardContextReference { id: string; cardId: string; projectId: string; kind: CardContextKind; target: string; addedAt: string; available: boolean; label?: string | null; note?: string | null }
 export interface CardContextPreview { id: string; kind: CardContextKind; target: string; text: string | null; truncated: boolean; note: string }
 export interface AgentPreset { id: string; name: string; kind: 'codex' | 'claude' | 'gemini' | 'antigravity' | 'custom'; command: string; args: string[]; model: string | null; enabled: boolean }
 export interface AgentDetection { kind: AgentPreset['kind']; command: string; available: boolean; version: string | null; status: 'ready' | 'found' | 'missing' | 'timeout' | 'error'; profileId?: string }
@@ -125,6 +126,8 @@ export interface StudioAPI {
   cardContextCandidateFromAttachment(input: { cardId: string; attachmentId: string }): Promise<string>;
   cardContextCandidateFromWhiteboardNode(input: { cardId: string; nodeId: string }): Promise<{ kind: 'file' | 'folder'; target: string }>;
   addCardContextReferenceFromWhiteboardNode(input: { cardId: string; nodeId: string; expectedKind: 'file' | 'folder'; expectedTarget: string }): Promise<CardContextReference[]>;
+  cardContextCandidateFromDesignSelection(input: { cardId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
+  addCardContextReferenceFromDesignSelection(input: { cardId: string; selectionId: string; expectedFingerprint: string; note: string }): Promise<CardContextReference[]>;
   addCardContextReference(input: { cardId: string; kind: CardContextKind; target: string }): Promise<CardContextReference[]>;
   previewCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextPreview>;
   removeCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextReference[]>;

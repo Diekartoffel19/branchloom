@@ -10,9 +10,9 @@ import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
-import { DesignInspector, designSelections } from './design-inspection';
+import { DesignInspector, designSelections, saveDesignSelection } from './design-inspection';
 import { designStateRoute, designStateRoutes, removeDesignStateRoute, saveDesignStateRoute } from './design-state-routes';
-import { addCardContextReference, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromWhiteboardNode, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
+import { addCardContextReference, addCardContextReferenceFromDesignSelection, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromDesignSelection, cardContextCandidateFromWhiteboardNode, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
@@ -217,6 +217,8 @@ function installIpc(): void {
   bind('cardContextCandidateFromAttachment', (input: Parameters<StudioAPI['cardContextCandidateFromAttachment']>[0]) => cardContextCandidateFromAttachment(db, input));
   bind('cardContextCandidateFromWhiteboardNode', (input: Parameters<StudioAPI['cardContextCandidateFromWhiteboardNode']>[0]) => cardContextCandidateFromWhiteboardNode(db, input));
   bind('addCardContextReferenceFromWhiteboardNode', (input: Parameters<StudioAPI['addCardContextReferenceFromWhiteboardNode']>[0]) => addCardContextReferenceFromWhiteboardNode(db, input));
+  bind('cardContextCandidateFromDesignSelection', (input: Parameters<StudioAPI['cardContextCandidateFromDesignSelection']>[0]) => cardContextCandidateFromDesignSelection(db, input));
+  bind('addCardContextReferenceFromDesignSelection', (input: Parameters<StudioAPI['addCardContextReferenceFromDesignSelection']>[0]) => addCardContextReferenceFromDesignSelection(db, input));
   bind('addCardContextReference', (input: Parameters<StudioAPI['addCardContextReference']>[0]) => addCardContextReference(db, input));
   bind('previewCardContextReference', (input: Parameters<StudioAPI['previewCardContextReference']>[0]) => previewCardContextReference(db, input));
   bind('removeCardContextReference', (input: Parameters<StudioAPI['removeCardContextReference']>[0]) => removeCardContextReference(db, input));
@@ -534,6 +536,9 @@ function createWindow(): void {
         const smokeProject = smokeStore.projects()[0]!;
         const smokeSnapshot = smokeStore.snapshot(smokeProject.id);
         const smokeCard = smokeSnapshot.cards.find((item) => item.title === 'Smoke-Karte')!;
+        const designContextSelection = saveDesignSelection(smokeStore, smokeProject.id, `${qaUrl}?token=synthetic`, {
+          selector: 'button#design-context', tag: 'button', text: 'Synthetic design context', styles: { color: 'rgb(36, 59, 50)' }, tokens: [],
+        });
         smokeStore.addCardAttachments(smokeCard.id, [join(smokeDataDirectory!, 'drop.md')]);
         const smokePlan = saveReviewedPlan(smokeStore, { projectId: smokeProject.id, request: 'Synthetischen Review-Plan prüfen', proposal: {
           title: 'Smoke-Review-Plan', explanation: 'Nur ein lokaler UI-Test.',
@@ -890,6 +895,38 @@ function createWindow(): void {
               folderKeyboardButton.click();
               for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Whiteboard-Ordner „src“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.cardContextReferences(qaCard.id)).length !== 4 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Ordner-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
+              const designContextDetails = [...dropTarget.querySelectorAll('details.card-context-whiteboard')].find((item) => item.querySelector('summary')?.textContent?.includes('Design-Belege'));
+              designContextDetails?.querySelector('summary')?.click();
+              let designContextSource;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                designContextSource = [...(designContextDetails?.querySelectorAll('.card-context-whiteboard-source[draggable="true"]') ?? [])].find((item) => item.textContent?.includes('button#design-context'));
+                if (designContextSource) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!designContextSource) throw new Error('Gespeicherter Design-Beleg fehlt als Kartenquelle.');
+              const designContextTransfer = new DataTransfer();
+              designContextSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: designContextTransfer }));
+              if (designContextTransfer.getData('application/x-branchloom-design-selection') !== ${JSON.stringify(designContextSelection.id)}) throw new Error('Design-Drag enthielt nicht nur die gespeicherte Beleg-ID.');
+              dropTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: designContextTransfer }));
+              for (let attempt = 0; attempt < 100 && (dropTarget.querySelector('select')?.value !== 'design' || !dropTarget.textContent?.includes('Design-Beleg „button · button#design-context“ vorbereitet')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const designContextNote = contextForm.querySelector('input[placeholder="Was soll am Element geändert werden?"]');
+              if (dropTarget.querySelector('select')?.value !== 'design' || !designContextNote || !dropTarget.textContent?.includes('Die Seite wurde nicht geladen')) throw new Error('Design-Drop füllte den Belegentwurf nicht.');
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 4) throw new Error('Design-Drop speicherte ohne Bestätigung.');
+              qaValueSetter.call(designContextNote, 'Smoke-Auftrag am Knopf'); designContextNote.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && contextForm.querySelector('input[placeholder="Was soll am Element geändert werden?"]')?.value !== 'Smoke-Auftrag am Knopf'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              contextButton.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.cardContextReferences(qaCard.id)).length !== 5; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const designContextRef = (await window.studio.cardContextReferences(qaCard.id)).find((item) => item.kind === 'design');
+              if (!designContextRef?.available || designContextRef.target !== ${JSON.stringify(designContextSelection.id)} || designContextRef.note !== 'Smoke-Auftrag am Knopf') throw new Error('Design-Beleg oder editierte Notiz wurde nicht bestätigt.');
+              const designContextItem = [...dropTarget.querySelectorAll('.card-context-list li')].find((item) => item.textContent?.includes('Gespeicherter Design-Beleg'));
+              designContextItem?.querySelector('button.secondary-button')?.click();
+              for (let attempt = 0; attempt < 100 && !designContextItem?.textContent?.includes('Selektor: button#design-context'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!designContextItem?.textContent?.includes('Auftrag: Smoke-Auftrag am Knopf') || designContextItem.textContent.includes('token=synthetic')) throw new Error('Design-Kontextvorschau fehlt oder zeigt Query-Werte.');
+              const designContextKeyboard = [...(designContextDetails?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Vorbereiten'));
+              if (!designContextKeyboard) throw new Error('Design-Beleg hat keine Tastaturalternative.');
+              designContextKeyboard.click();
+              for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Design-Beleg „button · button#design-context“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 5 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Design-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
               const outputPanel = document.querySelector('.card-drawer .output-errors');
               for (let attempt = 0; attempt < 100 && !outputPanel?.querySelector('form'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const outputForm = outputPanel?.querySelector('form');
@@ -1227,7 +1264,7 @@ function createWindow(): void {
               if (!report?.textContent?.includes('Textkontrast') || !report.textContent.includes('Interaktives Ziel') || !report.textContent.includes('CSS-px') || !report.textContent.includes('4,5:1')) throw new Error('Live-Elementmessung fehlt: ' + (evidence?.textContent ?? '').slice(-600));
               return true;
             })()`);
-            if (designSelections(smokeStore, smokeProject.id).length !== 1) throw new Error('Die lesende Elementprüfung veränderte gespeicherte Belege.');
+            if (designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('Die lesende Elementprüfung veränderte gespeicherte Belege.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               document.querySelector('.design-inspection-selector summary')?.click();
               const field = document.querySelector('.design-inspection-selector input');
@@ -1241,8 +1278,8 @@ function createWindow(): void {
               button.click();
               return true;
             })()`);
-            for (let attempt = 0; attempt < 100 && designSelections(smokeStore, smokeProject.id).length < 2; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-            if (designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('CSS-Selektor-Auswahl speicherte keinen zweiten Beleg.');
+            for (let attempt = 0; attempt < 100 && designSelections(smokeStore, smokeProject.id).length < 3; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+            if (designSelections(smokeStore, smokeProject.id).length !== 3) throw new Error('CSS-Selektor-Auswahl speicherte keinen weiteren Beleg.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               document.querySelector('.theme-tokens-head button')?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-list button:last-child'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1322,7 +1359,7 @@ function createWindow(): void {
               if (canvas.querySelector('img') || document.activeElement !== button) throw new Error('Design-Aufnahmen blieben nach Schließen sichtbar oder der Fokus ging verloren.');
               return true;
             })()`);
-            if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n' || designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('Theme-Vorschau änderte Quelldatei oder gespeicherte Auswahl.');
+            if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n' || designSelections(smokeStore, smokeProject.id).length !== 3) throw new Error('Theme-Vorschau änderte Quelldatei oder gespeicherte Auswahl.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               document.querySelector('.theme-tokens-preview button[type="submit"]')?.click();
               for (let attempt = 0; attempt < 100 && (await window.studio.designInspectionState()).themePreview?.value !== '#aabbcc'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));

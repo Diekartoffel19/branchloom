@@ -1,25 +1,51 @@
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
-import type { CardContextKind, CardContextPreview, CardContextReference } from '../shared/types';
+import type { CardContextKind, CardContextPreview, CardContextReference, CardDesignContextCandidate } from '../shared/types';
 import { attachmentAvailable } from './card-attachments';
+import { diagnosticSource, isLocalDevUrl } from './browser-policy';
 import type { StudioStore } from './store';
 
 const MAX_REFS = 20;
 const MAX_FILE_BYTES = 128_000;
 const MAX_PREVIEW_BYTES = 4_096;
 const TEXT_EXTENSIONS = new Set(['.md', '.txt', '.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.html', '.yml', '.yaml', '.toml', '.py', '.rs', '.go', '.sql']);
-type ContextRow = { id: string; card_id: string; project_id: string; kind: CardContextKind; target: string; added_at: string };
+type ContextRow = { id: string; card_id: string; project_id: string; kind: CardContextKind; target: string; note: string | null; added_at: string };
+type DesignRow = { id: string; project_id: string; source_url: string; selector: string; tag: string; text_snippet: string; styles_json: string; tokens_json: string; captured_at: string };
 
 export function installCardContext(db: Database.Database): void {
   db.exec(`CREATE TABLE IF NOT EXISTS card_context_refs (
     id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL, target TEXT NOT NULL, added_at TEXT NOT NULL,
+    kind TEXT NOT NULL, target TEXT NOT NULL, note TEXT, added_at TEXT NOT NULL,
     UNIQUE(card_id, kind, target)
   ); CREATE INDEX IF NOT EXISTS card_context_refs_card ON card_context_refs(card_id, added_at);`);
+  const columns = db.pragma('table_info(card_context_refs)') as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'note')) db.exec('ALTER TABLE card_context_refs ADD COLUMN note TEXT');
+}
+
+function checkedDesignSelection(store: StudioStore, projectId: string, selectionId: string): DesignRow {
+  if (typeof selectionId !== 'string' || !/^[a-f0-9-]{36}$/i.test(selectionId)) throw new Error('Design-Beleg-ID ist ungültig.');
+  const row = store.db.prepare('SELECT * FROM design_selections WHERE id = ?').get(selectionId) as DesignRow | undefined;
+  if (!row) throw new Error('Gespeicherter Design-Beleg wurde entfernt. Quelle neu wählen.');
+  if (row.project_id !== projectId) throw new Error('Design-Beleg gehört zu einem anderen Projekt.');
+  if (!isLocalDevUrl(row.source_url) || diagnosticSource(row.source_url) !== row.source_url || !row.selector || row.selector.length > 320
+    || !/^[a-z][a-z0-9-]*$/.test(row.tag)) throw new Error('Gespeicherter Design-Beleg ist ungültig.');
+  return row;
+}
+
+function designFingerprint(row: DesignRow): string {
+  return createHash('sha256').update(JSON.stringify([row.source_url, row.selector, row.tag, row.text_snippet, row.styles_json, row.tokens_json, row.captured_at])).digest('hex');
+}
+
+function designLabel(row: DesignRow): string { return `${row.tag} · ${row.selector}`; }
+
+function checkedDesignNote(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 300 || /[\x00-\x1f\x7f]/.test(value)) throw new Error('Design-Notiz darf höchstens 300 Zeichen ohne Steuerzeichen enthalten.');
+  return value.trim();
 }
 
 function within(root: string, target: string): boolean {
@@ -76,12 +102,15 @@ export function checkedDocumentationUrl(input: string): string {
 
 function rowToReference(store: StudioStore, row: ContextRow): CardContextReference {
   let available = row.kind === 'url';
+  let label: string | null = null;
   if (row.kind === 'file') {
     try { available = checkedFile(store, row.project_id, row.target).target === row.target; } catch { available = false; }
   } else if (row.kind === 'folder') {
     try { available = checkedFolder(store, row.project_id, row.target).target === row.target; } catch { available = false; }
+  } else if (row.kind === 'design') {
+    try { const selection = checkedDesignSelection(store, row.project_id, row.target); available = true; label = designLabel(selection); } catch { available = false; }
   }
-  return { id: row.id, cardId: row.card_id, projectId: row.project_id, kind: row.kind, target: row.target, addedAt: row.added_at, available };
+  return { id: row.id, cardId: row.card_id, projectId: row.project_id, kind: row.kind, target: row.target, addedAt: row.added_at, available, label, note: row.note };
 }
 
 export function cardContextReferences(store: StudioStore, cardId: string): CardContextReference[] {
@@ -130,6 +159,37 @@ export function addCardContextReferenceFromWhiteboardNode(store: StudioStore, in
   return addCardContextReference(store, { cardId: input.cardId, kind: candidate.kind, target: candidate.target });
 }
 
+/** A saved, bounded Design Inspector record, never a live-page fetch. */
+export function cardContextCandidateFromDesignSelection(store: StudioStore, input: { cardId: string; selectionId: string }): CardDesignContextCandidate {
+  if (!input || typeof input.cardId !== 'string') throw new Error('Design-Quelle ist ungültig.');
+  const card = store.card(input.cardId);
+  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+  const row = checkedDesignSelection(store, card.projectId, input.selectionId);
+  return { selectionId: row.id, fingerprint: designFingerprint(row), label: designLabel(row), sourceUrl: row.source_url };
+}
+
+/** Confirmation rechecks card ownership and the complete saved evidence fingerprint. */
+export function addCardContextReferenceFromDesignSelection(store: StudioStore, input: { cardId: string; selectionId: string; expectedFingerprint: string; note: string }): CardContextReference[] {
+  if (!input || typeof input.expectedFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedFingerprint)) throw new Error('Design-Entwurf ist ungültig.');
+  const note = checkedDesignNote(input.note);
+  const card = store.card(input.cardId);
+  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+  store.db.transaction(() => {
+    const row = checkedDesignSelection(store, card.projectId, input.selectionId);
+    if (designFingerprint(row) !== input.expectedFingerprint) throw new Error('Design-Beleg wurde geändert. Quelle erneut vorbereiten.');
+    const count = store.db.prepare('SELECT COUNT(*) AS count FROM card_context_refs WHERE card_id = ?').get(card.id) as { count: number };
+    if (count.count >= MAX_REFS) throw new Error(`Maximal ${MAX_REFS} Kontextbezüge pro Karte.`);
+    try {
+      store.db.prepare('INSERT INTO card_context_refs (id, card_id, project_id, kind, target, note, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(randomUUID(), card.id, card.projectId, 'design', row.id, note, new Date().toISOString());
+    } catch (reason) {
+      if ((reason as Error).message.includes('UNIQUE constraint')) throw new Error('Dieser Kontextbezug ist bereits an der Karte.');
+      throw reason;
+    }
+  })();
+  return cardContextReferences(store, card.id);
+}
+
 export function addCardContextReference(store: StudioStore, input: { cardId: string; kind: CardContextKind; target: string }): CardContextReference[] {
   const card = store.card(input.cardId);
   if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
@@ -139,8 +199,8 @@ export function addCardContextReference(store: StudioStore, input: { cardId: str
   const count = store.db.prepare('SELECT COUNT(*) AS count FROM card_context_refs WHERE card_id = ?').get(card.id) as { count: number };
   if (count.count >= MAX_REFS) throw new Error(`Maximal ${MAX_REFS} Kontextbezüge pro Karte.`);
   try {
-    store.db.prepare('INSERT INTO card_context_refs (id, card_id, project_id, kind, target, added_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(randomUUID(), card.id, card.projectId, input.kind, target, new Date().toISOString());
+    store.db.prepare('INSERT INTO card_context_refs (id, card_id, project_id, kind, target, note, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(randomUUID(), card.id, card.projectId, input.kind, target, null, new Date().toISOString());
   } catch (reason) {
     if ((reason as Error).message.includes('UNIQUE constraint')) throw new Error('Dieser Kontextbezug ist bereits an der Karte.');
     throw reason;
@@ -158,6 +218,13 @@ function requiredReference(store: StudioStore, input: { cardId: string; referenc
 export function previewCardContextReference(store: StudioStore, input: { cardId: string; referenceId: string }): CardContextPreview {
   const row = requiredReference(store, input);
   if (row.kind === 'url') return { id: row.id, kind: 'url', target: row.target, text: null, truncated: false, note: 'Adresse gespeichert. Branchloom hat die Webseite nicht abgerufen.' };
+  if (row.kind === 'design') {
+    const selection = checkedDesignSelection(store, row.project_id, row.target);
+    const lines = [`Quelle: ${selection.source_url}`, `Element: <${selection.tag}>`, `Selektor: ${selection.selector}`, `Gespeichert: ${selection.captured_at}`];
+    if (selection.text_snippet) lines.push(`Textausschnitt: ${selection.text_snippet.slice(0, 180)}`);
+    if (row.note) lines.push(`Auftrag: ${row.note}`);
+    return { id: row.id, kind: 'design', target: row.target, text: lines.join('\n'), truncated: false, note: 'Gespeicherter Design-Beleg. Die lokale Webseite wurde für diese Vorschau nicht neu geladen.' };
+  }
   if (row.kind === 'folder') {
     const folder = checkedFolder(store, row.project_id, row.target);
     if (folder.target !== row.target) throw new Error('Projektordner wurde verschoben oder ersetzt.');

@@ -11,7 +11,7 @@
 .card-context-whiteboard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; max-height: 220px; overflow-y: auto; }
 .card-context-whiteboard-list li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
 .card-context-whiteboard-source { min-width: 0; flex: 1; display: grid; gap: 2px; cursor: grab; }
-.card-context-whiteboard-source strong { font-size: 12px; font-weight: 600; }
+.card-context-whiteboard-source strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .card-context-whiteboard-source small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .card-context-whiteboard-source:active { cursor: grabbing; }
 .card-context-whiteboard-list button { flex: none; }

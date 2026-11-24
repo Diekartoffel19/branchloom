@@ -1,5 +1,7 @@
 # Lesende Design-Inspektion
 
+Ein bereits gespeicherter Elementbeleg kann im Kartendrawer unter **Kontextbezüge → Gespeicherte Design-Belege auswählen** als Kartenkontext vorbereitet werden. Das geschieht per Drag-and-drop innerhalb der Quellenliste oder über **Vorbereiten** mit der Tastatur. Die Karte speichert erst nach einem eigenen Klick auf **Bezug hinzufügen** die Beleg-ID und eine optionale kurze Auftragsnotiz. Der Beleg wird dabei erneut geprüft; die Seite wird weder beim Vorbereiten noch für die Karten-Vorschau neu geladen. [Ablauf und Grenzen](CARD_CONTEXT.md).
+
 Wähle ein Projekt und öffne **Design** in der Seitenleiste. Trage die Adresse eines bereits laufenden lokalen Dev-Servers ein, etwa `http://127.0.0.1:5173/`, und klicke **Vorschau öffnen**. Nur HTTP(S) auf `localhost`, `127.0.0.1` oder `[::1]` ohne Zugangsdaten ist zulässig. Branchloom startet den Server nicht selbst.
 
 Die Seite erscheint in einer eigenen, frischen Electron-Webansicht ohne persistentes Browserprofil. Fremde Origins, Navigation aus der Seite, Pop-ups, Downloads und Browser-Berechtigungen werden blockiert. Normale Seitenklicks werden abgefangen. Nach **Element auswählen** speichert genau der nächste linke Klick einen Beleg. Für Tastaturbedienung kann stattdessen unter **Mit Tastatur oder CSS-Selektor auswählen** ein Selektor eingegeben und mit **Element prüfen** ausgewertet werden. Ein fehlender oder ungültiger Selektor erzeugt keinen Beleg.
