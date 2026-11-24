@@ -1,0 +1,25 @@
+.idea-match-panel { padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.idea-match-panel .ideas-panel-heading { align-items: center; }
+.idea-match-panel .secondary-button { display: inline-flex; align-items: center; gap: 7px; }
+.idea-match-layout { display: grid; grid-template-columns: minmax(170px, 230px) minmax(0, 1fr); gap: 14px; }
+.idea-match-results { max-height: 370px; overflow-y: auto; border: 1px solid var(--border); border-radius: 7px; }
+.idea-match-result { display: grid; width: 100%; gap: 5px; padding: 11px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.idea-match-result:last-child { border-bottom: 0; }
+.idea-match-result:hover, .idea-match-result.selected { background: var(--surface-2); }
+.idea-match-result.selected { box-shadow: inset 3px 0 var(--accent); }
+.idea-match-result span, .idea-match-result small, .idea-match-pair small, .idea-match-links small { color: var(--muted); font-size: 11px; }
+.idea-match-result strong { font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.idea-match-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.idea-match-pair article { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; }
+.idea-match-pair strong { display: block; margin-top: 5px; font-size: 13px; overflow-wrap: anywhere; }
+.idea-match-pair p { max-height: 150px; overflow-y: auto; margin: 9px 0 0; color: var(--soft); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.idea-match-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.idea-match-actions p { max-width: 46ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.idea-match-links { margin-bottom: 15px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; }
+.idea-match-links > strong { font-size: 12px; }
+.idea-match-links ul { margin: 8px 0 0; padding: 0; list-style: none; }
+.idea-match-links li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); }
+.idea-match-links li span { display: grid; gap: 3px; min-width: 0; }
+.idea-match-links li b { font-size: 12px; overflow-wrap: anywhere; }
+.idea-match-links li div { display: flex; flex-wrap: wrap; }
+@media (max-width: 850px) { .idea-match-layout, .idea-match-pair { grid-template-columns: 1fr; } .idea-match-results { max-height: 190px; } }

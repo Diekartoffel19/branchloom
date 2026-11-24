@@ -5,6 +5,7 @@ import type { Idea, IdeaCategory, IdeaReply } from '../../shared/ideas';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { Mutate } from './shared';
 import { TrelloImportPanel } from './TrelloImportPanel';
+import { IdeaMatchPanel } from './IdeaMatchPanel';
 import './ideas.css';
 
 type Draft = Pick<Idea, 'id' | 'title' | 'body' | 'category' | 'turns' | 'cardId'>;
@@ -31,6 +32,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
   const [notice, setNotice] = useState('');
   const [showTrelloImport, setShowTrelloImport] = useState(false);
   const dirty = signature(draft) !== baseline;
+  const mergedIntoIdeaId = ideas.find((item) => item.id === draft.id)?.mergedIntoIdeaId ?? null;
   const visible = useMemo(() => filter === 'all' ? ideas : ideas.filter((item) => item.category === filter), [ideas, filter]);
 
   useEffect(() => {
@@ -104,7 +106,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
     <div className="ideas-layout">
       <aside className="ideas-list" aria-label="Gespeicherte Ideen"><div className="ideas-list-heading"><strong>Sammlung</strong><span>{ideas.length}</span></div>
         <label className="ideas-filter">Anzeigen<select value={filter} onChange={(event) => setFilter(event.target.value as IdeaCategory | 'all')}><option value="all">Alle Bereiche</option>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label>
-        {loading ? <p className="ideas-muted">Ideen werden geladen…</p> : visible.length === 0 ? <p className="ideas-muted">Hier ist noch Platz für den ersten Gedanken.</p> : <div className="ideas-list-items">{visible.map((item) => <button className={`ideas-list-item ${item.id === draft.id ? 'selected' : ''}`} aria-current={item.id === draft.id ? 'true' : undefined} type="button" disabled={busy} key={item.id} onClick={() => switchTo(item)}><span className="ideas-category">{labels[item.category]}</span><strong>{item.title}</strong><small>{item.cardId ? 'Board-Karte angelegt' : 'Noch keine Board-Karte'}</small></button>)}</div>}
+        {loading ? <p className="ideas-muted">Ideen werden geladen…</p> : visible.length === 0 ? <p className="ideas-muted">Hier ist noch Platz für den ersten Gedanken.</p> : <div className="ideas-list-items">{visible.map((item) => <button className={`ideas-list-item ${item.id === draft.id ? 'selected' : ''}`} aria-current={item.id === draft.id ? 'true' : undefined} type="button" disabled={busy} key={item.id} onClick={() => switchTo(item)}><span className="ideas-category">{labels[item.category]}</span><strong>{item.title}</strong><small>{item.cardId ? 'Board-Karte angelegt' : item.mergedIntoIdeaId ? 'Mit anderer Idee verbunden' : 'Noch keine Board-Karte'}</small></button>)}</div>}
       </aside>
       <div className="ideas-workspace">
         <form className="ideas-editor" onSubmit={(event) => void save(event)}><div className="ideas-panel-heading"><div><span className="ideas-kicker">{draft.id ? 'Gespeicherte Idee' : 'Neuer Entwurf'}</span><h3>Gedanken festhalten</h3></div><span className="ideas-dirty">{dirty ? 'Ungespeichert' : draft.id ? 'Gespeichert' : 'Noch leer'}</span></div>
@@ -114,6 +116,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
           {suggestion && (suggestion.suggestedTitle || suggestion.suggestedBody) ? <div className="ideas-suggestion"><strong>Vorschlag des Agenten</strong>{suggestion.suggestedTitle ? <p>{suggestion.suggestedTitle}</p> : null}{suggestion.suggestedBody ? <small>{suggestion.suggestedBody}</small> : null}<button className="secondary-button" type="button" disabled={busy} onClick={() => { setDraft((old) => ({ ...old, title: suggestion.suggestedTitle || old.title, body: suggestion.suggestedBody || old.body, category: suggestion.suggestedCategory ?? old.category })); setSuggestion(null); }}>Vorschlag übernehmen</button></div> : null}
           <div className="ideas-actions"><button className="primary-button" type="submit" disabled={busy || !draft.title.trim()}><Save size={16} /> Idee speichern</button></div>
         </form>
+        {draft.id ? <IdeaMatchPanel key={`matches-${draft.id}-${ideas.find((item) => item.id === draft.id)?.updatedAt ?? ''}`} projectId={projectId} ideaId={draft.id} dirty={dirty} onOpenIdea={(id) => { const item = ideas.find((entry) => entry.id === id); if (item) switchTo(item); }} onOpenCard={onOpenCard} onLinksChanged={async () => setIdeas(await window.studio.ideas(projectId))} /> : null}
         <section className="ideas-conversation" aria-label="Idee besprechen"><div className="ideas-panel-heading"><div><span className="ideas-kicker">Codex · nur auf Klick</span><h3>Weiterdenken</h3></div></div>
           <p className="ideas-disclosure">„Besprechen“ sendet Gespräch, editierbaren Titel, Notizen, Bereich, Projektname und das reguläre Projekt-README (maximal 12 KB) an den unter Workflows eingestellten Codex-Agenten. Andere Projektdateien werden hier nicht mitgegeben. Antworten ändern nichts automatisch.</p>
           <div className="ideas-turns" aria-live="polite">{draft.turns.length ? draft.turns.map((turn, index) => <div className={`ideas-turn ${turn.role}`} key={`${index}-${turn.role}`}><strong>{turn.role === 'user' ? 'Du' : 'Codex'}</strong><p>{turn.text}</p></div>) : <p className="ideas-muted">Was wäre, wenn? Beschreibe den Gedanken in deinen Worten.</p>}</div>
@@ -121,7 +124,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
         </section>
       </div>
     </div>
-    <section className="ideas-convert" aria-label="Ins Board übernehmen"><div><span className="ideas-kicker">Nächster Schritt</span><h3>Aus Idee wird Aufgabe</h3><p>Erst dein Klick legt eine Karte an. Danach entscheidest du im Board über den Agentenlauf.</p></div>{draft.cardId ? <button className="secondary-button" type="button" onClick={() => onOpenCard(draft.cardId!)}>Karte öffnen <ArrowRight size={16} /></button> : <div className="ideas-convert-controls"><label>Spalte<select value={columnId} disabled={busy || !draft.id || dirty} onChange={(event) => setColumnId(event.target.value)}>{snapshot.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="button" onClick={() => void convert()} disabled={busy || !draft.id || dirty || !columnId}>Karte anlegen <ArrowRight size={16} /></button>{dirty ? <small>Speichere die Idee vor dem Übernehmen.</small> : null}</div>}</section>
+    <section className="ideas-convert" aria-label="Ins Board übernehmen"><div><span className="ideas-kicker">Nächster Schritt</span><h3>Aus Idee wird Aufgabe</h3><p>Erst dein Klick legt eine Karte an. Danach entscheidest du im Board über den Agentenlauf.</p></div>{draft.cardId ? <button className="secondary-button" type="button" onClick={() => onOpenCard(draft.cardId!)}>Karte öffnen <ArrowRight size={16} /></button> : mergedIntoIdeaId ? <button className="secondary-button" type="button" onClick={() => switchTo(ideas.find((item) => item.id === mergedIntoIdeaId))}>Hauptidee öffnen <ArrowRight size={16} /></button> : <div className="ideas-convert-controls"><label>Spalte<select value={columnId} disabled={busy || !draft.id || dirty} onChange={(event) => setColumnId(event.target.value)}>{snapshot.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="button" onClick={() => void convert()} disabled={busy || !draft.id || dirty || !columnId}>Karte anlegen <ArrowRight size={16} /></button>{dirty ? <small>Speichere die Idee vor dem Übernehmen.</small> : null}</div>}</section>
     {error ? <p role="alert" className="ideas-feedback error">{error}</p> : null}
     {notice ? <p role="status" className="ideas-feedback">{notice}</p> : null}
     {showTrelloImport ? <TrelloImportPanel key={`ideas-${projectId}`} projectId={projectId} columns={snapshot.columns} mutate={mutate} destination="ideas" onIdeasImported={async () => {

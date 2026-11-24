@@ -49,7 +49,7 @@ function idea(row: IdeaRow): Idea {
   return {
     id: row.id, projectId: row.project_id, title: row.title, body: row.body,
     category: row.category, turns: JSON.parse(row.turns_json) as DraftTurn[],
-    cardId: row.card_id, createdAt: row.created_at, updatedAt: row.updated_at,
+    cardId: row.card_id, mergedIntoIdeaId: null, createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }
 
@@ -85,7 +85,9 @@ export function installIdeas(db: Database.Database): void {
 
 export function listIdeas(store: StudioStore, projectId: string): Idea[] {
   store.project(projectId);
-  return (store.db.prepare('SELECT * FROM ideas WHERE project_id = ? ORDER BY updated_at DESC, id DESC').all(projectId) as IdeaRow[]).map(idea);
+  const linked = new Map((store.db.prepare("SELECT source_id, idea_id FROM idea_match_links WHERE project_id = ? AND source_kind = 'idea'").all(projectId) as Array<{ source_id: string; idea_id: string }>).map((row) => [row.source_id, row.idea_id]));
+  return (store.db.prepare('SELECT * FROM ideas WHERE project_id = ? ORDER BY updated_at DESC, id DESC').all(projectId) as IdeaRow[])
+    .map((row) => ({ ...idea(row), mergedIntoIdeaId: linked.get(row.id) ?? null }));
 }
 
 export function saveIdea(store: StudioStore, input: {
@@ -120,6 +122,9 @@ export function convertIdeaToCard(store: StudioStore, input: { projectId: string
     const row = store.db.prepare('SELECT * FROM ideas WHERE id = ? AND project_id = ?').get(input.ideaId, input.projectId) as IdeaRow | undefined;
     if (!row) throw new Error('Idea not found in this project');
     if (row.card_id) return store.card(row.card_id);
+    if (store.db.prepare("SELECT 1 FROM idea_match_links WHERE project_id = ? AND source_kind = 'idea' AND source_id = ?").get(input.projectId, row.id)) {
+      throw new Error('Diese Idee wurde bereits mit einer anderen Idee verknüpft. Öffne die Hauptidee für die Board-Übernahme.');
+    }
     const destination = store.column(input.columnId);
     if (destination.projectId !== input.projectId) throw new Error('Column belongs to another project');
     if (destination.name.trim().toLocaleLowerCase('de-DE') === 'to do' && store.projectQueue(input.projectId).state === 'running') {

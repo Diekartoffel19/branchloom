@@ -15,6 +15,7 @@ import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
 import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance';
+import type { IdeaMatchKind, IdeaMatchPreview } from './idea-matches';
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 
@@ -107,6 +108,9 @@ export interface StudioAPI {
   compareMilestone(input: { projectId: string; milestoneId: string }): Promise<import('./milestones').MilestoneComparison>;
   checkoutMilestone(input: { projectId: string; milestoneId: string; confirm: boolean }): Promise<import('./milestones').MilestoneCheckout>;
   ideas(projectId: string): Promise<import('./ideas').Idea[]>;
+  previewIdeaMatches(input: { projectId: string; ideaId: string }): Promise<IdeaMatchPreview>;
+  linkIdeaMatch(input: { projectId: string; ideaId: string; kind: IdeaMatchKind; sourceId: string; expectedSignature: string }): Promise<IdeaMatchPreview>;
+  unlinkIdeaMatch(input: { projectId: string; ideaId: string; kind: IdeaMatchKind; sourceId: string }): Promise<IdeaMatchPreview>;
   saveIdea(input: { projectId: string; id?: string; title: string; body: string; category: import('./ideas').IdeaCategory; turns: DraftTurn[] }): Promise<import('./ideas').Idea>;
   discussIdea(input: { projectId: string; turns: DraftTurn[]; title: string; body: string; category: import('./ideas').IdeaCategory }): Promise<import('./ideas').IdeaReply>;
   convertIdeaToCard(input: { projectId: string; ideaId: string; columnId: string }): Promise<Card>;

@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { IdeasView } from '../../src/renderer/components/IdeasView';
+import { IdeaMatchPanel } from '../../src/renderer/components/IdeaMatchPanel';
 import type { ProjectSnapshot } from '../../src/shared/types';
 
 const snapshot = {
@@ -21,5 +22,13 @@ describe('ideas room surface', () => {
     expect(html).toContain('Karte anlegen');
     expect(html).toContain('disabled');
     expect(html).toContain('Roadmap');
+  });
+
+  it('discloses the local comparison and requires a saved idea before checking', () => {
+    const html = renderToStaticMarkup(createElement(IdeaMatchPanel, { projectId: 'synthetic-project', ideaId: 'saved-idea', dirty: false,
+      onOpenIdea: () => undefined, onOpenCard: () => undefined, onLinksChanged: async () => undefined }));
+    expect(html).toContain('Ähnliche Einträge');
+    expect(html).toContain('Vorschläge prüfen');
+    expect(html).toContain('keine Daten an ein Modell gesendet');
   });
 });

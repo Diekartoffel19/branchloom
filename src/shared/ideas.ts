@@ -10,6 +10,7 @@ export interface Idea {
   category: IdeaCategory;
   turns: DraftTurn[];
   cardId: string | null;
+  mergedIntoIdeaId: string | null;
   createdAt: string;
   updatedAt: string;
 }

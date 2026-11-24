@@ -16,6 +16,7 @@ import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
 import { installCardAcceptance } from './card-acceptance';
 import { installIdeas } from './ideas';
+import { installIdeaMatches } from './idea-matches';
 import { installPlanReview } from './plan-review';
 import { installMilestones } from './milestones';
 import { installReviewRules } from './review-rules';
@@ -130,6 +131,7 @@ export class StudioStore {
     installWhiteboard(this.db);
     installReviewComments(this.db);
     installIdeas(this.db);
+    installIdeaMatches(this.db);
     installPlanReview(this.db);
     installMilestones(this.db);
     installReviewRules(this.db);
