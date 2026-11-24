@@ -7,6 +7,7 @@ import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
 import { CardQaPanel } from './CardQaPanel';
+import { PrDraftPanel } from './PrDraftPanel';
 import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
@@ -228,6 +229,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
           <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
         </div> : null}
         {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} focusComment={focusReviewComment} /></Suspense> : null}
+        <div className="drawer-divider" />
+        <PrDraftPanel key={`pr-${card.id}`} cardId={card.id} />
       </div>
     </aside>
   </div>;

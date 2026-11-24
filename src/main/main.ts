@@ -14,6 +14,7 @@ import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
+import { previewPrDraft } from './pr-draft';
 import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
@@ -268,6 +269,7 @@ function installIpc(): void {
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
   bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
+  bind('previewPrDraft', (cardId: string) => previewPrDraft(db, cardId));
   bind('previewCardDiff', (cardId: string) => previewCardDiff(db, cardId));
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));

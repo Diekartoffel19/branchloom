@@ -89,6 +89,7 @@ const studio: StudioAPI = {
   previewTrelloImport: (input) => invoke('previewTrelloImport', input),
   acceptTrelloImport: (input) => invoke('acceptTrelloImport', input),
   reviewCardWorktree: (cardId) => invoke('reviewCardWorktree', cardId),
+  previewPrDraft: (cardId) => invoke('previewPrDraft', cardId),
   previewCardDiff: (cardId) => invoke('previewCardDiff', cardId),
   listReviewComments: (cardId) => invoke('listReviewComments', cardId),
   createReviewComment: (input) => invoke('createReviewComment', input),

@@ -1,0 +1,7 @@
+# PR-Entwurf aus einer Karte
+
+Öffne eine Karte mit isoliertem Git-Worktree und mindestens einem neuen Commit. Unter **PR-Entwurf → Entwurf erstellen** liest Branchloom den aktuellen Kartenauftrag, die Commits im Bereich Ziel-HEAD bis Worktree-HEAD und die geänderten Dateinamen. Der Markdown-Text lässt sich vor **Markdown kopieren** direkt ändern. Beim Kopieren prüft Branchloom erneut, ob die beiden Git-HEADs noch dieselben sind. Es erstellt keinen Pull Request und sendet nichts an GitHub.
+
+Die letzten fünf gespeicherten Browser-QA-Berichte dieser Karte erscheinen als lokale Beobachtungen mit Status, URL, Zeitpunkt und Inhaltsgröße. Sie sind **nicht an einen Commit gebunden**. Ein vorhandener Screenshot bleibt lokal in Branchloom und wird nicht in den PR-Text eingebettet. Automatisierte Tests und Code-Review werden ausdrücklich als nicht nachgewiesen bezeichnet; sie müssen vor einer echten Veröffentlichung geprüft und von der Person im Text ergänzt werden.
+
+Die Vorschau ist begrenzt auf 20 Commit-Betreffzeilen, 60 Dateinamen, 2.000 Zeichen Kartenauftrag und fünf QA-Berichte. Nicht committete Änderungen und Merge-Blocker werden als Hinweise dargestellt, gehören aber nicht zur Commit-Liste. Bei geändertem Git-Stand muss ein neuer Entwurf geladen werden; dabei gehen noch nicht kopierte Textänderungen in diesem Feld verloren. Der erzeugte Text kann private Kartendaten und Pfade enthalten und sollte vor dem Teilen geprüft werden.

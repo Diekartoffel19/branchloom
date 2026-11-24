@@ -57,6 +57,7 @@ export interface TrelloImportCard { sourceId: string; title: string; description
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
 export interface WorktreeReview { cardId: string; path: string; branch: string; targetPath: string; targetBranch: string | null; sourceHead: string; targetHead: string; sourceStatus: string[]; targetStatus: string[]; uncommittedStat: string; committedStat: string; ahead: number; behind: number; canFastForward: boolean; blockers: string[]; previewToken: string }
+export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
 export interface StudioAPI {
   projects(): Promise<Project[]>;
@@ -140,6 +141,7 @@ export interface StudioAPI {
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
   reviewCardWorktree(cardId: string): Promise<WorktreeReview | null>;
+  previewPrDraft(cardId: string): Promise<PrDraftPreview | null>;
   previewCardDiff(cardId: string): Promise<CardDiffPreview | null>;
   listReviewComments(cardId: string): Promise<ReviewComment[]>;
   createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
