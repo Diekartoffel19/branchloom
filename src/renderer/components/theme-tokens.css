@@ -1,0 +1,16 @@
+.theme-tokens { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px; margin-top: 20px; }
+.theme-tokens-head { display: flex; justify-content: space-between; align-items: start; gap: 18px; }
+.theme-tokens-head h3 { margin: 0 0 5px; font-size: 16px; }
+.theme-tokens-head p, .theme-tokens-limit { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0; max-width: 65ch; }
+.theme-tokens-summary { color: var(--text); font-size: 12px; margin: 14px 0 8px; }
+.theme-tokens-notes { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 0 0 12px; padding-left: 18px; }
+.theme-tokens-search { display: block; max-width: 390px; color: var(--soft); font-size: 12px; margin: 12px 0; }
+.theme-tokens-search input { display: block; margin-top: 5px; }
+.theme-tokens-list { list-style: none; padding: 0; margin: 10px 0 0; border-top: 1px solid var(--border); }
+.theme-tokens-list li { display: flex; justify-content: space-between; align-items: center; gap: 14px; border-bottom: 1px solid var(--border); padding: 10px 0; min-width: 0; }
+.theme-tokens-list li > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 14px; min-width: 0; }
+.theme-tokens-list code { overflow-wrap: anywhere; }
+.theme-tokens-list small { color: var(--muted); }
+.theme-tokens-empty { color: var(--muted); font-size: 12px; margin: 10px 0; }
+.theme-tokens-limit { margin-top: 14px; }
+@media (max-width: 640px) { .theme-tokens-head, .theme-tokens-list li { flex-direction: column; align-items: stretch; } .theme-tokens-head button, .theme-tokens-list button { align-self: start; } }

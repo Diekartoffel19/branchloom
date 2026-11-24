@@ -21,6 +21,7 @@ const studio: StudioAPI = {
   discussIdea: (input) => invoke('discussIdea', input),
   convertIdeaToCard: (input) => invoke('convertIdeaToCard', input),
   whiteboard: (projectId) => invoke('whiteboard', projectId),
+  themeTokens: (projectId) => invoke('themeTokens', projectId),
   whiteboardImpact: (input) => invoke('whiteboardImpact', input),
   createCardFromWhiteboardImpact: (input) => invoke('createCardFromWhiteboardImpact', input),
   previewRepoMap: (projectId) => invoke('previewRepoMap', projectId),

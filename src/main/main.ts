@@ -37,6 +37,7 @@ import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
 import { transcribeAudio } from './voice/transcribe';
 import { projectChangelog } from './changelog';
+import { scanThemeTokens } from './theme-tokens';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
@@ -161,6 +162,7 @@ function installIpc(): void {
   bind('discussIdea', (input: Parameters<StudioAPI['discussIdea']>[0]) => discussIdea(db, input));
   bind('convertIdeaToCard', (input: Parameters<StudioAPI['convertIdeaToCard']>[0]) => convertIdeaToCard(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
+  bind('themeTokens', (projectId: string) => scanThemeTokens(db, projectId));
   bind('whiteboardImpact', (input: Parameters<StudioAPI['whiteboardImpact']>[0]) => analyzeWhiteboardImpact(db, input));
   bind('createCardFromWhiteboardImpact', (input: Parameters<StudioAPI['createCardFromWhiteboardImpact']>[0]) => createCardFromWhiteboardImpact(db, input));
   bind('previewRepoMap', (projectId: string) => previewRepoMap(db, projectId));
