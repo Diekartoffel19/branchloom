@@ -3,7 +3,8 @@
 .card-qa .section-copy { margin: 0; }
 .card-qa-form { display: grid; gap: 8px; }
 .card-qa-form label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--soft); }
-.card-qa-form input, .card-qa-form select { min-width: 0; width: 100%; }
+.card-qa-form input, .card-qa-form select, .card-qa-form textarea { min-width: 0; width: 100%; }
+.card-qa-form small { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
 .card-qa-form button { justify-self: start; }
 .card-qa-reports { display: grid; gap: 6px; max-height: 340px; overflow: auto; }
 .card-qa-report { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; background: var(--surface-2); overflow-wrap: anywhere; }

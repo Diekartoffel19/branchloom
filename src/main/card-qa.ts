@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import type Database from 'better-sqlite3';
-import type { BrowserDiagnostic, CardQaReport, CardQaViewport } from '../shared/types';
+import type { BrowserDiagnostic, Card, CardQaBatchResult, CardQaReport, CardQaViewport } from '../shared/types';
 import { diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import type { StudioStore } from './store';
 
@@ -92,16 +92,14 @@ function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | 
   return reportFromRow(saved);
 }
 
-/** An explicit page-load QA pass in a fresh in-memory browser partition. Branchloom itself does not run an agent or write to the checkout; page JavaScript may call its own local server. */
-export async function runCardQa(store: StudioStore, input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport> {
-  const card = store.card(input.cardId);
-  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
-  const url = normalizeCardQaUrl(input.url);
-  if (typeof input.viewport !== 'string' || !Object.hasOwn(VIEWPORTS, input.viewport)) throw new Error('Wähle Desktop, Tablet oder Mobile als Prüfgröße.');
-  const requestedViewport = VIEWPORTS[input.viewport];
-  if (activeCards.has(card.id)) throw new Error('Für diese Karte läuft bereits eine QA-Prüfung.');
+function reserveCard(cardId: string): void {
+  if (activeCards.has(cardId)) throw new Error('Für diese Karte läuft bereits eine QA-Prüfung.');
   if (activeCards.size >= MAX_ACTIVE_QA) throw new Error('Es laufen bereits zwei lokale QA-Prüfungen. Warte auf deren Abschluss.');
-  activeCards.add(card.id);
+  activeCards.add(cardId);
+}
+
+/** An explicit page-load QA pass in a fresh in-memory browser partition. The caller holds one per-card/global reservation. */
+async function runReservedCardQa(store: StudioStore, card: Card, url: string, requestedViewport: { width: number; height: number }): Promise<CardQaReport> {
   const startedAt = new Date().toISOString();
   const diagnostics: BrowserDiagnostic[] = [];
   const origin = new URL(url).origin;
@@ -186,7 +184,42 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
   } finally {
     if (timeout) clearTimeout(timeout);
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
-    activeCards.delete(card.id);
   }
   return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height }, screenshot);
+}
+
+/** One explicit route. The reservation is retained until its report has been stored. */
+export async function runCardQa(store: StudioStore, input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport> {
+  const card = store.card(input.cardId);
+  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+  const url = normalizeCardQaUrl(input.url);
+  if (typeof input.viewport !== 'string' || !Object.hasOwn(VIEWPORTS, input.viewport)) throw new Error('Wähle Desktop, Tablet oder Mobile als Prüfgröße.');
+  reserveCard(card.id);
+  try { return await runReservedCardQa(store, card, url, VIEWPORTS[input.viewport]); }
+  finally { activeCards.delete(card.id); }
+}
+
+/** Explicit sequential check of at most five local routes, holding one card/global slot throughout. */
+export async function runCardQaBatch(store: StudioStore, input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult> {
+  const card = store.card(input.cardId);
+  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+  if (!Array.isArray(input.urls) || input.urls.length < 1 || input.urls.length > 5) throw new Error('Wähle ein bis fünf lokale Routen.');
+  if (typeof input.viewport !== 'string' || !Object.hasOwn(VIEWPORTS, input.viewport)) throw new Error('Wähle Desktop, Tablet oder Mobile als Prüfgröße.');
+  const urls = input.urls.map(normalizeCardQaUrl);
+  if (new Set(urls).size !== urls.length) throw new Error('Jede lokale Route darf im Lauf nur einmal vorkommen.');
+  reserveCard(card.id);
+  const reports: CardQaReport[] = [];
+  let error: string | null = null;
+  try {
+    for (const url of urls) {
+      try {
+        if (store.card(card.id).archivedAt) throw new Error('Karte wurde während der Prüfung archiviert; übrige Routen nicht geprüft.');
+        reports.push(await runReservedCardQa(store, card, url, VIEWPORTS[input.viewport]));
+      } catch (reason) {
+        error = (reason instanceof Error ? reason.message : String(reason)).replaceAll(url, diagnosticSource(url)!).slice(0, 500);
+        break;
+      }
+    }
+  } finally { activeCards.delete(card.id); }
+  return { requested: urls.length, reports, error };
 }

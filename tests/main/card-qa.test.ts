@@ -23,8 +23,8 @@ vi.mock('electron', async () => {
     async loadURL(url: string) {
       this.url = url;
       if (fake.mode === 'slow') return new Promise<void>((resolve) => { fake.releases.push(resolve); });
-      if (fake.mode === 'load-error') throw new Error(`ERR_CONNECTION_REFUSED: ${url}`);
-      if (fake.mode === 'console') this.emit('console-message', { level: 'error', message: 'Synthetic TypeError', sourceId: `${new URL(url).origin}/app.js?token=private`, lineNumber: 7 });
+      if (fake.mode === 'load-error' || url.includes('/broken')) throw new Error(`ERR_CONNECTION_REFUSED: ${url}`);
+      if (fake.mode === 'console' || url.includes('/console')) this.emit('console-message', { level: 'error', message: 'Synthetic TypeError', sourceId: `${new URL(url).origin}/app.js?token=private`, lineNumber: 7 });
       if (fake.mode === 'remote') this.requestHandler?.({ url: 'https://example.invalid/asset.js?token=private' }, () => undefined);
     }
     async capturePage() {
@@ -46,7 +46,7 @@ vi.mock('electron', async () => {
 });
 
 import { StudioStore } from '../../src/main/store';
-import { cardQaReports, cardQaScreenshot, normalizeCardQaUrl, runCardQa } from '../../src/main/card-qa';
+import { cardQaReports, cardQaScreenshot, normalizeCardQaUrl, runCardQa, runCardQaBatch } from '../../src/main/card-qa';
 
 const roots: string[] = [];
 afterEach(() => { for (const release of fake.releases.splice(0)) release(); fake.mode = 'clean'; fake.windows.length = 0; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -63,6 +63,64 @@ function fixture() {
 }
 
 describe('explicit local card QA', () => {
+  it('checks up to five validated local routes in order and keeps each outcome', async () => {
+    const { store, card } = fixture();
+    const urls = ['http://127.0.0.1:5173/first', 'http://127.0.0.1:5173/console', 'http://127.0.0.1:5173/broken', 'http://127.0.0.1:5173/last'];
+    const result = await runCardQaBatch(store, { cardId: card.id, urls, viewport: 'mobile' });
+    expect(result).toMatchObject({ requested: 4, error: null });
+    expect(result.reports.map((item) => item.status)).toEqual(['passed', 'failed', 'error', 'passed']);
+    expect(result.reports.map((item) => item.requestedUrl)).toEqual(urls);
+    expect(result.reports.every((item) => item.viewportWidth === 390 && item.viewportHeight === 844)).toBe(true);
+    expect(new Set(fake.windows.map((item) => item.options.webPreferences.partition)).size).toBe(4);
+    expect(fake.windows.every((item) => item.destroyed)).toBe(true);
+    expect(cardQaReports(store, card.id).map((item) => item.id)).toEqual(result.reports.map((item) => item.id).reverse());
+    expect(store.snapshot(card.projectId).sessions).toEqual([]);
+    store.close();
+  });
+
+  it('validates the entire route list before opening a browser and holds a reservation through the batch', async () => {
+    const { store, project, card } = fixture();
+    const other = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Other' });
+    const third = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Third' });
+    const base = 'http://127.0.0.1:5173/';
+    for (const urls of [[], Array.from({ length: 6 }, (_, index) => `${base}${index}`), [base, 'https://example.invalid/'], [base, base]]) {
+      await expect(runCardQaBatch(store, { cardId: card.id, urls, viewport: 'desktop' })).rejects.toThrow();
+    }
+    await expect(runCardQaBatch(store, { cardId: card.id, urls: [base], viewport: 'wide' as 'desktop' })).rejects.toThrow('Prüfgröße');
+    expect(fake.windows).toHaveLength(0);
+    expect(cardQaReports(store, card.id)).toEqual([]);
+    fake.mode = 'slow';
+    const batch = runCardQaBatch(store, { cardId: card.id, urls: [`${base}one`, `${base}two`], viewport: 'desktop' });
+    expect(fake.releases).toHaveLength(1);
+    await expect(runCardQa(store, { cardId: card.id, url: base, viewport: 'desktop' })).rejects.toThrow('bereits eine QA-Prüfung');
+    const otherRun = runCardQa(store, { cardId: other.id, url: base, viewport: 'desktop' });
+    expect(fake.releases).toHaveLength(2);
+    await expect(runCardQaBatch(store, { cardId: third.id, urls: [base], viewport: 'desktop' })).rejects.toThrow('zwei lokale QA-Prüfungen');
+    fake.mode = 'clean';
+    for (const release of fake.releases.splice(0)) release();
+    expect((await batch).reports).toHaveLength(2);
+    await otherRun;
+    expect((await runCardQa(store, { cardId: third.id, url: base, viewport: 'desktop' })).status).toBe('passed');
+    store.close();
+  });
+
+  it('keeps the first report but skips remaining routes if the card is archived during a batch', async () => {
+    const { store, card } = fixture();
+    fake.mode = 'slow';
+    const batch = runCardQaBatch(store, { cardId: card.id, urls: ['http://127.0.0.1:5173/first', 'http://127.0.0.1:5173/second'], viewport: 'desktop' });
+    expect(fake.releases).toHaveLength(1);
+    store.setCardArchived({ id: card.id, archived: true });
+    fake.mode = 'clean';
+    fake.releases.shift()?.();
+    const result = await batch;
+    expect(result).toMatchObject({ requested: 2, error: expect.stringContaining('archiviert') });
+    expect(result.reports).toHaveLength(1);
+    expect(fake.windows).toHaveLength(1);
+    expect(cardQaReports(store, card.id).map((item) => item.id)).toEqual([result.reports[0]!.id]);
+    store.setCardArchived({ id: card.id, archived: false });
+    expect((await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/retry', viewport: 'desktop' })).status).toBe('passed');
+    store.close();
+  });
   it('validates exact viewport choices before opening a browser and stores measured content sizes', async () => {
     const { store, card } = fixture();
     for (const viewport of ['', 'Desktop', 'mobile-large', '__proto__', 1280, null]) {

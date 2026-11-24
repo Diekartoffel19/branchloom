@@ -55,6 +55,7 @@ export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | n
 export interface BrowserCaptureResult { width: number; height: number }
 export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number }
 export type CardQaViewport = 'desktop' | 'tablet' | 'mobile';
+export interface CardQaBatchResult { requested: number; reports: CardQaReport[]; error: string | null }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
@@ -181,6 +182,7 @@ export interface StudioAPI {
   browserCreateDiagnosticCard(input: { projectId: string; columnId: string; diagnosticId: string; reproduction: string }): Promise<Card>;
   cardQaReports(cardId: string): Promise<CardQaReport[]>;
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
+  runCardQaBatch(input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
   designSelections(projectId: string): Promise<DesignSelection[]>;
   designInspectionState(): Promise<DesignInspectionState>;

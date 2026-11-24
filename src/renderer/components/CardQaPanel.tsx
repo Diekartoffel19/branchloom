@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
-import type { Card, CardQaReport, CardQaViewport } from '../../shared/types';
+import type { Card, CardQaBatchResult, CardQaReport, CardQaViewport } from '../../shared/types';
 import { CardQaComparison } from './CardQaComparison';
 import './card-qa.css';
 
@@ -46,7 +46,9 @@ function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; r
 
 export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: { id: string; token: number } | null }) {
   const [url, setUrl] = useState('');
+  const [extraRoutes, setExtraRoutes] = useState('');
   const [viewport, setViewport] = useState<CardQaViewport>('desktop');
+  const [batchResult, setBatchResult] = useState<CardQaBatchResult | null>(null);
   const [reports, setReports] = useState<CardQaReport[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true); setError(''); setReports([]); setUrl(''); setViewport('desktop');
+    setLoading(true); setError(''); setReports([]); setUrl(''); setExtraRoutes(''); setViewport('desktop'); setBatchResult(null);
     void window.studio.cardQaReports(card.id).then((items) => {
       if (!alive) return;
       setReports(items); setLoading(false);
@@ -78,24 +80,35 @@ export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: {
   async function run(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || card.archivedAt) return;
-    setBusy(true); setError('');
+    const additional = extraRoutes.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+    if (additional.length > 4) { setError('Gib höchstens vier weitere Routen ein.'); return; }
+    setBusy(true); setError(''); setBatchResult(null);
     try {
-      const report = await window.studio.runCardQa({ cardId: card.id, url, viewport });
-      setReports((items) => [report, ...items.filter((item) => item.id !== report.id)].slice(0, 20));
-      setShowLatest(true);
+      if (additional.length) {
+        const result = await window.studio.runCardQaBatch({ cardId: card.id, urls: [url, ...additional], viewport });
+        setBatchResult(result);
+        setReports(await window.studio.cardQaReports(card.id));
+        if (result.reports.length) setShowLatest(true);
+      } else {
+        const report = await window.studio.runCardQa({ cardId: card.id, url, viewport });
+        setReports((items) => [report, ...items.filter((item) => item.id !== report.id)].slice(0, 20));
+        setShowLatest(true);
+      }
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
 
   return <section className="card-qa" aria-label="Lokale Browser-QA">
     <div className="section-heading"><FlaskConical size={19} aria-hidden="true" /><h3>Lokale Browser-QA</h3></div>
-    <p className="section-copy">Prüft nach deinem Klick genau eine lokale Dev-Server-Seite in einem frischen, isolierten Browser. Fremde Anfragen, Pop-ups und Berechtigungen werden blockiert. Es startet kein Agent.</p>
+    <p className="section-copy">Prüft nach deinem Klick eine bis fünf lokale Dev-Server-Routen nacheinander, jede in einem frischen, isolierten Browser. Fremde Anfragen, Pop-ups und Berechtigungen werden blockiert. Es startet kein Agent.</p>
     <form className="card-qa-form" onSubmit={(event) => void run(event)}>
       <label>Vorschau-URL<input type="url" value={url} required maxLength={2048} disabled={busy || Boolean(card.archivedAt)} onChange={(event) => setUrl(event.target.value)} placeholder="http://127.0.0.1:5173/" /></label>
+      <label>Weitere Routen, optional<textarea rows={3} value={extraRoutes} maxLength={8195} disabled={busy || Boolean(card.archivedAt)} onChange={(event) => setExtraRoutes(event.target.value)} placeholder={'http://127.0.0.1:5173/settings\nhttp://127.0.0.1:5173/profile'} /><small>Eine vollständige lokale URL pro Zeile, höchstens vier. Die Prüfung läuft in dieser Reihenfolge.</small></label>
       <label>Prüfgröße<select value={viewport} disabled={busy || Boolean(card.archivedAt)} onChange={(event) => setViewport(event.target.value as CardQaViewport)}><option value="desktop">Desktop · 1280 × 800</option><option value="tablet">Tablet · 768 × 1024</option><option value="mobile">Mobile · 390 × 844</option></select></label>
-      <button className="secondary-button" type="submit" disabled={busy || Boolean(card.archivedAt) || !url.trim()}>{busy ? 'Prüft…' : 'Lokale Seite prüfen'}</button>
+      <button className="secondary-button" type="submit" disabled={busy || Boolean(card.archivedAt) || !url.trim()}>{busy ? 'Prüft…' : extraRoutes.trim() ? 'Lokale Routen prüfen' : 'Lokale Seite prüfen'}</button>
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
+    {batchResult ? <p className="inline-note" role="status">{batchResult.reports.length} von {batchResult.requested} Routen gespeichert · {batchResult.reports.filter((item) => item.status === 'passed').length} ohne erfasste Fehler · {batchResult.reports.filter((item) => item.status === 'failed').length} mit Fehlern · {batchResult.reports.filter((item) => item.status === 'error').length} nicht abgeschlossen.{batchResult.error ? ` Lauf vorzeitig beendet: ${batchResult.error}` : ''}</p> : null}
     {!loading && !showLatest && focusReport && !reports.some((item) => item.id === focusReport.id) ? <p className="inline-note" role="status">Dieser QA-Bericht ist nicht mehr gespeichert.</p> : null}
     {loading ? <p className="section-copy" role="status">Gespeicherte Prüfungen werden geladen…</p> : reports.length === 0 ? <p className="section-copy">Für diese Karte liegt noch kein Browser-QA-Bericht vor.</p> : <div className="card-qa-reports">
       {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === (showLatest ? reports[0]?.id : focusReport?.id ?? reports[0]?.id)} />)}

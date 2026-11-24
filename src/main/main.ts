@@ -7,7 +7,7 @@ import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
-import { cardQaReports, cardQaScreenshot, runCardQa } from './card-qa';
+import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { DesignInspector, designSelections } from './design-inspection';
 import { addCardContextReference, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
@@ -353,6 +353,7 @@ function installIpc(): void {
   });
   bind('cardQaReports', (cardId: string) => cardQaReports(db, cardId));
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
+  bind('runCardQaBatch', (input: Parameters<StudioAPI['runCardQaBatch']>[0]) => runCardQaBatch(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
   bind('designInspectionState', () => designInspector?.state());
@@ -694,6 +695,22 @@ function createWindow(): void {
               [...document.querySelectorAll('.card-qa-comparison-view button')].find((item) => item.textContent?.includes('Vergleich schließen'))?.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.card-qa-comparison-images img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.card-qa-comparison-images img') || document.activeElement !== compareButton) throw new Error('Geschlossener Visual-Diff hielt Bilder oder Fokus nicht korrekt.');
+              const qaExtra = qaForm.querySelector('textarea');
+              const qaExtraSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!qaExtra || !qaExtraSetter) throw new Error('Mehrfach-Routenfeld fehlt im Karten-QA-Formular.');
+              qaExtraSetter.call(qaExtra, ${JSON.stringify(`${qaUrl}second\n${qaUrl}third`)});
+              qaExtra.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !qaButton.textContent?.includes('Lokale Routen prüfen'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!qaButton.textContent?.includes('Lokale Routen prüfen')) throw new Error('Mehrfach-Routenlauf wurde nicht angeboten.');
+              qaButton.click();
+              let batchReports;
+              for (let attempt = 0; attempt < 500; attempt++) {
+                batchReports = await window.studio.cardQaReports(qaCard.id);
+                if (batchReports.length === 5 && document.querySelector('.card-qa [role="status"]')?.textContent?.includes('3 von 3 Routen gespeichert')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (batchReports?.length !== 5 || !batchReports.some((item) => item.requestedUrl.endsWith('/second')) || !batchReports.some((item) => item.requestedUrl.endsWith('/third')) || !document.querySelector('.card-qa [role="status"]')?.textContent?.includes('3 von 3 Routen gespeichert')) throw new Error('Mehrfach-Routenlauf speicherte oder zeigte nicht alle drei QA-Berichte.');
+              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Mehrfach-Routenlauf startete einen Agenten.');
               const contextForm = document.querySelector('.card-drawer .card-context-form');
               const contextInput = contextForm?.querySelector('input');
               if (!contextForm || !contextInput) throw new Error('Karten-Kontextformular fehlt.');

@@ -131,6 +131,7 @@ const studio: StudioAPI = {
   browserCreateDiagnosticCard: (input) => invoke('browserCreateDiagnosticCard', input),
   cardQaReports: (cardId) => invoke('cardQaReports', cardId),
   runCardQa: (input) => invoke('runCardQa', input),
+  runCardQaBatch: (input) => invoke('runCardQaBatch', input),
   cardQaScreenshot: (input) => invoke('cardQaScreenshot', input),
   designSelections: (projectId) => invoke('designSelections', projectId),
   designInspectionState: () => invoke('designInspectionState'),
