@@ -21,6 +21,10 @@ Für eine andere Python-Installation oder einen anderen Modellordner:
 
 Der Modellpfad muss absolut und außerhalb des Repositories liegen. Das Skript setzt `JARVIS_STUDIO_PYTHON` und `JARVIS_STUDIO_WHISPER_MODEL_DIR` für die aktuelle PowerShell und gibt die beiden Befehle für ein späteres Terminal aus. Es liest und speichert keine API-Schlüssel.
 
+### Portables Windows-ZIP
+
+Entpacke das ZIP in einen Ordner, in den du schreiben kannst. Öffne PowerShell im Ordner mit `Branchloom.exe` und führe `.\resources\app\scripts\setup-voice.ps1` aus. Das Skript liegt im Paket unter `resources/app/scripts`; seine `.venv` entsteht unter `resources/app/.venv`. Das gepackte Branchloom findet diese Python-Umgebung und den Modellordner beim nächsten Start auch dann, wenn du die EXE aus dem Explorer öffnest. Ein erneutes Entpacken in denselben Ordner kann die lokale `.venv` überschreiben; das Modell bleibt im lokalen App-Datenordner.
+
 Im Fenster Mikrofonzugriff erlauben, Aufnahme starten, sprechen und Aufnahme beenden. Der erkannte Text erscheint zur Prüfung im Eingabefeld. Ein leerer oder unverständlicher Clip führt zu einem sichtbaren Fehler. Clips über 8 MiB oder 60 Sekunden werden abgelehnt; der Python-Prozess hat ein Zeitlimit von zwei Minuten.
 
 Unter **Design** kannst du nach der Auswahl eines gespeicherten lokalen Elements **Wunsch als Karte vorbereiten** öffnen. Die Aufnahme startet erst mit **Wunsch aufnehmen**. Nach **Aufnahme beenden** erscheint die lokale Transkription in einem bearbeitbaren Feld; alternativ kannst du den Wunsch direkt eintippen. Erst der Klick auf **Karte mit Beleg speichern** speichert eine Board-Karte und den zuvor geprüften Design-Beleg. Mikrofonablehnung, leere Aufnahme und fehlendes Modell zeigen einen Fehler; ein ungespeicherter Entwurf kann verworfen werden. Das Aufnehmen allein startet keinen Agenten.

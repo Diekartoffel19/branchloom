@@ -4,6 +4,8 @@ Branchloom ist eine lokale Windows-App für Ideen, Projekte, Kanban-Boards, CLI-
 
 ## Starten
 
+Wenn du Branchloom nur benutzen möchtest, öffne die [Windows-CI-Läufe](https://github.com/mschr703/branchloom/actions/workflows/ci.yml), wähle einen **grünen Lauf auf `main`** und lade unter **Artifacts** `branchloom-windows-portable` herunter. Entpacke zuerst das GitHub-Artefakt und dann das darin liegende ZIP. Im zweiten entpackten Ordner startest du `Branchloom.exe`. Dafür sind Node.js und Visual-Studio-Build-Tools nicht nötig; das Paket ist derzeit unsigniert. [Details zum Paket](docs/RELEASE.md).
+
 Voraussetzungen für den Quellstart: Windows 11, Node.js 24 und Git. Falls `npm ci` native Module nicht als fertige Binärdatei beziehen kann, werden Visual Studio Build Tools mit C++-Toolchain benötigt; die [Release-Anleitung](docs/RELEASE.md) beschreibt den portablen CI-Build ohne lokale Quellkompilierung. Für Agenten muss die jeweilige CLI separat installiert und angemeldet sein; **Codex CLI** ist auf dem Entwicklungslaptop geprüft. Spracheingabe ist optional und benötigt Python 3.13 und ein lokales Whisper-Modell.
 
 ```powershell
