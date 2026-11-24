@@ -1434,8 +1434,12 @@ function createWindow(): void {
               if (![...(wireframe?.querySelectorAll('button') ?? [])].some((button) => button.textContent?.includes('Mit Agent vorschlagen'))) throw new Error('Optionaler Agentenvorschlag fehlt.');
               const beforeSessions = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.length;
               starter.click();
-              for (let attempt = 0; attempt < 100 && !wireframe?.querySelector('.task-wireframe-canvas'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche.');
+              for (let attempt = 0; attempt < 200; attempt++) {
+                wireframe = document.querySelector('.task-wireframe');
+                if (wireframe?.querySelector('.task-wireframe-canvas')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche. Sichtbarer Entwurfszustand: ' + (wireframe?.textContent?.trim().slice(0, 240) ?? 'keine Wireframe-Ansicht'));
               const premature = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} });
               if (premature !== null) throw new Error('Fenstergerüst wurde vor dem ausdrücklichen Speichern in SQLite angelegt.');
               wireframe.querySelectorAll('.task-wireframe-layers li button')[1]?.click();
