@@ -1673,11 +1673,11 @@ function createWindow(): void {
               const themeButton = document.querySelector('.theme-toggle');
               if (!(themeButton instanceof HTMLButtonElement)) throw new Error('Theme-Schalter fehlt.');
               themeButton.click();
-              for (let attempt = 0; attempt < 100 && document.documentElement.dataset.theme === themeBefore; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (document.documentElement.dataset.theme === themeBefore || getComputedStyle(element).color === computedBefore || element.style.color !== 'var(--text)') throw new Error('Wireframe-Textfarbe folgt dem Themewechsel nicht.');
+              for (let attempt = 0; attempt < 100 && (document.documentElement.dataset.theme === themeBefore || getComputedStyle(element).color === computedBefore || element.style.color !== 'var(--text)'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.documentElement.dataset.theme === themeBefore || getComputedStyle(element).color === computedBefore || element.style.color !== 'var(--text)') throw new Error('Wireframe-Textfarbe folgt dem Themewechsel nicht: ' + JSON.stringify({ themeBefore, themeAfter: document.documentElement.dataset.theme, computedBefore, computedAfter: getComputedStyle(element).color, inlineColor: element.style.color }));
               themeButton.click();
-              for (let attempt = 0; attempt < 100 && document.documentElement.dataset.theme !== themeBefore; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (document.documentElement.dataset.theme !== themeBefore || getComputedStyle(element).color !== computedBefore) throw new Error('Wireframe-Textfarbe wurde nach Theme-Rückkehr nicht wiederhergestellt.');
+              for (let attempt = 0; attempt < 100 && (document.documentElement.dataset.theme !== themeBefore || getComputedStyle(element).color !== computedBefore); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.documentElement.dataset.theme !== themeBefore || getComputedStyle(element).color !== computedBefore) throw new Error('Wireframe-Textfarbe wurde nach Theme-Rückkehr nicht wiederhergestellt: ' + JSON.stringify({ themeBefore, themeAfter: document.documentElement.dataset.theme, computedBefore, computedAfter: getComputedStyle(element).color }));
               const addEllipse = [...wireframe.querySelectorAll('.task-wireframe-toolbar button')].find((item) => item.textContent?.trim() === 'Ellipse');
               const addLine = [...wireframe.querySelectorAll('.task-wireframe-toolbar button')].find((item) => item.textContent?.trim() === 'Linie');
               if (!(addEllipse instanceof HTMLButtonElement) || !(addLine instanceof HTMLButtonElement)) throw new Error('Formenwerkzeuge fehlen.');
