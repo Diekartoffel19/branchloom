@@ -48,6 +48,8 @@ Workflows und Karten werden in SQLite gespeichert. Wenn die App während eines l
 
 Auf jeder Workflow-Karte öffnet **Schrittverlauf ansehen** den gespeicherten Fortschritt je Karte und eine verknüpfte Agentensitzung mit getrenntem Status und Exit-Code. Die Ansicht ist lesend und auf 200 Einträge begrenzt; Karte und Sitzung lassen sich gezielt öffnen. [Details](docs/WORKFLOW_STEPS.md).
 
+Im **Design-Modus** lässt sich zu einem gespeicherten lokalen Element ein Änderungswunsch aufnehmen oder eintippen. Das lokale Transkript bleibt vor dem Speichern bearbeitbar. Erst die Bestätigung legt eine Karte mit geprüftem Elementbeleg an; ein Agent startet dadurch nicht. [Details](docs/DESIGN_INSPECTION.md).
+
 ## Prüfen
 
 ```powershell

@@ -1347,6 +1347,7 @@ function createWindow(): void {
               const entry = evidence?.querySelector('.design-voice-entry button');
               if (!entry || entry.disabled) throw new Error('Design-Wunsch ist nicht bedienbar.');
               const before = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).cards.length;
+              const beforeSessions = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.map((item) => item.id).sort();
               entry.click();
               for (let attempt = 0; attempt < 100 && !evidence?.querySelector('.design-voice-task'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               let form = evidence?.querySelector('.design-voice-task');
@@ -1371,7 +1372,7 @@ function createWindow(): void {
               if (!form.textContent?.includes('Karte mit diesem Design-Beleg gespeichert')) throw new Error('Design-Karte wurde nicht sichtbar bestätigt: ' + form.textContent);
               const snapshot = await window.studio.snapshot(${JSON.stringify(smokeProject.id)});
               const card = snapshot.cards.find((item) => item.description === 'Make the selected button easier to see.');
-              if (!card || snapshot.cards.length !== before + 1 || snapshot.sessions.length !== 1) throw new Error('Design-Karte fehlte oder startete einen Agenten.');
+              if (!card || snapshot.cards.length !== before + 1 || JSON.stringify(snapshot.sessions.map((item) => item.id).sort()) !== JSON.stringify(beforeSessions)) throw new Error('Design-Karte fehlte oder startete einen Agenten.');
               const refs = await window.studio.cardContextReferences(card.id);
               if (refs.length !== 1 || refs[0].kind !== 'design' || !refs[0].available) throw new Error('Design-Karte hat keinen überprüften Beleg.');
               return true;
