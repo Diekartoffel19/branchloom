@@ -27,6 +27,26 @@ const panel: WireframeElement = { id: 'drawer', kind: 'panel', x: 400, y: 100, w
 const interaction: WireframeInteraction = { triggerElementId: 'open', panelElementId: 'drawer', trigger: 'click', action: 'toggle-panel', durationMs: 240, enterOffsetPx: 24, closedOpacity: 0, reducedMotionDurationMs: 0, focusOnOpen: 'panel', focusOnClose: 'trigger' };
 
 describe('task-linked wireframes', () => {
+  it('accepts hover and focus as new triggers without changing a previously approved click revision', () => {
+    const { dbFile, store, key } = fixture();
+    const elements = [button, panel];
+    const click = saveCardWireframe(store, { ...key, title: 'Interaction', elements, interaction, expectedRevision: 0 });
+    approveCardWireframe(store, { ...key, expectedRevision: click.revision });
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)).toMatchObject({ revision: 1, approvedRevision: 1, interaction: { trigger: 'click' } });
+    expect(saveCardWireframe(reopened, { ...key, title: click.title, elements, interaction, expectedRevision: 1 })).toMatchObject({ revision: 1, approvedRevision: 1 });
+    expect(() => saveCardWireframe(reopened, { ...key, title: click.title, elements, interaction: { ...interaction, trigger: 'drag' as never }, expectedRevision: 1 })).toThrow('Interaktionsauslöser');
+    for (const trigger of ['hover', 'focus'] as const) {
+      const current = cardWireframe(reopened, key)!;
+      const changed = saveCardWireframe(reopened, { ...key, title: click.title, elements, interaction: { ...interaction, trigger }, expectedRevision: current.revision });
+      expect(changed).toMatchObject({ revision: current.revision + 1, approvedRevision: null, interaction: { trigger } });
+      expect(approvedCardWireframeContext(reopened, key)).toBe('');
+      approveCardWireframe(reopened, { ...key, expectedRevision: changed.revision });
+      expect(approvedCardWireframeContext(reopened, key)).toContain(`"trigger":"${trigger}"`);
+    }
+    reopened.close();
+  });
   it('persists an interaction, gates its agent context by exact revision, and checks references and focus', () => {
     const { dbFile, store, key } = fixture();
     const elements = [button, panel];

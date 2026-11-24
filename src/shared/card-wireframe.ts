@@ -53,7 +53,7 @@ export interface WireframeElement {
 export interface WireframeInteraction {
   triggerElementId: string;
   panelElementId: string;
-  trigger: 'click';
+  trigger: 'click' | 'hover' | 'focus';
   action: 'toggle-panel';
   durationMs: number;
   enterOffsetPx: number;

@@ -2467,6 +2467,50 @@ function createWindow(): void {
               return true;
             })()`);
             if (!approvedCardWireframeContext(smokeStore, { projectId: smokeProject.id, cardId: smokeCard.id }).includes('"durationMs":240')) throw new Error('Freigegebene Interaktion fehlt im Agentenkontext.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.task-wireframe select[aria-label="Interaktion Auslösung"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              const editor = document.querySelector('.task-wireframe');
+              const mode = editor?.querySelector('select[aria-label="Interaktion Auslösung"]');
+              const preview = editor?.querySelector('.wireframe-interaction-preview');
+              const trigger = preview?.querySelector('button');
+              const panel = preview?.querySelector('.wireframe-interaction-panel');
+              const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!(mode instanceof HTMLSelectElement) || !(preview instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement) || !(panel instanceof HTMLElement) || !setSelect) throw new Error('Interaktions-Auswahl oder Vorschau fehlt.');
+              setSelect.call(mode, 'hover'); mode.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !editor?.querySelector('.wireframe-interaction-timing')?.textContent?.includes('Zeigerkontakt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (!editor?.querySelector('.wireframe-interaction-timing')?.textContent?.includes('Zeigerkontakt')) throw new Error('Hover-Modus wurde nicht übernommen.');
+              trigger.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
+              for (let attempt = 0; attempt < 100 && (!panel.classList.contains('is-open') || document.activeElement !== panel); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (!panel.classList.contains('is-open') || document.activeElement !== panel) throw new Error('Zeigerkontakt öffnete die Fläche nicht mit Panel-Fokus.');
+              preview.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse', relatedTarget: document.body }));
+              for (let attempt = 0; attempt < 100 && (panel.classList.contains('is-open') || document.activeElement !== trigger); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (panel.classList.contains('is-open') || document.activeElement !== trigger) throw new Error('Verlassen der Hover-Vorschau schloss die Fläche nicht mit Fokusrückgabe.');
+              setSelect.call(mode, 'focus'); mode.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !editor?.querySelector('.wireframe-interaction-timing')?.textContent?.includes('Fokus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (!editor?.querySelector('.wireframe-interaction-timing')?.textContent?.includes('Fokus')) throw new Error('Fokus-Modus wurde nicht übernommen.');
+              const outside = mode;
+              outside.focus(); trigger.focus();
+              // Hidden Electron smoke windows can update activeElement without firing focusin.
+              // Deliver the browser event that React uses for the focus trigger.
+              trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: outside }));
+              for (let attempt = 0; attempt < 100 && (!panel.classList.contains('is-open') || document.activeElement !== panel); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (!panel.classList.contains('is-open') || document.activeElement !== panel) throw new Error('Tastaturfokus öffnete die Fläche nicht: ' + JSON.stringify({ mode: mode.value, timing: editor?.querySelector('.wireframe-interaction-timing')?.textContent, active: document.activeElement?.outerHTML.slice(0, 230), panelOpen: panel.classList.contains('is-open') }));
+              outside.focus();
+              panel.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
+              for (let attempt = 0; attempt < 100 && panel.classList.contains('is-open'); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (panel.classList.contains('is-open') || document.activeElement !== outside) throw new Error('Tab aus der Fokus-Vorschau erzeugte eine Fokusfalle.');
+              trigger.focus(); trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: outside }));
+              for (let attempt = 0; attempt < 100 && document.activeElement !== panel; attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              for (let attempt = 0; attempt < 100 && (panel.classList.contains('is-open') || document.activeElement !== trigger); attempt++) await new Promise((resolve) => setTimeout(resolve, 30));
+              if (panel.classList.contains('is-open') || document.activeElement !== trigger) throw new Error('Escape gab Fokus nicht zurück oder öffnete die Fläche erneut.');
+              trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: panel }));
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              if (panel.classList.contains('is-open')) throw new Error('Fokus-Auslöser öffnete nach Escape sofort wieder.');
+              const stored = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} });
+              if (stored?.revision !== 2 || stored.interaction?.trigger !== 'click') throw new Error('Trigger-Wechsel überschrieb die freigegebene Click-Fassung vor dem Speichern.');
+              return true;
+            })()`);
             await designInspector!.smokeClick('#design-smoke-target');
             let saved = false;
             for (let attempt = 0; attempt < 100; attempt++) {

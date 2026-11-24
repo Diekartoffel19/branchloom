@@ -9,6 +9,16 @@ const panel: WireframeElement = { id: 'panel', kind: 'panel', x: 200, y: 20, wid
 const interaction: WireframeInteraction = { triggerElementId: 'open', panelElementId: 'panel', trigger: 'click', action: 'toggle-panel', durationMs: 240, enterOffsetPx: 24, closedOpacity: 0, reducedMotionDurationMs: 0, focusOnOpen: 'panel', focusOnClose: 'trigger' };
 
 describe('wireframe interaction editor', () => {
+  it('keeps the saved click mode and exposes hover and keyboard focus with their closing rules', () => {
+    const render = (trigger: WireframeInteraction['trigger']) => renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, panel], interaction: { ...interaction, trigger }, disabled: false, onChange: () => undefined }));
+    expect(render('click')).toContain('<option value="click" selected="">Klick</option>');
+    const hover = render('hover');
+    expect(hover).toContain('<option value="hover" selected="">Zeigerkontakt</option>');
+    expect(hover).toContain('Verlassen der Vorschau schließt die Fläche');
+    const focus = render('focus');
+    expect(focus).toContain('<option value="focus" selected="">Tastaturfokus</option>');
+    expect(focus).toContain('Tab aus der Vorschau schließt ohne Fokusfalle');
+  });
   it('offers only a valid button and panel pair and renders the stored timing and focus requirements', () => {
     const empty = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button], interaction: null, disabled: false, onChange: () => undefined }));
     expect(empty).toContain('Für eine Interaktion brauchst du');
