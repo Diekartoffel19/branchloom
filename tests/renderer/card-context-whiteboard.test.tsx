@@ -11,12 +11,13 @@ const nodes: WhiteboardNode[] = [
 ];
 
 describe('Whiteboard context source list', () => {
-  it('offers drag and a keyboard button only for persisted file boxes', () => {
+  it('offers drag and a keyboard button for persisted file and folder boxes', () => {
     const html = renderToStaticMarkup(createElement(WhiteboardContextSourceList, { nodes, disabled: false, onPrepare: () => undefined }));
-    expect(html).toContain('draggable="true"');
-    expect(html).toContain('Vorbereiten');
+    expect(html.match(/draggable="true"/g)).toHaveLength(2);
+    expect(html.match(/Vorbereiten/g)).toHaveLength(2);
     expect(html).toContain('docs/guide.md');
-    expect(html).not.toContain('Folder');
+    expect(html).toContain('Ordner · docs');
+    expect(html).toContain('Folder');
     expect(html).not.toContain('Task');
   });
 

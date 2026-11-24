@@ -861,6 +861,35 @@ function createWindow(): void {
               whiteboardKeyboardButton.click();
               for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Whiteboard-Datei „src/widget.ts“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.cardContextReferences(qaCard.id)).length !== 3 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Whiteboard-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
+              const contextFolderNode = await window.studio.createWhiteboardNode({ projectId: boardProject.id, title: 'Smoke-Ordnerbox', x: 40, y: 40, reference: { kind: 'folder', path: 'src' } });
+              [...whiteboardDetails.querySelectorAll('button')].find((item) => item.textContent?.includes('Whiteboard neu laden'))?.click();
+              let folderSource;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                folderSource = [...whiteboardDetails.querySelectorAll('.card-context-whiteboard-source[draggable="true"]')].find((item) => item.textContent?.includes('Smoke-Ordnerbox'));
+                if (folderSource) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!folderSource?.textContent?.includes('Ordner · src')) throw new Error('Whiteboard-Ordnerbox fehlt als Kartenkontextquelle.');
+              const folderTransfer = new DataTransfer();
+              folderSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: folderTransfer }));
+              if (folderTransfer.getData('application/x-branchloom-whiteboard-file') !== contextFolderNode.id) throw new Error('Whiteboard-Ordner-Drag enthält nicht nur die Box-ID.');
+              dropTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: folderTransfer }));
+              for (let attempt = 0; attempt < 100 && (contextInput.value !== 'src' || !dropTarget.textContent?.includes('Whiteboard-Ordner „src“ vorbereitet')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (contextInput.value !== 'src' || !dropTarget.textContent?.includes('Whiteboard-Ordner „src“ vorbereitet') || dropTarget.querySelector('select')?.value !== 'folder') throw new Error('Ordner-Drop füllte den geprüften Entwurf nicht.');
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 3) throw new Error('Ordner-Drop speicherte ohne Bestätigung.');
+              contextButton.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.cardContextReferences(qaCard.id)).length !== 4; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const folderRef = (await window.studio.cardContextReferences(qaCard.id)).find((item) => item.kind === 'folder' && item.target === 'src');
+              if (!folderRef?.available) throw new Error('Bestätigte Whiteboard-Ordnerquelle wurde nicht gespeichert.');
+              const folderListItem = [...dropTarget.querySelectorAll('.card-context-list li')].find((item) => item.textContent?.includes('Projektordner, Inhalt nicht gelesen'));
+              folderListItem?.querySelector('button.secondary-button')?.click();
+              for (let attempt = 0; attempt < 100 && !folderListItem?.textContent?.includes('Inhalte wurden nicht gelesen'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!folderListItem?.textContent?.includes('Inhalte wurden nicht gelesen')) throw new Error('Ordner-Vorschau las Inhalte oder fehlte.');
+              const folderKeyboardButton = [...whiteboardDetails.querySelectorAll('li')].find((item) => item.textContent?.includes('Smoke-Ordnerbox'))?.querySelector('button');
+              if (!folderKeyboardButton) throw new Error('Whiteboard-Ordner hat keine Tastaturalternative.');
+              folderKeyboardButton.click();
+              for (let attempt = 0; attempt < 100 && !dropTarget.textContent?.includes('Whiteboard-Ordner „src“ vorbereitet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 4 || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Ordner-Tastaturvorbereitung änderte Daten oder startete einen Agenten.');
               const outputPanel = document.querySelector('.card-drawer .output-errors');
               for (let attempt = 0; attempt < 100 && !outputPanel?.querySelector('form'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const outputForm = outputPanel?.querySelector('form');

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
@@ -63,6 +63,25 @@ describe('explicit card context references', () => {
     expect(cardContextReferences(reopened, card.id)).toHaveLength(2);
     expect(cardContextReferences(reopened, other.id)).toEqual([]);
     reopened.close();
+  });
+
+  it('saves a project folder without reading files and rejects moved or linked folders', () => {
+    const { store, repo, root, card } = fixture();
+    const [folder] = addCardContextReference(store, { cardId: card.id, kind: 'folder', target: 'docs' });
+    expect(folder).toMatchObject({ kind: 'folder', target: 'docs', available: true });
+    expect(previewCardContextReference(store, { cardId: card.id, referenceId: folder!.id })).toMatchObject({ text: null, note: expect.stringContaining('nicht gelesen') });
+    expect(() => addCardContextReference(store, { cardId: card.id, kind: 'folder', target: 'docs/guide.md' })).toThrow('echter Ordner');
+    const outside = join(root, 'outside'); mkdirSync(outside);
+    symlinkSync(outside, join(repo, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => addCardContextReference(store, { cardId: card.id, kind: 'folder', target: 'escape' })).toThrow('Pfadverknüpfung');
+    symlinkSync(join(repo, 'docs'), join(repo, 'docs-link'), process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => addCardContextReference(store, { cardId: card.id, kind: 'folder', target: 'docs-link' })).toThrow('Pfadverknüpfung');
+    mkdirSync(join(repo, 'docs', 'nested'));
+    expect(() => addCardContextReference(store, { cardId: card.id, kind: 'folder', target: 'docs-link/nested' })).toThrow('Pfadverknüpfung');
+    rmSync(join(repo, 'docs'), { recursive: true });
+    expect(cardContextReferences(store, card.id)[0]?.available).toBe(false);
+    expect(() => previewCardContextReference(store, { cardId: card.id, referenceId: folder!.id })).toThrow('nicht gefunden');
+    store.close();
   });
 
   it('rejects path escape, absolute path, missing files and invalid URLs without saving', () => {
