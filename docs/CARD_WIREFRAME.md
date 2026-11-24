@@ -4,6 +4,8 @@ Der Designbereich kann einen einfachen App-Fensterentwurf mit einer Board-Karte 
 
 Mit **Arbeitsfläche vergrößern** öffnet sich ein Fokusmodus über der normalen Arbeitsansicht: Ebenen links, Zeichenfläche in der Mitte und Eigenschaften rechts. Auf schmalen Fenstern stehen die Bereiche untereinander. **Zur Design-Inspektion** führt ohne Speichern oder Verlust des ungespeicherten Entwurfs zurück. Der Wechsel ist eine Ansichtseinstellung und erzeugt keine neue Kartenrevision. Während einer laufenden Elementauswahl oder Vorschau-Aktion ist der Einstieg gesperrt. Eine geladene lokale Live-Vorschau bleibt beim Wechsel erhalten; ihre native Fensterfläche wird im Fokusmodus ausgeblendet und bei Rückkehr zur sichtbaren Vorschau wieder eingebunden.
 
+Im Fokusmodus zeigen drei Mini-Zeichenflächen Desktop, Tablet und Mobile gleichzeitig mit Größe und Anzahl der vorhandenen Elemente. Eine fehlende Variante ist ausdrücklich als leer markiert. Klicke eine Mini-Zeichenfläche an oder fokussiere sie mit Tab und drücke Enter oder Leertaste, um sie darunter zu bearbeiten. Die Miniaturen sind nur eine Übersicht; Auswahl und Bearbeitung erfolgen auf der großen Fläche. Der Wechsel speichert nichts und ändert keine Freigabe. Im schmalen Fenster bleiben die drei Miniaturen nebeneinander und die Bearbeitungsbereiche darunter gestapelt.
+
 ## Ablauf
 
 Die Werkzeugleiste bietet außerdem Ellipsen und diagonale Linien. Beide Formen sind eigene Ebenen ohne Text; die Richtung einer Linie lässt sich im Inspector umstellen. Sie können auf Desktop, Tablet und Mobile bewegt, in der Größe geändert, gespeichert und freigegeben werden.

@@ -6,10 +6,11 @@ import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_THEME_COLORS, WIREFRAM
 import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition, wireframePreviewFontSize } from './wireframe-editing';
 import { copyDesktopToArtboard } from './wireframe-artboards';
 import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection, type WireframeAlignment } from './wireframe-selection';
+import { WireframeArtboardOverview } from './WireframeArtboardOverview';
 import './task-wireframe.css';
 
 interface Draft { title: string; elements: WireframeElement[]; artboards: CardWireframe['artboards'] }
-interface Props { projectId: string; cards: Card[]; startCardId?: string | null; focusMode: boolean; canEnterFocus: boolean; onFocusModeChange: (focus: boolean) => void }
+interface Props { projectId: string; cards: Card[]; startCardId?: string | null; focusMode: boolean; focusPending?: boolean; canEnterFocus: boolean; onFocusModeChange: (focus: boolean) => void }
 const unsavedDrafts = new Map<string, Draft>();
 const lastSelectedCard = new Map<string, string>();
 const draftKey = (projectId: string, cardId: string): string => JSON.stringify([projectId, cardId]);
@@ -52,7 +53,7 @@ export function starterWireframe(card: Pick<Card, 'title'>): Draft {
   ] };
 }
 
-export function TaskWireframeEditor({ projectId, cards, startCardId = null, focusMode, canEnterFocus, onFocusModeChange }: Props) {
+export function TaskWireframeEditor({ projectId, cards, startCardId = null, focusMode, focusPending = false, canEnterFocus, onFocusModeChange }: Props) {
   const initialCardId = [startCardId, lastSelectedCard.get(projectId)].find((id) => id && cards.some((card) => card.id === id)) ?? '';
   const [cardId, setCardId] = useState(initialCardId);
   const [saved, setSaved] = useState<CardWireframe | null>(null);
@@ -100,6 +101,11 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     if (!draft || interactionLocked.current || draft.artboards[target] === undefined) return;
     const next = { ...draft.artboards }; delete next[target];
     edit({ ...draft, artboards: next }); setSelectedId(null);
+  }
+
+  function switchArtboard(target: WireframeArtboard) {
+    drag.current = null; resize.current = null;
+    setArtboard(target); setSelectedId(null); setGeometryDraft(null); setStyleNumberDraft(null);
   }
 
   function resetHistory() { past.current = []; future.current = []; setHistoryRevision((value) => value + 1); }
@@ -294,7 +300,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   }
 
   return <section className={`task-wireframe${focusMode ? ' is-focused' : ''}`} aria-label="Wireframe-Entwurf">
-    <div className="task-wireframe-head"><div><h2>Wireframe zur Aufgabe</h2><p>Entwirf ein App-Fenster vor dem Coding. Nur eine ausdrücklich freigegebene gespeicherte Version geht als Layoutkontext an spätere Agentenläufe.</p></div><button type="button" className="secondary-button task-wireframe-focus-toggle" aria-pressed={focusMode} disabled={!focusMode && (!card || !canEnterFocus)} title={!focusMode && !canEnterFocus ? 'Beende zuerst die laufende Design-Auswahl oder Vorschau-Aktion.' : undefined} onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Zur Design-Inspektion' : 'Arbeitsfläche vergrößern'}</button></div>
+    <div className="task-wireframe-head"><div><h2>Wireframe zur Aufgabe</h2><p>Entwirf ein App-Fenster vor dem Coding. Nur eine ausdrücklich freigegebene gespeicherte Version geht als Layoutkontext an spätere Agentenläufe.</p></div><button type="button" className="secondary-button task-wireframe-focus-toggle" aria-pressed={focusMode} disabled={focusPending || (!focusMode && (!card || !canEnterFocus))} title={!focusMode && !canEnterFocus ? 'Beende zuerst die laufende Design-Auswahl oder Vorschau-Aktion.' : undefined} onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Zur Design-Inspektion' : 'Arbeitsfläche vergrößern'}</button></div>
     <div className="task-wireframe-source">
       <label>Aufgabe<select aria-label="Aufgabe für Wireframe auswählen" value={cardId} disabled={dirty || busy} onChange={(event) => { setLoading(Boolean(event.target.value)); setSaved(null); setDraft(null); if (event.target.value) lastSelectedCard.set(projectId, event.target.value); else lastSelectedCard.delete(projectId); setCardId(event.target.value); }}><option value="">Karte auswählen</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.title}{item.archivedAt ? ' · archiviert' : ''}</option>)}</select></label>
       {dirty ? <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (cardId) { unsavedDrafts.delete(draftKey(projectId, cardId)); void load(cardId); } }}>Änderungen verwerfen</button> : null}
@@ -302,7 +308,8 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="task-wireframe-notice" role="status">{notice}</p> : null}
     {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-empty"><p>Für „{card.title}“ gibt es noch keinen Wireframe.</p><button type="button" className="primary-button" disabled={busy} onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button><button type="button" className="secondary-button" disabled={busy} onClick={() => edit({ title: card.title.slice(0, 100), elements: [], artboards: {} })}>Leere Fläche beginnen</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button><small>Die Vorlage ist lokal und deterministisch. Der optionale Agentenvorschlag nutzt den gewählten Codex-Workflow-Agenten lesend und bleibt bis zum Speichern ungespeichert.</small></div> : <>
-      <div className="task-wireframe-artboard-switch" role="group" aria-label="Wireframe-Zeichenfläche">{(Object.keys(WIREFRAME_ARTBOARDS) as WireframeArtboard[]).map((name) => <button key={name} type="button" className={artboard === name ? 'active' : ''} aria-pressed={artboard === name} disabled={busy} onClick={() => { drag.current = null; resize.current = null; setArtboard(name); setSelectedId(null); setGeometryDraft(null); setStyleNumberDraft(null); }}>{WIREFRAME_ARTBOARDS[name].label}<small>{WIREFRAME_ARTBOARDS[name].width} × {WIREFRAME_ARTBOARDS[name].height}{name !== 'desktop' && draft.artboards[name] === undefined ? ' · fehlt' : ''}</small></button>)}</div>
+      {focusMode ? <WireframeArtboardOverview elements={draft.elements} artboards={draft.artboards} active={artboard} disabled={busy} onSelect={switchArtboard} />
+        : <div className="task-wireframe-artboard-switch" role="group" aria-label="Wireframe-Zeichenfläche">{(Object.keys(WIREFRAME_ARTBOARDS) as WireframeArtboard[]).map((name) => <button key={name} type="button" className={artboard === name ? 'active' : ''} aria-pressed={artboard === name} disabled={busy} onClick={() => switchArtboard(name)}>{WIREFRAME_ARTBOARDS[name].label}<small>{WIREFRAME_ARTBOARDS[name].width} × {WIREFRAME_ARTBOARDS[name].height}{name !== 'desktop' && draft.artboards[name] === undefined ? ' · fehlt' : ''}</small></button>)}</div>}
       {artboard !== 'desktop' && elements === undefined ? <div className="task-wireframe-empty task-wireframe-variant-empty"><p>Für {canvas.label} gibt es noch keinen eigenen Entwurf. Desktop bleibt unverändert.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => createArtboard(artboard, true)}>Desktop als Ausgangspunkt kopieren</button><button type="button" className="secondary-button" disabled={busy} onClick={() => createArtboard(artboard, false)}>Leere Zeichenfläche beginnen</button><small>Die Kopie passt nur Breiten an. Sie ist kein automatisch responsives Layout; prüfe die Anordnung selbst.</small></div> : null}
       <div className="task-wireframe-toolbar"><span>Element hinzufügen</span>{(['panel', 'text', 'button', 'field', 'ellipse', 'line'] as const).map((kind) => <button key={kind} type="button" className="secondary-button small" disabled={busy || !elements || elements.length >= 40} onClick={() => addElement(kind)}>{kind === 'ellipse' ? <Circle size={14} aria-hidden="true" /> : kind === 'line' ? <Minus size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}{labelForKind[kind]}</button>)}<div className="task-wireframe-history" role="group" aria-label="Bearbeitungsschritte"><button type="button" className="secondary-button small" disabled={busy || !past.current.length} onClick={undo} title="Rückgängig"><Undo2 size={14} aria-hidden="true" />Rückgängig</button><button type="button" className="secondary-button small" disabled={busy || !future.current.length} onClick={redo} title="Wiederholen"><Redo2 size={14} aria-hidden="true" />Wiederholen</button></div><button type="button" className="secondary-button small task-wireframe-propose" disabled={busy || dirty} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent neu vorschlagen'}</button></div>
       {elements ? <div className="task-wireframe-layout">

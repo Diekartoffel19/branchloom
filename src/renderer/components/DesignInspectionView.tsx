@@ -28,11 +28,15 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const [a11yError, setA11yError] = useState<{ id: string; message: string } | null>(null);
   const [voiceSelectionId, setVoiceSelectionId] = useState<string | null>(null);
   const [wireframeFocus, setWireframeFocus] = useState(false);
+  const [focusPending, setFocusPending] = useState(false);
+  const focusTransition = useRef(false);
+  const focused = useRef(false);
   const viewport = useRef<HTMLDivElement>(null);
   const currentProject = useRef(projectId);
   currentProject.current = projectId;
 
   const syncBounds = useCallback(async () => {
+    if (focused.current) return;
     const rect = viewport.current?.getBoundingClientRect();
     if (!rect) return;
     try { await window.studio.designInspectionSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }); }
@@ -40,12 +44,23 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   }, []);
 
   async function changeWireframeFocus(next: boolean) {
+    if (focusTransition.current || next === focused.current) return;
     if (next && (!active || busy || state.armed)) return;
+    focusTransition.current = true;
+    setFocusPending(true);
     try {
+      focused.current = next;
       if (next) await window.studio.designInspectionSetBounds(null);
       setWireframeFocus(next);
-      if (!next) requestAnimationFrame(() => { void syncBounds(); });
-    } catch (reason) { setError(messageOf(reason)); }
+      if (!next) requestAnimationFrame(() => { if (!focused.current) void syncBounds(); });
+    } catch (reason) {
+      focused.current = !next;
+      if (next) void syncBounds();
+      setError(messageOf(reason));
+    } finally {
+      focusTransition.current = false;
+      setFocusPending(false);
+    }
   }
 
   useEffect(() => {
@@ -151,7 +166,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
 
   const previewActive = active && !wireframeFocus;
   return <section className={`design-inspection${wireframeFocus ? ' wireframe-focus' : ''}`} aria-label="Design-Inspektion">
-    <TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} focusMode={wireframeFocus} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} />
+    <TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} focusMode={wireframeFocus} focusPending={focusPending} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} />
     <div className="design-inspection-tools" hidden={wireframeFocus}>
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>

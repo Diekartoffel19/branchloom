@@ -15,4 +15,10 @@ describe('wireframe focus entry', () => {
     expect(exit).toContain('aria-pressed="true"');
     expect(exit).not.toContain('aria-pressed="true" disabled=""');
   });
+
+  it('disables the focus control during an asynchronous transition', () => {
+    const html = renderToStaticMarkup(<TaskWireframeEditor projectId="project" cards={[card]} startCardId="card" focusMode focusPending canEnterFocus onFocusModeChange={() => undefined} />);
+    expect(html).toContain('Zur Design-Inspektion');
+    expect(html).toContain('aria-pressed="true" disabled=""');
+  });
 });

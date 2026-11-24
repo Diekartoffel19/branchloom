@@ -17,6 +17,22 @@
 .task-wireframe-artboard-switch button.active { border-color: var(--accent); background: var(--surface-2); }
 .task-wireframe-artboard-switch button:hover { background: var(--surface-2); }
 .task-wireframe-artboard-switch button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.task-wireframe-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 172px)); gap: 8px; align-items: stretch; }
+.task-wireframe-overview-card { display: grid; grid-template-rows: auto 74px auto; min-width: 0; gap: 4px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; }
+.task-wireframe-overview-card:hover { background: var(--surface-2); }
+.task-wireframe-overview-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.task-wireframe-overview-card:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.task-wireframe-overview-card:disabled { cursor: default; opacity: .55; }
+.task-wireframe-overview-title { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; font-size: 12px; }
+.task-wireframe-overview-title small, .task-wireframe-overview-status { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.task-wireframe-overview-surface { position: relative; display: block; align-self: center; justify-self: center; max-width: 100%; max-height: 74px; overflow: hidden; container-type: inline-size; border: 1px solid var(--border); background: var(--bg); }
+.task-wireframe-overview-surface.is-missing { border-style: dashed; background: var(--surface-2); }
+.task-wireframe-overview-element { position: absolute; display: block; overflow: hidden; padding: 1px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: clamp(3px, 2cqw, 7px); line-height: 1; white-space: nowrap; text-overflow: clip; }
+.task-wireframe-overview-element.kind-panel { background: var(--surface-2); }
+.task-wireframe-overview-element.kind-text { border-color: transparent; background: transparent; font-weight: 650; }
+.task-wireframe-overview-element.kind-button { text-align: center; background: var(--surface-2); }
+.task-wireframe-overview-element.tone-muted { background: var(--surface-3); }
+.task-wireframe-overview-element.tone-accent.kind-button { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .task-wireframe-variant-empty { padding-block: 18px; }
 .task-wireframe-variant-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
 .task-wireframe-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -25,7 +41,15 @@
 .task-wireframe-history { display: inline-flex; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid var(--border); }
 .task-wireframe-toolbar .task-wireframe-propose { margin-left: auto; }
 .task-wireframe-layout { display: grid; grid-template-columns: 150px minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
-.task-wireframe.is-focused { gap: 10px; padding: 8px 0 20px; border-bottom: 0; }
+.task-wireframe.is-focused { grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 8px 14px; padding: 0 0 20px; border-bottom: 0; }
+.task-wireframe.is-focused .task-wireframe-head { grid-column: 1; grid-row: 1; align-items: center; }
+.task-wireframe.is-focused .task-wireframe-head h2 { margin: 0; font-size: 18px; }
+.task-wireframe.is-focused .task-wireframe-head p { display: none; }
+.task-wireframe.is-focused .task-wireframe-source { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+.task-wireframe.is-focused .task-wireframe-source label { display: flex; align-items: center; gap: 8px; width: min(360px, 100%); }
+.task-wireframe.is-focused .task-wireframe-source select { min-width: 0; flex: 1; }
+.task-wireframe.is-focused > :not(.task-wireframe-head):not(.task-wireframe-source) { grid-column: 1 / -1; }
+.task-wireframe.is-focused .task-wireframe-actions { position: sticky; bottom: 0; z-index: 8; padding: 8px 0; border-top: 1px solid var(--border); background: var(--bg); }
 .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr) 272px; gap: 14px; }
 .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: min(72vh, 900px); overflow: auto; }
 .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: min(72vh, 900px); }
@@ -100,5 +124,7 @@
 .task-wireframe-actions .primary-button { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 1050px) { .task-wireframe-layout { grid-template-columns: 130px minmax(0, 1fr); } .task-wireframe-properties { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; } .task-wireframe-properties h3, .task-wireframe-style { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(3, minmax(0, 1fr)); } .task-wireframe-style legend { grid-column: 1 / -1; } }
 @media (max-width: 1050px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr); } .task-wireframe.is-focused .task-wireframe-properties { grid-column: 1 / -1; } }
+@media (max-width: 900px) { .task-wireframe.is-focused { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-head, .task-wireframe.is-focused .task-wireframe-source { grid-column: 1; grid-row: auto; justify-content: flex-start; } }
 @media (max-width: 650px) { .task-wireframe { padding-inline: 12px; } .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe-layers { min-height: 0; } .task-wireframe-layers ol { display: flex; overflow-x: auto; } .task-wireframe-layers li button { min-width: 110px; max-width: 160px; } .task-wireframe-properties { grid-column: auto; grid-template-columns: 1fr 1fr; min-height: 0; } .task-wireframe-properties h3, .task-wireframe-properties > label:first-of-type, .task-wireframe-properties p { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-wireframe-resize { width: 30px; height: 30px; } }
 @media (max-width: 650px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-properties { grid-column: auto; } .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: none; } .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: 62vh; } }
+@media (max-width: 650px) { .task-wireframe-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; } .task-wireframe-overview-card { padding: 6px; } .task-wireframe-overview-title { display: grid; gap: 1px; } .task-wireframe.is-focused .task-wireframe-actions { position: static; } }
