@@ -1,5 +1,9 @@
 .task-wireframe { display: grid; gap: 16px; padding: 24px 0 30px; border-bottom: 1px solid var(--border); }
 .task-wireframe-head h2 { margin: 0 0 5px; font-size: 22px; letter-spacing: -.025em; }
+.task-wireframe-head { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.task-wireframe-focus-toggle { flex: none; min-height: 34px; }
+.task-wireframe-focus-toggle[aria-pressed="true"] { border-color: var(--accent); }
+.task-wireframe-focus-toggle:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-head p, .task-wireframe-help { margin: 0; max-width: 72ch; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .task-wireframe-source { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
 .task-wireframe-source label { display: grid; gap: 5px; width: min(380px, 100%); font-size: 12px; font-weight: 600; }
@@ -21,6 +25,13 @@
 .task-wireframe-history { display: inline-flex; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid var(--border); }
 .task-wireframe-toolbar .task-wireframe-propose { margin-left: auto; }
 .task-wireframe-layout { display: grid; grid-template-columns: 150px minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
+.task-wireframe.is-focused { gap: 10px; padding: 8px 0 20px; border-bottom: 0; }
+.task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr) 272px; gap: 14px; }
+.task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: min(72vh, 900px); overflow: auto; }
+.task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: min(72vh, 900px); }
+.task-wireframe.is-focused .task-wireframe-layers li button, .task-wireframe.is-focused .task-wireframe-properties label, .task-wireframe.is-focused .task-wireframe-align-grid button { font-size: 12px; }
+.task-wireframe.is-focused .task-wireframe-properties input, .task-wireframe.is-focused .task-wireframe-properties select { min-height: 36px; font-size: 13px; }
+.task-wireframe.is-focused .task-wireframe-canvas-head, .task-wireframe.is-focused .task-wireframe-toolbar > span { font-size: 12px; }
 .task-wireframe-layers, .task-wireframe-properties { min-height: 280px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; }
 .task-wireframe-layers h3, .task-wireframe-properties h3 { margin: 0 0 12px; font-size: 13px; }
 .task-wireframe-layers ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; max-height: 500px; overflow: auto; }
@@ -83,4 +94,6 @@
 .task-wireframe-actions > span { color: var(--muted); font-size: 12px; margin-right: auto; }
 .task-wireframe-actions .primary-button { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 1050px) { .task-wireframe-layout { grid-template-columns: 130px minmax(0, 1fr); } .task-wireframe-properties { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; } .task-wireframe-properties h3, .task-wireframe-style { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(3, minmax(0, 1fr)); } .task-wireframe-style legend { grid-column: 1 / -1; } }
+@media (max-width: 1050px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr); } .task-wireframe.is-focused .task-wireframe-properties { grid-column: 1 / -1; } }
 @media (max-width: 650px) { .task-wireframe { padding-inline: 12px; } .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe-layers { min-height: 0; } .task-wireframe-layers ol { display: flex; overflow-x: auto; } .task-wireframe-layers li button { min-width: 110px; max-width: 160px; } .task-wireframe-properties { grid-column: auto; grid-template-columns: 1fr 1fr; min-height: 0; } .task-wireframe-properties h3, .task-wireframe-properties > label:first-of-type, .task-wireframe-properties p { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-wireframe-resize { width: 30px; height: 30px; } }
+@media (max-width: 650px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-properties { grid-column: auto; } .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: none; } .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: 62vh; } }

@@ -327,6 +327,12 @@ export class DesignInspector {
 
   dispose(): void { this.close(); this.window.removeListener('resize', this.resize); }
 
+  /** Observe native-view detachment in the isolated Electron smoke only. */
+  smokeLayoutState(): { attached: boolean; visible: boolean; bounds: BrowserBounds | null; ready: boolean } {
+    if (!process.argv.includes('--studio-smoke')) throw new Error('Design-Smoke-Status ist nicht verfügbar.');
+    return { attached: this.attached, visible: this.visible, bounds: this.bounds, ready: this.ready };
+  }
+
   /** Used only by the isolated source smoke to exercise Electron's real mouse path. */
   async smokeClick(selector: string): Promise<void> {
     if (!process.argv.includes('--studio-smoke') || !this.view || !this.ready || !this.armed) throw new Error('Design-Smoke-Klick ist nicht bereit.');

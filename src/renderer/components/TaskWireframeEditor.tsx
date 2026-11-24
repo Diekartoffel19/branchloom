@@ -9,7 +9,7 @@ import { alignWireframeSelection, moveWireframeSelection, type WireframeAlignmen
 import './task-wireframe.css';
 
 interface Draft { title: string; elements: WireframeElement[]; artboards: CardWireframe['artboards'] }
-interface Props { projectId: string; cards: Card[]; startCardId?: string | null }
+interface Props { projectId: string; cards: Card[]; startCardId?: string | null; focusMode: boolean; canEnterFocus: boolean; onFocusModeChange: (focus: boolean) => void }
 const unsavedDrafts = new Map<string, Draft>();
 const lastSelectedCard = new Map<string, string>();
 const draftKey = (projectId: string, cardId: string): string => JSON.stringify([projectId, cardId]);
@@ -51,7 +51,7 @@ export function starterWireframe(card: Pick<Card, 'title'>): Draft {
   ] };
 }
 
-export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Props) {
+export function TaskWireframeEditor({ projectId, cards, startCardId = null, focusMode, canEnterFocus, onFocusModeChange }: Props) {
   const initialCardId = [startCardId, lastSelectedCard.get(projectId)].find((id) => id && cards.some((card) => card.id === id)) ?? '';
   const [cardId, setCardId] = useState(initialCardId);
   const [saved, setSaved] = useState<CardWireframe | null>(null);
@@ -278,8 +278,8 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
     finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
   }
 
-  return <section className="task-wireframe" aria-label="Wireframe-Entwurf">
-    <div className="task-wireframe-head"><div><h2>Wireframe zur Aufgabe</h2><p>Entwirf ein App-Fenster vor dem Coding. Nur eine ausdrücklich freigegebene gespeicherte Version geht als Layoutkontext an spätere Agentenläufe.</p></div></div>
+  return <section className={`task-wireframe${focusMode ? ' is-focused' : ''}`} aria-label="Wireframe-Entwurf">
+    <div className="task-wireframe-head"><div><h2>Wireframe zur Aufgabe</h2><p>Entwirf ein App-Fenster vor dem Coding. Nur eine ausdrücklich freigegebene gespeicherte Version geht als Layoutkontext an spätere Agentenläufe.</p></div><button type="button" className="secondary-button task-wireframe-focus-toggle" aria-pressed={focusMode} disabled={!focusMode && (!card || !canEnterFocus)} title={!focusMode && !canEnterFocus ? 'Beende zuerst die laufende Design-Auswahl oder Vorschau-Aktion.' : undefined} onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Zur Design-Inspektion' : 'Arbeitsfläche vergrößern'}</button></div>
     <div className="task-wireframe-source">
       <label>Aufgabe<select aria-label="Aufgabe für Wireframe auswählen" value={cardId} disabled={dirty || busy} onChange={(event) => { setLoading(Boolean(event.target.value)); setSaved(null); setDraft(null); if (event.target.value) lastSelectedCard.set(projectId, event.target.value); else lastSelectedCard.delete(projectId); setCardId(event.target.value); }}><option value="">Karte auswählen</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.title}{item.archivedAt ? ' · archiviert' : ''}</option>)}</select></label>
       {dirty ? <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (cardId) { unsavedDrafts.delete(draftKey(projectId, cardId)); void load(cardId); } }}>Änderungen verwerfen</button> : null}

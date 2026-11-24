@@ -1454,6 +1454,14 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche. Auswahl: ' + wireframe?.querySelector('.task-wireframe-source select')?.value + '; Startknopf verbunden: ' + starter.isConnected + '; sichtbarer Zustand: ' + (wireframe?.textContent?.trim().slice(-320) ?? 'keine Wireframe-Ansicht'));
+              const focusToggle = wireframe.querySelector('.task-wireframe-focus-toggle');
+              if (!(focusToggle instanceof HTMLButtonElement) || focusToggle.disabled) throw new Error('Wireframe-Arbeitsmodus fehlt.');
+              focusToggle.focus(); focusToggle.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection.wireframe-focus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.design-inspection-tools[hidden]') || document.activeElement !== focusToggle || !wireframe.querySelector('.task-wireframe-canvas')) throw new Error('Fokusmodus verdeckte den Entwurf oder verlor die Tastaturbedienung.');
+              focusToggle.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-inspection.wireframe-focus') || !document.querySelector('.design-inspection-toolbar')) throw new Error('Rückweg zur Design-Inspektion fehlt.');
               const premature = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} });
               if (premature !== null) throw new Error('Fenstergerüst wurde vor dem ausdrücklichen Speichern in SQLite angelegt.');
               const canvasStage = wireframe.querySelector('.task-wireframe-canvas');
@@ -1648,6 +1656,43 @@ function createWindow(): void {
               button.click();
               for (let attempt = 0; attempt < 300 && !(await window.studio.designInspectionState()).ready; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(await window.studio.designInspectionState()).ready) throw new Error('Lokale Design-Vorschau wurde nicht geladen: ' + document.querySelector('.design-inspection .inline-error')?.textContent);
+              document.querySelector('.design-inspection-viewport')?.scrollIntoView({ block: 'center' });
+              await new Promise((resolve) => setTimeout(resolve, 150));
+              const visibleRect = document.querySelector('.design-inspection-viewport')?.getBoundingClientRect();
+              if (!visibleRect) throw new Error('Sichtbare Design-Vorschau fehlt.');
+              await window.studio.designInspectionSetBounds({ x: visibleRect.x, y: visibleRect.y, width: visibleRect.width, height: visibleRect.height });
+              return true;
+            })()`);
+            if (!designInspector!.smokeLayoutState().attached) {
+              const observation = await smokeWindow.webContents.executeJavaScript(`(() => ({ rect: document.querySelector('.design-inspection-viewport')?.getBoundingClientRect().toJSON(), window: [innerWidth, innerHeight], scrollTop: document.querySelector('.view-area')?.scrollTop, hidden: document.querySelector('.design-inspection-tools')?.hasAttribute('hidden') }))()`);
+              throw new Error('Geladene native Design-Vorschau wurde vor dem Fokuswechsel nicht eingeblendet: ' + JSON.stringify({ observation, native: designInspector!.smokeLayoutState() }));
+            }
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const liveFocus = document.querySelector('.task-wireframe-focus-toggle');
+              for (let attempt = 0; attempt < 100 && liveFocus?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(liveFocus instanceof HTMLButtonElement) || liveFocus.disabled) throw new Error('Arbeitsmodus blieb bei geladener Live-Vorschau gesperrt.');
+              liveFocus.focus(); liveFocus.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.designInspectionState()).ready || !document.querySelector('.design-inspection.wireframe-focus') || document.activeElement !== liveFocus) throw new Error('Fokusmodus schloss die Live-Vorschau oder verlor den Rückweg.');
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return true;
+            })()`);
+            if (designInspector!.smokeLayoutState().attached) throw new Error('Native Live-Vorschau verdeckt die Wireframe-Arbeitsfläche im Fokusmodus.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const liveFocus = document.querySelector('.task-wireframe-focus-toggle');
+              if (!(liveFocus instanceof HTMLButtonElement)) throw new Error('Arbeitsmodus-Rückweg fehlt.');
+              liveFocus.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.designInspectionState()).ready || !document.querySelector('.design-inspection-toolbar')) throw new Error('Live-Vorschau wurde beim Rückweg nicht erhalten.');
+              document.querySelector('.design-inspection-viewport')?.scrollIntoView({ block: 'center' });
+              await new Promise((resolve) => setTimeout(resolve, 150));
+              const restoredRect = document.querySelector('.design-inspection-viewport')?.getBoundingClientRect();
+              if (!restoredRect) throw new Error('Zurückgekehrte Design-Vorschau fehlt.');
+              await window.studio.designInspectionSetBounds({ x: restoredRect.x, y: restoredRect.y, width: restoredRect.width, height: restoredRect.height });
+              return true;
+            })()`);
+            if (!designInspector!.smokeLayoutState().attached) throw new Error('Native Live-Vorschau wurde nach dem Fokusmodus nicht wieder eingeblendet: ' + JSON.stringify(designInspector!.smokeLayoutState()));
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
               const pick = [...document.querySelectorAll('.design-inspection-toolbar button')].find((item) => item.textContent?.includes('Element auswählen'));
               for (let attempt = 0; attempt < 100 && pick?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!pick || pick.disabled) throw new Error('Design-Auswahl blieb gesperrt.');
@@ -1844,6 +1889,32 @@ function createWindow(): void {
             await smokeWindow.webContents.executeJavaScript(`[...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click()`);
             for (let attempt = 0; attempt < 100 && designInspector?.state().ready; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
             if (designInspector?.state().ready) throw new Error('Design-Vorschau blieb nach Ansichtswechsel offen.');
+            const previousContentSize = smokeWindow.getContentSize();
+            smokeWindow.setMinimumSize(390, 650);
+            smokeWindow.setContentSize(390, 800);
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Design');
+              if (!(nav instanceof HTMLButtonElement)) throw new Error('Design-Navigation für schmale Fokusansicht fehlt.');
+              nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.task-wireframe-focus-toggle'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const focus = document.querySelector('.task-wireframe-focus-toggle');
+              for (let attempt = 0; attempt < 100 && focus?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(focus instanceof HTMLButtonElement) || focus.disabled) throw new Error('Kartenentwurf war in der schmalen Ansicht nicht wieder erreichbar.');
+              focus.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection.wireframe-focus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const surface = document.querySelector('.design-inspection.wireframe-focus');
+              const canvas = surface?.querySelector('.task-wireframe-canvas-viewport');
+              const properties = surface?.querySelector('.task-wireframe-properties');
+              if (innerWidth !== 390 || !surface || !canvas || !properties || surface.scrollWidth > innerWidth + 1 || canvas.getBoundingClientRect().right > innerWidth + 1 || properties.getBoundingClientRect().top < canvas.getBoundingClientRect().bottom) throw new Error('Fokusansicht überläuft bei 390 px oder stapelt den Inspector nicht unter die Zeichenfläche.');
+              if (parseFloat(getComputedStyle(properties.querySelector('label')).fontSize) < 12) throw new Error('Inspector-Text ist in der Fokusansicht zu klein.');
+              focus.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection.wireframe-focus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.design-inspection-toolbar')) throw new Error('Design-Inspektion fehlt nach schmaler Fokusansicht.');
+              return true;
+            })()`);
+            smokeWindow.setContentSize(previousContentSize[0]!, previousContentSize[1]!);
+            smokeWindow.setMinimumSize(420, 650);
+            await smokeWindow.webContents.executeJavaScript(`[...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click()`);
             const milestonePath = join(smokeDataDirectory!, 'milestone-preview-project');
             mkdirSync(milestonePath);
             writeFileSync(join(milestonePath, 'README.md'), '# Synthetic milestone preview\n');

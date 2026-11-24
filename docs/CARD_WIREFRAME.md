@@ -2,6 +2,8 @@
 
 Der Designbereich kann einen einfachen App-Fensterentwurf mit einer Board-Karte verbinden. Er ist ein editierbarer Plan vor dem Coding, keine Darstellung der laufenden App. Die vorhandene lokale Design-Inspektion steht im selben Bereich darunter.
 
+Mit **Arbeitsfläche vergrößern** öffnet sich ein Fokusmodus über der normalen Arbeitsansicht: Ebenen links, Zeichenfläche in der Mitte und Eigenschaften rechts. Auf schmalen Fenstern stehen die Bereiche untereinander. **Zur Design-Inspektion** führt ohne Speichern oder Verlust des ungespeicherten Entwurfs zurück. Der Wechsel ist eine Ansichtseinstellung und erzeugt keine neue Kartenrevision. Während einer laufenden Elementauswahl oder Vorschau-Aktion ist der Einstieg gesperrt. Eine geladene lokale Live-Vorschau bleibt beim Wechsel erhalten; ihre native Fensterfläche wird im Fokusmodus ausgeblendet und bei Rückkehr zur sichtbaren Vorschau wieder eingebunden.
+
 ## Ablauf
 
 1. Eine Board-Karte öffnen und **Wireframe in Design öffnen** wählen. Alternativ unter **Design → Wireframe zur Aufgabe** eine Karte auswählen.

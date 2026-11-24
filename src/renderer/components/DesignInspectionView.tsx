@@ -27,15 +27,26 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const [a11yBusyId, setA11yBusyId] = useState<string | null>(null);
   const [a11yError, setA11yError] = useState<{ id: string; message: string } | null>(null);
   const [voiceSelectionId, setVoiceSelectionId] = useState<string | null>(null);
+  const [wireframeFocus, setWireframeFocus] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const currentProject = useRef(projectId);
   currentProject.current = projectId;
 
-  const syncBounds = useCallback(() => {
+  const syncBounds = useCallback(async () => {
     const rect = viewport.current?.getBoundingClientRect();
     if (!rect) return;
-    void window.studio.designInspectionSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }).catch((reason: unknown) => setError(messageOf(reason)));
+    try { await window.studio.designInspectionSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }); }
+    catch (reason) { setError(messageOf(reason)); }
   }, []);
+
+  async function changeWireframeFocus(next: boolean) {
+    if (next && (!active || busy || state.armed)) return;
+    try {
+      if (next) await window.studio.designInspectionSetBounds(null);
+      setWireframeFocus(next);
+      if (!next) requestAnimationFrame(() => { void syncBounds(); });
+    } catch (reason) { setError(messageOf(reason)); }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -53,25 +64,41 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
 
   useEffect(() => {
     if (!active) { setA11yCheck(null); setA11yError(null); setVoiceSelectionId(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
+    void window.studio.designInspectionSetVisible(true).then(setState).catch((reason: unknown) => setError(messageOf(reason)));
+    return () => { void window.studio.designInspectionSetVisible(false).catch(() => undefined); };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || wireframeFocus) {
+      void window.studio.designInspectionSetBounds(null).catch((reason: unknown) => setError(messageOf(reason)));
+      return;
+    }
     const element = viewport.current;
     if (!element) return;
     let scheduled = 0;
-    const update = () => { cancelAnimationFrame(scheduled); scheduled = requestAnimationFrame(syncBounds); };
+    const update = () => { cancelAnimationFrame(scheduled); scheduled = requestAnimationFrame(() => { void syncBounds(); }); };
     const observer = new ResizeObserver(update);
+    const intersection = new IntersectionObserver(update);
     observer.observe(element);
+    intersection.observe(element);
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     update();
-    void window.studio.designInspectionSetVisible(true).then(setState).catch((reason: unknown) => setError(messageOf(reason)));
-    return () => { cancelAnimationFrame(scheduled); observer.disconnect(); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); void window.studio.designInspectionSetVisible(false).catch(() => undefined); };
-  }, [active, syncBounds]);
+    return () => { cancelAnimationFrame(scheduled); observer.disconnect(); intersection.disconnect(); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+  }, [active, wireframeFocus, syncBounds]);
 
   async function start(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setError(''); setA11yCheck(null); setA11yError(null);
     setPreviewRevision((value) => value + 1);
-    try { setState(await window.studio.designInspectionStart({ projectId, url })); }
+    try {
+      setState(await window.studio.designInspectionStart({ projectId, url }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      viewport.current?.scrollIntoView({ block: 'center' });
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await syncBounds();
+    }
     catch (reason) { setState(emptyState); setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -122,8 +149,10 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     finally { if (currentProject.current === projectId) setA11yBusyId(null); }
   }
 
-  return <section className="design-inspection" aria-label="Design-Inspektion">
-    <TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} />
+  const previewActive = active && !wireframeFocus;
+  return <section className={`design-inspection${wireframeFocus ? ' wireframe-focus' : ''}`} aria-label="Design-Inspektion">
+    <TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} focusMode={wireframeFocus} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} />
+    <div className="design-inspection-tools" hidden={wireframeFocus}>
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>
       <label>Lokale Vorschau-URL<input type="url" required maxLength={2048} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="http://127.0.0.1:5173/" /></label>
@@ -132,10 +161,10 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     <p className="design-inspection-state" role="status">{state.armed ? 'Auswahl aktiv: Klicke ein Element in der Vorschau. Der Seitenklick wird abgefangen.' : state.ready ? `Vorschau geladen: ${state.sourceUrl}` : 'Noch keine Vorschau geöffnet.'}</p>
-    <DesignStateRoutes key={projectId} projectId={projectId} active={active} previewBusy={busy || Boolean(a11yBusyId)} themePreviewActive={Boolean(state.themePreview)} onOpen={openStateRoute} />
+    <DesignStateRoutes key={projectId} projectId={projectId} active={previewActive} previewBusy={busy || Boolean(a11yBusyId)} themePreviewActive={Boolean(state.themePreview)} onOpen={openStateRoute} />
     <details className="design-inspection-selector"><summary>Mit Tastatur oder CSS-Selektor auswählen</summary><form onSubmit={(event) => void selectBySelector(event)}><label>CSS-Selektor<input value={selector} maxLength={320} disabled={!state.ready || busy} onChange={(event) => setSelector(event.target.value)} placeholder="#header oder main button" /></label><button className="secondary-button" type="submit" disabled={!state.ready || busy || !selector.trim()}>Element prüfen</button></form></details>
     <div className="design-inspection-viewport" ref={viewport} aria-label="Lokale Design-Vorschau">{!state.ready ? <p>Die laufende Seite erscheint hier nach „Vorschau öffnen“.</p> : null}</div>
-    <DesignViewportCanvas projectId={projectId} ready={state.ready && active} themePreviewActive={Boolean(state.themePreview)} revision={previewRevision} />
+    <DesignViewportCanvas projectId={projectId} ready={state.ready && previewActive} themePreviewActive={Boolean(state.themePreview)} revision={previewRevision} />
     <div className="design-inspection-evidence"><h3>Ausgewählte Elemente</h3>
       {selections.length === 0 ? <p>Für dieses Projekt ist noch kein Element gespeichert.</p> : <ol>{selections.map((item) => <li key={item.id}>
         <div className="design-inspection-item-head"><strong><code>{item.selector}</code></strong><time dateTime={item.capturedAt}>{new Date(item.capturedAt).toLocaleString('de-DE')}</time></div>
@@ -161,5 +190,6 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     <ComponentCatalogPanel projectId={projectId} />
     <ThemeTokensPanel projectId={projectId} previewState={active ? state : emptyState} onPreviewState={(next) => { setState(next); setA11yCheck(null); setA11yError(null); }} />
     <p className="design-inspection-limit">Die Auswahl und die freiwillige Einzelprüfung lesen berechnete Werte aus einer lokalen Seite. Sie ändern keine Projektdateien und starten keinen Agenten. Die Seite führt beim Laden weiterhin eigenes JavaScript aus.</p>
+    </div>
   </section>;
 }
