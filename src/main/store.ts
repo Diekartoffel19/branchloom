@@ -13,6 +13,7 @@ import { parseProjectPackage, type ProjectPackageV1 } from './project-package';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
+import { installCardAcceptance } from './card-acceptance';
 import { installIdeas } from './ideas';
 import { installPlanReview } from './plan-review';
 import { installMilestones } from './milestones';
@@ -132,6 +133,7 @@ export class StudioStore {
     installMilestones(this.db);
     installReviewRules(this.db);
     installCardQa(this.db);
+    installCardAcceptance(this.db);
     installQaFixCards(this.db);
     installReviewInbox(this.db);
     installCardContext(this.db);

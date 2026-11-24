@@ -7,6 +7,8 @@ import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
+import { CardAcceptancePanel } from './CardAcceptancePanel';
+import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
 import { CardQaPanel } from './CardQaPanel';
 import { PrDraftPanel } from './PrDraftPanel';
 import { OutputErrorPanel } from './OutputErrorPanel';
@@ -39,6 +41,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const [worktreeError, setWorktreeError] = useState('');
   const cleanupRequest = useRef(0);
   const [showDiffReview, setShowDiffReview] = useState(false);
+  const [criterionQaFocus, setCriterionQaFocus] = useState<{ id: string; token: number } | null>(null);
+  const [criterionReviewFocus, setCriterionReviewFocus] = useState<{ id: string; token: number } | null>(null);
   const [conflictRadar, setConflictRadar] = useState<ConflictRadarResult | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState('');
@@ -50,9 +54,11 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => { closeButtonRef.current?.focus(); }, [card.id]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
+  useEffect(() => { setCriterionReviewFocus(null); }, [focusReviewComment?.token]);
+  useEffect(() => { setCriterionQaFocus(null); }, [focusQaReport?.token]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
   useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
 
@@ -83,6 +89,11 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
     event.preventDefault();
     if (card.archivedAt) return;
     await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description, priority, labels: labelsInput.split(',').map((item) => item.trim()).filter(Boolean) }));
+  }
+
+  function openAcceptanceEvidence(kind: CardCriterionEvidenceKind, sourceId: string) {
+    if (kind === 'qa') setCriterionQaFocus((old) => ({ id: sourceId, token: (old?.token ?? 0) + 1 }));
+    else { setShowDiffReview(true); setCriterionReviewFocus((old) => ({ id: sourceId, token: (old?.token ?? 0) + 1 })); }
   }
 
   async function reviewWorktree() {
@@ -236,6 +247,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <div className="drawer-divider" />
         <CardContextPanel key={`context-${card.id}`} card={card} attachmentRequest={contextAttachmentRequest?.cardId === card.id ? contextAttachmentRequest : null} />
         <div className="drawer-divider" />
+        <CardAcceptancePanel key={`acceptance-${card.id}`} card={card} onOpenEvidence={openAcceptanceEvidence} />
+        <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
         <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>
         <label className="field-label">Agent auswählen<select value={chosenAgentId} disabled={Boolean(card.archivedAt)} onChange={(event) => setAgentId(event.target.value)}><option value="">Agent wählen</option>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label>
@@ -262,7 +275,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           {session.state !== 'running' ? <OutputErrorPanel key={session.id} projectId={card.projectId} sourceKind="session" sourceId={session.id} columns={snapshot.columns} onCreated={async (created) => { await mutate(async () => created); onOpenCard(created.id); }} /> : null}
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
-        <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={focusQaReport} />
+        <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={criterionQaFocus ?? focusQaReport} />
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
@@ -289,7 +302,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           <p className="section-copy">Arbeitsbaum: {cleanupPreview.sourceClean ? 'sauber' : 'Änderungen vorhanden'} · Ignorierte Dateien: {cleanupPreview.ignoredFilesPresent ? 'vorhanden' : 'keine gefunden'} · Ziel: {cleanupPreview.targetClean ? 'sauber' : 'Änderungen vorhanden'} · Commit im Ziel: {cleanupPreview.mergedIntoTarget ? 'belegt' : 'nicht belegt'} · Laufender Agent: {cleanupPreview.activeSession ? 'ja' : 'nein'}</p>
           {cleanupPreview.blockers.length ? <p className="inline-note">Offene Punkte: {cleanupPreview.blockers.join(' ')}</p> : <p className="inline-note">Für diesen Zeitpunkt wurden keine der geprüften Blocker gefunden. Die Entfernung ist in dieser Stufe noch nicht verfügbar.</p>}
         </section> : null}
-        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} focusComment={focusReviewComment} /></Suspense> : null}
+        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} focusComment={criterionReviewFocus ?? focusReviewComment} /></Suspense> : null}
         <div className="drawer-divider" />
         <PrDraftPanel key={`pr-${card.id}`} cardId={card.id} />
       </div>

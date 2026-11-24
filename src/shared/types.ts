@@ -14,6 +14,7 @@ import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
+import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance';
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 
@@ -137,6 +138,12 @@ export interface StudioAPI {
   designTaskCandidate(input: { projectId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
   createCardFromDesignRequest(input: { projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean }): Promise<Card>;
+  cardCriteria(cardId: string): Promise<CardCriterion[]>;
+  createCardCriterion(input: { cardId: string; text: string }): Promise<CardCriterion[]>;
+  updateCardCriterion(input: { cardId: string; criterionId: string; text: string }): Promise<CardCriterion[]>;
+  deleteCardCriterion(input: { cardId: string; criterionId: string }): Promise<CardCriterion[]>;
+  linkCardCriterionEvidence(input: { cardId: string; criterionId: string; kind: CardCriterionEvidenceKind; sourceId: string; note: string }): Promise<CardCriterion[]>;
+  unlinkCardCriterionEvidence(input: { cardId: string; criterionId: string; evidenceId: string }): Promise<CardCriterion[]>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;
   bulkUpdateCards(input: BulkCardAction): Promise<Card[]>;
   reorderCard(input: { id: string; direction: 'up' | 'down' }): Promise<Card>;

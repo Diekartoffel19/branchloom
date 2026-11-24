@@ -1,0 +1,29 @@
+.card-acceptance { display: grid; gap: 10px; }
+.card-acceptance .section-heading, .card-acceptance .section-copy { margin: 0; }
+.card-acceptance-status { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 7px 0; color: var(--muted); font-size: 11px; }
+.card-acceptance-status strong { color: var(--text); font-weight: 600; }
+.card-acceptance-status button { margin-left: auto; }
+.card-acceptance-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.card-acceptance-item { border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); padding: 10px; min-width: 0; }
+.card-acceptance-item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.card-acceptance-item-head strong { font-weight: 600; }
+.card-acceptance-item-head span { flex: none; font-size: 11px; }
+.card-acceptance-linked { color: var(--accent); }
+.card-acceptance-gap { color: var(--danger); }
+.card-acceptance-evidence { list-style: none; margin: 9px 0 0; padding: 0; display: grid; gap: 5px; }
+.card-acceptance-evidence li { border-left: 2px solid var(--border); padding-left: 9px; font-size: 11px; line-height: 1.45; }
+.card-acceptance-evidence li > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 9px; }
+.card-acceptance-evidence li strong { font-weight: 600; overflow-wrap: anywhere; }
+.card-acceptance-evidence li span { color: var(--muted); }
+.card-acceptance-evidence p { margin: 3px 0; overflow-wrap: anywhere; }
+.card-acceptance-evidence-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.card-acceptance-edit { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border); }
+.card-acceptance-edit summary { cursor: pointer; font-size: 11px; color: var(--soft); }
+.card-acceptance-edit summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.card-acceptance-edit form, .card-acceptance-create { display: grid; gap: 7px; margin-top: 9px; }
+.card-acceptance-edit form + form { border-top: 1px solid var(--border); padding-top: 9px; }
+.card-acceptance-edit label, .card-acceptance-create label { display: grid; gap: 5px; color: var(--soft); font-size: 11px; font-weight: 600; }
+.card-acceptance-edit input, .card-acceptance-edit select, .card-acceptance-create input { min-width: 0; width: 100%; }
+.card-acceptance-edit button, .card-acceptance-create button { justify-self: start; }
+.card-acceptance-edit small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.card-acceptance-delete { margin-top: 9px; color: var(--danger); }

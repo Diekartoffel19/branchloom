@@ -9,6 +9,7 @@ import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, Studi
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
+import { cardCriteria, createCardCriterion, updateCardCriterion, deleteCardCriterion, linkCardCriterionEvidence, unlinkCardCriterionEvidence } from './card-acceptance';
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections, saveDesignSelection } from './design-inspection';
 import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, saveCardWireframe } from './card-wireframe';
@@ -210,6 +211,12 @@ function installIpc(): void {
   bind('designTaskCandidate', (input: Parameters<StudioAPI['designTaskCandidate']>[0]) => designTaskCandidate(db, input));
   bind('createCardFromDesignRequest', (input: Parameters<StudioAPI['createCardFromDesignRequest']>[0]) => createCardFromDesignRequest(db, input));
   bind('updateCard', (input: Parameters<StudioAPI['updateCard']>[0]) => db.updateCard(input));
+  bind('cardCriteria', (cardId: string) => cardCriteria(db, cardId));
+  bind('createCardCriterion', (input: Parameters<StudioAPI['createCardCriterion']>[0]) => createCardCriterion(db, input));
+  bind('updateCardCriterion', (input: Parameters<StudioAPI['updateCardCriterion']>[0]) => updateCardCriterion(db, input));
+  bind('deleteCardCriterion', (input: Parameters<StudioAPI['deleteCardCriterion']>[0]) => deleteCardCriterion(db, input));
+  bind('linkCardCriterionEvidence', (input: Parameters<StudioAPI['linkCardCriterionEvidence']>[0]) => linkCardCriterionEvidence(db, input));
+  bind('unlinkCardCriterionEvidence', (input: Parameters<StudioAPI['unlinkCardCriterionEvidence']>[0]) => unlinkCardCriterionEvidence(db, input));
   bind('setCardArchived', (input: { id: string; archived: boolean }) => {
     const card = db.setCardArchived(input);
     queueEngine.onBoardChanged(card.projectId);
@@ -888,6 +895,52 @@ function createWindow(): void {
               if (qaReport?.status !== 'failed' || qaReport.viewportWidth !== 768 || qaReport.viewportHeight !== 1024 || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR')) || qaReport.pageCheck !== 'complete' || !qaReport.pageObservations.some((item) => item.kind === 'missing-image-alt') || !qaReport.pageObservations.some((item) => item.kind === 'horizontal-overflow')) throw new Error('Lokale Karten-QA hat Tablet-Viewport, Browserfehler oder DOM-Hinweise nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR') || !document.querySelector('.card-qa-report')?.textContent?.includes('Bildern ohne alt-Attribut') || !document.querySelector('.card-qa-report')?.textContent?.includes('breiter als der sichtbare Inhaltsbereich') || !document.querySelector('.card-qa-report')?.textContent?.includes('Git im Projektordner')) throw new Error('Karten-QA-Bericht wurde nicht samt DOM- und Git-Belegen sichtbar gerendert.');
+              const acceptance = document.querySelector('.card-drawer .card-acceptance');
+              const acceptanceForm = acceptance?.querySelector('.card-acceptance-create');
+              const acceptanceInput = acceptanceForm?.querySelector('input');
+              if (!acceptanceForm || !acceptanceInput) throw new Error('Karten-Abnahmekriterienformular fehlt.');
+              qaValueSetter.call(acceptanceInput, 'Mobile Navigation zeigt den Fehlerzustand');
+              acceptanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && acceptanceForm.querySelector('button[type="submit"]')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              acceptanceForm.querySelector('button[type="submit"]')?.click();
+              let acceptanceCriterion;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                acceptanceCriterion = (await window.studio.cardCriteria(qaCard.id))[0];
+                if (acceptanceCriterion && acceptance?.textContent?.includes('1 ohne gültigen Prüfverweis')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!acceptanceCriterion || !acceptance?.textContent?.includes('1 ohne gültigen Prüfverweis')) throw new Error('Abnahmekriterium oder sichtbare Prüflücke fehlt.');
+              const acceptanceRefresh = acceptance.querySelector('.card-acceptance-status button');
+              for (let attempt = 0; attempt < 100 && acceptanceRefresh?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!acceptanceRefresh || acceptanceRefresh.disabled) throw new Error('Prüfquellen-Aktualisierung blieb gesperrt.');
+              acceptanceRefresh?.click();
+              let linkForm;
+              let linkSelect;
+              let linkNote;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                const acceptanceDetails = acceptance.querySelector('.card-acceptance-edit');
+                if (acceptanceDetails && !acceptanceDetails.open) acceptanceDetails.querySelector('summary')?.click();
+                linkForm = acceptanceDetails?.querySelectorAll('form')[1];
+                linkSelect = linkForm?.querySelector('select');
+                linkNote = linkForm?.querySelector('input');
+                if (linkSelect?.querySelector('option[value="qa:' + qaReport.id + '"]')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!linkForm || !linkSelect || !linkNote || !linkSelect.querySelector('option[value="qa:' + qaReport.id + '"]')) throw new Error('Gespeicherter QA-Bericht fehlt als Karten-Prüfquelle: ' + JSON.stringify({ options: [...(linkSelect?.options ?? [])].map((option) => option.value), expected: qaReport.id, directReports: (await window.studio.cardQaReports(qaCard.id)).map((item) => item.id) }));
+              viewportSetter.call(linkSelect, 'qa:' + qaReport.id);
+              linkSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              qaValueSetter.call(linkNote, 'Der Bericht zeigt den Konsole-Fehler bei Tablet-Größe.');
+              linkNote.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && linkForm.querySelector('button[type="submit"]')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              linkForm.querySelector('button[type="submit"]')?.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.cardCriteria(qaCard.id))[0]?.evidence.length; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const linkedAcceptance = (await window.studio.cardCriteria(qaCard.id))[0];
+              if (linkedAcceptance?.evidence[0]?.sourceId !== qaReport.id || linkedAcceptance.evidence[0]?.sourceStatus !== 'failed' || !acceptance.textContent?.includes('QA mit Fehlern') || !(await sessionsUnchanged())) throw new Error('QA-Verweis am Abnahmekriterium oder Agentenruhe fehlt.');
+              const acceptanceSource = [...acceptance.querySelectorAll('.card-acceptance-evidence-actions button')].find((item) => item.textContent?.includes('Quelle öffnen'));
+              if (!acceptanceSource) throw new Error('Verknüpfter QA-Bericht lässt sich nicht öffnen.');
+              acceptanceSource.click();
+              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'card-qa-report-' + qaReport.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.activeElement?.id !== 'card-qa-report-' + qaReport.id) throw new Error('QA-Verweis führte nicht zum zugeordneten Bericht.');
               const fixButton = [...document.querySelectorAll('.card-qa-report .card-qa-fix-card button')].find((item) => item.textContent?.includes('Fixkarte vorbereiten'));
               if (!fixButton) throw new Error('QA-Fixkarten-Aktion fehlt im gespeicherten Fehlerbericht.');
               const countBeforeFix = (await window.studio.snapshot(boardProject.id)).cards.length;
