@@ -3,6 +3,11 @@ import { WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
+/** Explicit type size is stored in artboard pixels; cqw scales with its rendered canvas width. */
+export function wireframePreviewFontSize(fontSize: number | undefined, canvasWidth: number): string | undefined {
+  return fontSize === undefined ? undefined : `${fontSize * 100 / canvasWidth}cqw`;
+}
+
 /** Snap the pointer result, then keep the full item inside the artboard. */
 export function snapWireframePosition(value: number, size: number, limit: number, grid = 8): number {
   return clamp(Math.round(value / grid) * grid, 0, limit - size);

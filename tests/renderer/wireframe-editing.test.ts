@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { WIREFRAME_THEME_COLORS, wireframeColorCss, type WireframeElement } from '../../src/shared/card-wireframe';
-import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition } from '../../src/renderer/components/wireframe-editing';
+import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition, wireframePreviewFontSize } from '../../src/renderer/components/wireframe-editing';
 
 const element = (id: string, x = 100, y = 100, width = 200, height = 80): WireframeElement => ({ id, kind: 'panel', text: '', tone: 'plain', x, y, width, height });
 
 describe('wireframe editor geometry and layer helpers', () => {
+  it('expresses explicit font sizes in artboard-relative canvas units', () => {
+    expect(wireframePreviewFontSize(undefined, 960)).toBeUndefined();
+    expect(parseFloat(wireframePreviewFontSize(20, 960)!)).toBeCloseTo(20 / 960 * 100);
+    expect(parseFloat(wireframePreviewFontSize(20, 390)!)).toBeCloseTo(20 / 390 * 100);
+    expect(wireframePreviewFontSize(20, 960)).toMatch(/cqw$/);
+  });
   it('snaps dragged positions to 8 px while keeping the whole element on each artboard', () => {
     expect(snapWireframePosition(67, 100, 960)).toBe(64);
     expect(snapWireframePosition(69, 100, 960)).toBe(72);
