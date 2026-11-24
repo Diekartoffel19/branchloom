@@ -5,7 +5,7 @@ import type { CardWireframe, WireframeArtboard, WireframeElement, WireframeEleme
 import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_THEME_COLORS, WIREFRAME_WIDTH, wireframeColorCss } from '../../shared/card-wireframe';
 import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition, wireframePreviewFontSize } from './wireframe-editing';
 import { copyDesktopToArtboard } from './wireframe-artboards';
-import { alignWireframeSelection, duplicateWireframeSelection, expandWireframeGroupSelection, moveWireframeSelection, selectWireframeMarquee, type WireframeAlignment, type WireframePoint } from './wireframe-selection';
+import { alignWireframeSelection, duplicateWireframeSelection, expandWireframeGroupSelection, moveWireframeSelection, removeWireframeSelection, selectWireframeMarquee, selectWireframeTarget, type WireframeAlignment, type WireframePoint } from './wireframe-selection';
 import { WireframeArtboardOverview } from './WireframeArtboardOverview';
 import { WireframeComponentLibrary } from './WireframeComponentLibrary';
 import { appendWireframeComponent, type WireframeComponent } from '../../shared/wireframe-components';
@@ -66,6 +66,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   const [draft, setDraft] = useState<Draft | null>(null);
   const [artboard, setArtboard] = useState<WireframeArtboard>('desktop');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(Boolean(initialCardId));
@@ -91,7 +92,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   const zoomRef = useRef(zoom);
   const zoomFrame = useRef<number | null>(null);
   const marquee = useRef<MarqueeDrag | null>(null);
-  const drag = useRef<{ id: string; ids: string[]; pointerId: number; clientX: number; clientY: number; before: Draft; origin: WireframeElement[]; recorded: boolean } | null>(null);
+  const drag = useRef<{ id: string; ids: string[]; pointerId: number; clientX: number; clientY: number; before: Draft; origin: WireframeElement[]; scopeGroupId: string | null; recorded: boolean } | null>(null);
   const pointerSelection = useRef(false);
   const inlineEditRef = useRef<typeof inlineTextEdit>(null);
   const inlineInput = useRef<HTMLInputElement>(null);
@@ -102,8 +103,13 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   const selectedId = selectedIds.length === 1 ? selectedIds[0]! : null;
   const selected = elements?.find((item) => item.id === selectedId) ?? null;
   const selectedElements = elements?.filter((item) => selectedIds.includes(item.id)) ?? [];
+  const enteredGroupId = editingGroupId && elements?.some((item) => item.groupId === editingGroupId) ? editingGroupId : null;
+  const selectedGroupId = selectedElements.length > 1 && selectedElements[0]?.groupId && selectedElements.every((item) => item.groupId === selectedElements[0]?.groupId) ? selectedElements[0].groupId : null;
   const inlineItem = inlineTextEdit?.artboard === artboard ? elements?.find((item) => item.id === inlineTextEdit.id) : undefined;
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => {
+    if (editingGroupId && !enteredGroupId) { setEditingGroupId(null); setSelectedIds([]); }
+  }, [editingGroupId, enteredGroupId]);
   useEffect(() => {
     const target = viewport.current;
     if (!target) return;
@@ -137,13 +143,30 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   }, [inlineItem?.id]);
   function setSelectedId(id: string | null) {
     // Newly added layers are not in the current render's element list yet.
-    setSelectedIds(id ? elements?.some((item) => item.id === id) ? expandWireframeGroupSelection(elements, [id]) : [id] : []);
+    const item = id ? elements?.find((candidate) => candidate.id === id) : null;
+    if (enteredGroupId && item && item.groupId !== enteredGroupId) setEditingGroupId(null);
+    setSelectedIds(id ? item ? selectWireframeTarget(elements!, id, enteredGroupId) : [id] : []);
   }
   function toggleSelected(id: string) {
     if (!elements) return;
+    const item = elements.find((candidate) => candidate.id === id);
+    if (enteredGroupId && item?.groupId !== enteredGroupId) { setEditingGroupId(null); setSelectedIds(selectWireframeTarget(elements, id)); return; }
+    if (enteredGroupId) { setSelectedIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]); return; }
     const group = expandWireframeGroupSelection(elements, [id]);
     setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => !group.includes(item)) : expandWireframeGroupSelection(elements, [...ids, ...group]));
   }
+  function enterGroup(id: string, memberId?: string) {
+    if (!elements || interactionLocked.current || !elements.some((item) => item.groupId === id)) return;
+    setEditingGroupId(id);
+    const first = elements.find((item) => item.groupId === id)!;
+    setSelectedIds([memberId && elements.some((item) => item.id === memberId && item.groupId === id) ? memberId : first.id]);
+  }
+  function leaveGroup() {
+    if (!enteredGroupId) return;
+    setEditingGroupId(null);
+    setSelectedIds(elements?.filter((item) => item.groupId === enteredGroupId).map((item) => item.id) ?? []);
+  }
+  function selectAllInScope() { setSelectedIds(elements?.filter((item) => !enteredGroupId || item.groupId === enteredGroupId).map((item) => item.id) ?? []); }
   function stopPan(pointerId?: number) {
     const current = pan.current;
     if (!current || (pointerId !== undefined && current.pointerId !== pointerId)) return;
@@ -212,7 +235,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     if (!current || current.pointerId !== event.pointerId) return;
     const end = pointOnStage(event) ?? current.end;
     const moved = Math.hypot(event.clientX - current.clientX, event.clientY - current.clientY) >= 4;
-    if (moved && elements) setSelectedIds(selectWireframeMarquee(elements, current.start, end, current.initialIds));
+    if (moved && elements) setSelectedIds(selectWireframeMarquee(elements, current.start, end, current.initialIds, enteredGroupId));
     else if (!current.add) setSelectedId(null);
     cancelMarquee();
   }
@@ -220,7 +243,8 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   function startInlineTextEdit(item: WireframeElement) {
     if (interactionLocked.current || !elements || !isTextEditable(item.kind)) return;
     drag.current = null; resize.current = null;
-    setSelectedId(item.id);
+    if (item.groupId && enteredGroupId !== item.groupId) enterGroup(item.groupId, item.id);
+    else setSelectedId(item.id);
     updateInlineTextEdit({ id: item.id, artboard, text: item.text });
   }
   function finishInlineTextEdit(commit: boolean, restoreFocus = true) {
@@ -256,7 +280,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     cancelMarquee();
     drag.current = null; resize.current = null;
     updateInlineTextEdit(null);
-    setArtboard(target); setSelectedId(null); setGeometryDraft(null); setStyleNumberDraft(null);
+    setArtboard(target); setEditingGroupId(null); setSelectedIds([]); setGeometryDraft(null); setStyleNumberDraft(null);
   }
 
   function resetHistory() { past.current = []; future.current = []; setHistoryRevision((value) => value + 1); }
@@ -271,6 +295,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     past.current = past.current.slice(0, -1);
     future.current = [...future.current.slice(-49), draft];
     retainDraft(previous); setGeometryDraft(null); setStyleNumberDraft(null); updateInlineTextEdit(null);
+    if (enteredGroupId && !selectionFor(previous).some((item) => item.groupId === enteredGroupId)) setEditingGroupId(null);
     setSelectedIds((ids) => ids.filter((id) => selectionFor(previous).some((item) => item.id === id)));
     setHistoryRevision((value) => value + 1);
   }
@@ -280,6 +305,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     future.current = future.current.slice(0, -1);
     past.current = [...past.current.slice(-49), draft];
     retainDraft(next); setGeometryDraft(null); setStyleNumberDraft(null); updateInlineTextEdit(null);
+    if (enteredGroupId && !selectionFor(next).some((item) => item.groupId === enteredGroupId)) setEditingGroupId(null);
     setSelectedIds((ids) => ids.filter((id) => selectionFor(next).some((item) => item.id === id)));
     setHistoryRevision((value) => value + 1);
   }
@@ -293,7 +319,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
       if (generation.current !== expectedGeneration) return;
       const retained = unsavedDrafts.get(draftKey(projectId, targetCardId));
       setSaved(current); setDraft(retained ?? (current ? { title: current.title, elements: current.elements, artboards: current.artboards } : null));
-      setSelectedId(null); setDirty(Boolean(retained)); setGeometryDraft(null); setStyleNumberDraft(null); updateInlineTextEdit(null);
+      setEditingGroupId(null); setSelectedIds([]); setDirty(Boolean(retained)); setGeometryDraft(null); setStyleNumberDraft(null); updateInlineTextEdit(null);
       resetHistory();
       if (retained) setNotice('Ungespeicherter Entwurf aus dieser App-Sitzung wiederhergestellt.');
     } catch (reason) { if (generation.current === expectedGeneration) setError(messageOf(reason)); }
@@ -303,7 +329,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   useEffect(() => {
     const current = ++generation.current;
     interactionLocked.current = false; setBusy(false);
-    setSaved(null); setDraft(null); setSelectedId(null); setArtboard('desktop'); setDirty(false); setError(''); setNotice(''); updateInlineTextEdit(null);
+    setSaved(null); setDraft(null); setEditingGroupId(null); setSelectedIds([]); setArtboard('desktop'); setDirty(false); setError(''); setNotice(''); updateInlineTextEdit(null);
     resetHistory();
     if (cardId && cards.some((item) => item.id === cardId)) { lastSelectedCard.set(projectId, cardId); void load(cardId, current); }
     else { if (cardId) setCardId(lastSelectedCard.get(projectId) && cards.some((item) => item.id === lastSelectedCard.get(projectId)) ? lastSelectedCard.get(projectId)! : ''); setLoading(false); }
@@ -351,7 +377,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
       kind, x: clamp(Math.round(canvas.width * .3) + offset, 0, canvas.width - width), y: clamp(220 + offset, 0, canvas.height - height),
       width, height, text: isShape(kind) ? '' : kind === 'panel' ? 'Bereich' : kind === 'field' ? 'Eingabe' : kind === 'button' ? 'Aktion' : 'Text', tone: 'plain',
     };
-    editElements([...elements, item]); setSelectedId(item.id);
+    editElements([...elements, item]); setEditingGroupId(null); setSelectedIds([item.id]);
   }
   function insertComponent(component: WireframeComponent) {
     if (!elements || interactionLocked.current) return;
@@ -366,12 +392,12 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   }
   function removeElement(id: string) {
     if (!draft || !elements || interactionLocked.current) return;
-    editElements(elements.filter((item) => item.id !== id)); setSelectedId(null);
+    editElements(removeWireframeSelection(elements, [id])); setSelectedId(null);
   }
   function removeSelection() {
     if (!elements || !selectedIds.length || interactionLocked.current) return;
     const ids = new Set(selectedIds);
-    editElements(elements.filter((item) => !ids.has(item.id)));
+    editElements(removeWireframeSelection(elements, [...ids]));
     setSelectedId(null);
   }
   function groupSelection() {
@@ -386,13 +412,14 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     const groups = new Set(selectedElements.map((item) => item.groupId).filter((id): id is string => Boolean(id)));
     if (!groups.size) return;
     editElements(elements.map((item) => item.groupId && groups.has(item.groupId) ? { ...item, groupId: undefined } : item));
+    setEditingGroupId(null);
   }
   function duplicateSelection(focusTarget?: HTMLElement) {
     if (!elements || !selectedIds.length || interactionLocked.current) return;
     const focusRoot = focusTarget?.closest('.task-wireframe-canvas, .task-wireframe-layers');
     const focusIndex = selectedElements.findIndex((item) => item.id === focusTarget?.dataset.wireframeId);
     const next = duplicateWireframeSelection(elements, selectedIds, canvas.width, canvas.height,
-      () => `item-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`);
+      () => `item-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`, enteredGroupId);
     if (!next) { setNotice('Auswahl kann nicht dupliziert werden: Diese Zeichenfläche erlaubt höchstens 40 Elemente.'); return; }
     editElements(next.elements);
     setSelectedIds(next.selectedIds);
@@ -404,7 +431,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
   function moveSelected(item: WireframeElement, dx: number, dy: number) {
     if (!elements) return;
     if (selectedIds.length > 1 && selectedIds.includes(item.id)) {
-      const next = moveWireframeSelection(elements, selectedIds, dx, dy, canvas.width, canvas.height);
+      const next = moveWireframeSelection(elements, selectedIds, dx, dy, canvas.width, canvas.height, enteredGroupId);
       if (next !== elements) editElements(next);
     } else editElement(item.id, { x: clamp(item.x + dx, 0, canvas.width - item.width), y: clamp(item.y + dy, 0, canvas.height - item.height) });
   }
@@ -487,7 +514,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
   }
 
-  return <section className={`task-wireframe${focusMode ? ' is-focused' : ''}`} aria-label="Wireframe-Entwurf">
+  return <section className={`task-wireframe${focusMode ? ' is-focused' : ''}`} aria-label="Wireframe-Entwurf" onKeyDownCapture={(event) => { if (event.key !== 'Escape' || !enteredGroupId || inlineEditRef.current) return; if (marquee.current) { event.preventDefault(); event.stopPropagation(); cancelMarquee(); return; } event.preventDefault(); event.stopPropagation(); leaveGroup(); }}>
     <div className="task-wireframe-head"><div><h2>Wireframe zur Aufgabe</h2><p>Entwirf ein App-Fenster vor dem Coding. Nur eine ausdrücklich freigegebene gespeicherte Version geht als Layoutkontext an spätere Agentenläufe.</p></div><button type="button" className="secondary-button task-wireframe-focus-toggle" aria-pressed={focusMode} disabled={focusPending || (!focusMode && (!card || !canEnterFocus))} title={!focusMode && !canEnterFocus ? 'Beende zuerst die laufende Design-Auswahl oder Vorschau-Aktion.' : undefined} onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Zur Design-Inspektion' : 'Arbeitsfläche vergrößern'}</button></div>
     <div className="task-wireframe-source">
       <label>Aufgabe<select aria-label="Aufgabe für Wireframe auswählen" value={cardId} disabled={dirty || busy} onChange={(event) => { setLoading(Boolean(event.target.value)); setSaved(null); setDraft(null); if (event.target.value) lastSelectedCard.set(projectId, event.target.value); else lastSelectedCard.delete(projectId); setCardId(event.target.value); }}><option value="">Karte auswählen</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.title}{item.archivedAt ? ' · archiviert' : ''}</option>)}</select></label>
@@ -499,18 +526,19 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
       {focusMode ? <WireframeArtboardOverview elements={draft.elements} artboards={draft.artboards} active={artboard} disabled={busy} onSelect={switchArtboard} />
         : <div className="task-wireframe-artboard-switch" role="group" aria-label="Wireframe-Zeichenfläche">{(Object.keys(WIREFRAME_ARTBOARDS) as WireframeArtboard[]).map((name) => <button key={name} type="button" className={artboard === name ? 'active' : ''} aria-pressed={artboard === name} disabled={busy} onClick={() => switchArtboard(name)}>{WIREFRAME_ARTBOARDS[name].label}<small>{WIREFRAME_ARTBOARDS[name].width} × {WIREFRAME_ARTBOARDS[name].height}{name !== 'desktop' && draft.artboards[name] === undefined ? ' · fehlt' : ''}</small></button>)}</div>}
       {artboard !== 'desktop' && elements === undefined ? <div className="task-wireframe-empty task-wireframe-variant-empty"><p>Für {canvas.label} gibt es noch keinen eigenen Entwurf. Desktop bleibt unverändert.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => createArtboard(artboard, true)}>Desktop als Ausgangspunkt kopieren</button><button type="button" className="secondary-button" disabled={busy} onClick={() => createArtboard(artboard, false)}>Leere Zeichenfläche beginnen</button><small>Die Kopie passt nur Breiten an. Sie ist kein automatisch responsives Layout; prüfe die Anordnung selbst.</small></div> : null}
+      {enteredGroupId ? <div className="task-wireframe-group-path" role="group" aria-label="Gruppenbearbeitung"><span>Gruppe · {elements?.filter((item) => item.groupId === enteredGroupId).length ?? 0} Elemente</span><span aria-hidden="true">›</span><strong>{selected ? `${labelForKind[selected.kind]} · ${selected.text || 'ohne Text'}` : 'Mitglied wählen'}</strong><button type="button" className="secondary-button small" onClick={leaveGroup}>Gruppe verlassen · Esc</button></div> : null}
       <div className="task-wireframe-toolbar"><span>Element hinzufügen</span>{(['panel', 'text', 'button', 'field', 'ellipse', 'line'] as const).map((kind) => <button key={kind} type="button" className="secondary-button small" disabled={busy || !elements || elements.length >= 40} onClick={() => addElement(kind)}>{kind === 'ellipse' ? <Circle size={14} aria-hidden="true" /> : kind === 'line' ? <Minus size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}{labelForKind[kind]}</button>)}<div className="task-wireframe-history" role="group" aria-label="Bearbeitungsschritte"><button type="button" className="secondary-button small" disabled={busy || !past.current.length} onClick={undo} title="Rückgängig"><Undo2 size={14} aria-hidden="true" />Rückgängig</button><button type="button" className="secondary-button small" disabled={busy || !future.current.length} onClick={redo} title="Wiederholen"><Redo2 size={14} aria-hidden="true" />Wiederholen</button></div><button type="button" className="secondary-button small task-wireframe-export" disabled={busy || !elements || Boolean(inlineItem)} onClick={() => void exportPng()}><Download size={14} aria-hidden="true" />PNG exportieren</button><button type="button" className="secondary-button small task-wireframe-propose" disabled={busy || dirty} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent neu vorschlagen'}</button></div>
       {elements ? <WireframeComponentLibrary projectId={projectId} cardId={card.id} artboard={artboard} selection={selectedElements} availableSlots={40 - elements.length} disabled={busy} onInsert={insertComponent} /> : null}
       {elements ? <div className="task-wireframe-layout">
-        <aside className="task-wireframe-layers" aria-label="Ebenen" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); setSelectedIds(elements.map((item) => item.id)); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') { event.preventDefault(); if (!event.repeat) event.shiftKey ? ungroupSelection() : groupSelection(); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId); if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); setSelectedId(null); } else if (event.key === 'Delete' && selectedIds.length) { event.preventDefault(); removeSelection(); } }}><h3>Ebenen</h3><p className="task-wireframe-selection-hint">Umschalt/Strg: Mehrfachauswahl · Strg+G: Gruppe · F2: Text</p>{elements.length ? <ol>{elements.map((item) => <li key={item.id}><button data-wireframe-id={item.id} type="button" disabled={busy} className={selectedIds.includes(item.id) ? 'selected' : ''} aria-pressed={selectedIds.includes(item.id)} onClick={(event) => { if (event.shiftKey || event.ctrlKey || event.metaKey) toggleSelected(item.id); else setSelectedId(item.id); }}>{item.groupId ? 'Gruppe · ' : ''}{labelForKind[item.kind]} · {item.text || 'Ohne Text'}</button></li>)}</ol> : <p>Noch keine Elemente.</p>}</aside>
+        <aside className="task-wireframe-layers" aria-label="Ebenen" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); selectAllInScope(); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') { event.preventDefault(); if (!event.repeat) event.shiftKey ? ungroupSelection() : groupSelection(); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId); if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); setSelectedId(null); } else if (event.key === 'Delete' && selectedIds.length) { event.preventDefault(); removeSelection(); } }}><h3>Ebenen</h3><p className="task-wireframe-selection-hint">Umschalt/Strg: Mehrfachauswahl · Strg+G: Gruppe · F2: Text</p>{elements.length ? <ol>{elements.map((item) => <li key={item.id}><button data-wireframe-id={item.id} type="button" disabled={busy} className={`${selectedIds.includes(item.id) ? 'selected' : ''}${enteredGroupId && item.groupId === enteredGroupId ? ' in-entered-group' : ''}`} aria-pressed={selectedIds.includes(item.id)} onClick={(event) => { if (event.shiftKey || event.ctrlKey || event.metaKey) toggleSelected(item.id); else setSelectedId(item.id); }}>{item.groupId ? 'Gruppe · ' : ''}{labelForKind[item.kind]} · {item.text || 'Ohne Text'}</button></li>)}</ol> : <p>Noch keine Elemente.</p>}</aside>
         <div className="task-wireframe-canvas-wrap" data-artboard={artboard}>
           <div className="task-wireframe-canvas-head"><span>{canvas.width} × {canvas.height} · {canvas.label}</span><div className="task-wireframe-view-controls" role="group" aria-label="Zeichenflächenansicht"><button type="button" className="secondary-button small" aria-label="Ansicht verkleinern" disabled={zoom <= 50} onClick={() => setZoom((value) => value - 25)}>−</button><output aria-label="Zoomstufe">{zoom} %</output><button type="button" className="secondary-button small" aria-label="Ansicht vergrößern" disabled={zoom >= 150} onClick={() => setZoom((value) => value + 25)}>+</button><button type="button" className="secondary-button small" aria-pressed={snapToGrid} onClick={() => setSnapToGrid((value) => !value)}>8 px Raster</button></div></div>
-          <div ref={viewport} className={`task-wireframe-canvas-viewport${panReady ? ' pan-ready' : ''}${panning ? ' pan-active' : ''}`} role="region" tabIndex={0} aria-label="Verschiebbare Zeichenflächenansicht" onPointerDown={startPan} onPointerMove={movePan} onPointerUp={(event) => stopPan(event.pointerId)} onPointerCancel={(event) => stopPan(event.pointerId)} onLostPointerCapture={(event) => stopPan(event.pointerId)} onKeyDown={onCanvasKeyDown} onKeyUp={onCanvasKeyUp} onBlur={onCanvasBlur}><div className="task-wireframe-canvas-scale" style={{ width: `${zoom}%`, aspectRatio: `${canvas.width} / ${canvas.height}` }}><div className={`task-wireframe-canvas${snapToGrid ? ' has-grid' : ''}`} style={{ aspectRatio: `${canvas.width} / ${canvas.height}`, width: `${10000 / zoom}%`, transform: `scale(${zoom / 100})`, backgroundSize: snapToGrid ? `${800 / canvas.width}% ${800 / canvas.height}%` : undefined }} ref={stage} role="group" tabIndex={0} aria-label={`Editierbares ${canvas.label}-Wireframe`} onPointerDown={startMarquee} onPointerMove={moveMarquee} onPointerUp={finishMarquee} onPointerCancel={cancelMarquee} onLostPointerCapture={cancelMarquee} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); setSelectedIds(elements.map((item) => item.id)); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') { event.preventDefault(); if (!event.repeat) event.shiftKey ? ungroupSelection() : groupSelection(); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId) ?? selected; if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); if (marquee.current) cancelMarquee(); else setSelectedId(null); } }}>
-          {elements.map((item) => <button data-wireframe-id={item.id} key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedIds.includes(item.id) ? ' selected' : ''}`} style={{ left: `${item.x / canvas.width * 100}%`, top: `${item.y / canvas.height * 100}%`, width: `${item.width / canvas.width * 100}%`, height: `${item.height / canvas.height * 100}%`, backgroundColor: item.kind === 'line' ? undefined : wireframeColorCss(item, 'fill'), borderColor: item.kind === 'line' ? undefined : wireframeColorCss(item, 'stroke'), color: item.kind === 'line' ? wireframeColorCss(item, 'stroke') ?? (item.tone === 'accent' ? 'var(--accent)' : 'var(--text)') : wireframeColorCss(item, 'textColor'), borderRadius: item.kind === 'ellipse' ? '50%' : item.style?.radius, fontSize: wireframePreviewFontSize(item.style?.fontSize, canvas.width), fontWeight: item.style?.fontWeight }} aria-label={`${labelForKind[item.kind]}${isShape(item.kind) ? '' : `: ${item.text || 'ohne Text'}`}`} aria-pressed={selectedIds.includes(item.id)}
+          <div ref={viewport} className={`task-wireframe-canvas-viewport${panReady ? ' pan-ready' : ''}${panning ? ' pan-active' : ''}`} role="region" tabIndex={0} aria-label="Verschiebbare Zeichenflächenansicht" onPointerDown={startPan} onPointerMove={movePan} onPointerUp={(event) => stopPan(event.pointerId)} onPointerCancel={(event) => stopPan(event.pointerId)} onLostPointerCapture={(event) => stopPan(event.pointerId)} onKeyDown={onCanvasKeyDown} onKeyUp={onCanvasKeyUp} onBlur={onCanvasBlur}><div className="task-wireframe-canvas-scale" style={{ width: `${zoom}%`, aspectRatio: `${canvas.width} / ${canvas.height}` }}><div className={`task-wireframe-canvas${snapToGrid ? ' has-grid' : ''}`} style={{ aspectRatio: `${canvas.width} / ${canvas.height}`, width: `${10000 / zoom}%`, transform: `scale(${zoom / 100})`, backgroundSize: snapToGrid ? `${800 / canvas.width}% ${800 / canvas.height}%` : undefined }} ref={stage} role="group" tabIndex={0} aria-label={`Editierbares ${canvas.label}-Wireframe`} onPointerDown={startMarquee} onPointerMove={moveMarquee} onPointerUp={finishMarquee} onPointerCancel={cancelMarquee} onLostPointerCapture={cancelMarquee} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); selectAllInScope(); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelection(event.target as HTMLElement); } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') { event.preventDefault(); if (!event.repeat) event.shiftKey ? ungroupSelection() : groupSelection(); } else if (event.key === 'F2') { const item = elements.find((candidate) => candidate.id === (event.target as HTMLElement).dataset.wireframeId) ?? selected; if (item && isTextEditable(item.kind)) { event.preventDefault(); startInlineTextEdit(item); } } else if (event.key === 'Escape') { event.preventDefault(); if (marquee.current) cancelMarquee(); else setSelectedId(null); } }}>
+          {elements.map((item) => <button data-wireframe-id={item.id} key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedIds.includes(item.id) ? ' selected' : ''}${enteredGroupId && item.groupId === enteredGroupId ? ' in-entered-group' : ''}`} style={{ left: `${item.x / canvas.width * 100}%`, top: `${item.y / canvas.height * 100}%`, width: `${item.width / canvas.width * 100}%`, height: `${item.height / canvas.height * 100}%`, backgroundColor: item.kind === 'line' ? undefined : wireframeColorCss(item, 'fill'), borderColor: item.kind === 'line' ? undefined : wireframeColorCss(item, 'stroke'), color: item.kind === 'line' ? wireframeColorCss(item, 'stroke') ?? (item.tone === 'accent' ? 'var(--accent)' : 'var(--text)') : wireframeColorCss(item, 'textColor'), borderRadius: item.kind === 'ellipse' ? '50%' : item.style?.radius, fontSize: wireframePreviewFontSize(item.style?.fontSize, canvas.width), fontWeight: item.style?.fontWeight }} aria-label={`${labelForKind[item.kind]}${isShape(item.kind) ? '' : `: ${item.text || 'ohne Text'}`}`} aria-pressed={selectedIds.includes(item.id)}
             onFocus={() => { if (!interactionLocked.current && !pointerSelection.current && !spaceHeld.current && !selectedIds.includes(item.id)) setSelectedId(item.id); }}
-            onDoubleClick={(event) => { if (event.shiftKey || event.ctrlKey || event.metaKey) return; event.preventDefault(); event.stopPropagation(); startInlineTextEdit(item); }}
-            onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0 || spaceHeld.current || inlineEditRef.current?.id === item.id) return; if (event.shiftKey || event.ctrlKey || event.metaKey) { event.preventDefault(); toggleSelected(item.id); return; } pointerSelection.current = true; const ids = selectedIds.includes(item.id) ? selectedIds : expandWireframeGroupSelection(elements, [item.id]); if (ids !== selectedIds) setSelectedIds(ids); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, ids, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, before: draft, origin: elements, recorded: false }; }}
-            onPointerMove={(event) => { const current = drag.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== item.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const rawDx = (event.clientX - current.clientX) * canvas.width / rect.width; const rawDy = (event.clientY - current.clientY) * canvas.height / rect.height; const origin = current.origin.find((candidate) => candidate.id === item.id)!; const dx = snapToGrid ? snapWireframePosition(origin.x + rawDx, origin.width, canvas.width) - origin.x : rawDx; const dy = snapToGrid ? snapWireframePosition(origin.y + rawDy, origin.height, canvas.height) - origin.y : rawDy; const next = moveWireframeSelection(current.origin, current.ids, dx, dy, canvas.width, canvas.height); if (next.some((candidate, index) => candidate.x !== elements[index]!.x || candidate.y !== elements[index]!.y)) { if (!current.recorded) { recordHistory(current.before); current.recorded = true; } editElements(next, false); } }}
+            onDoubleClick={(event) => { if (event.shiftKey || event.ctrlKey || event.metaKey) return; event.preventDefault(); event.stopPropagation(); if (item.groupId && enteredGroupId !== item.groupId) enterGroup(item.groupId, item.id); else startInlineTextEdit(item); }}
+            onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0 || spaceHeld.current || inlineEditRef.current?.id === item.id) return; if (event.shiftKey || event.ctrlKey || event.metaKey) { event.preventDefault(); toggleSelected(item.id); return; } pointerSelection.current = true; const scopeGroupId = item.groupId === enteredGroupId ? enteredGroupId : null; if (enteredGroupId && !scopeGroupId) setEditingGroupId(null); const ids = selectedIds.includes(item.id) ? selectedIds : selectWireframeTarget(elements, item.id, scopeGroupId); if (ids !== selectedIds) setSelectedIds(ids); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, ids, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, before: draft, origin: elements, scopeGroupId, recorded: false }; }}
+            onPointerMove={(event) => { const current = drag.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== item.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const rawDx = (event.clientX - current.clientX) * canvas.width / rect.width; const rawDy = (event.clientY - current.clientY) * canvas.height / rect.height; const origin = current.origin.find((candidate) => candidate.id === item.id)!; const dx = snapToGrid ? snapWireframePosition(origin.x + rawDx, origin.width, canvas.width) - origin.x : rawDx; const dy = snapToGrid ? snapWireframePosition(origin.y + rawDy, origin.height, canvas.height) - origin.y : rawDy; const next = moveWireframeSelection(current.origin, current.ids, dx, dy, canvas.width, canvas.height, current.scopeGroupId); if (next.some((candidate, index) => candidate.x !== elements[index]!.x || candidate.y !== elements[index]!.y)) { if (!current.recorded) { recordHistory(current.before); current.recorded = true; } editElements(next, false); } }}
             onPointerUp={(event) => { pointerSelection.current = false; if (drag.current?.pointerId === event.pointerId) drag.current = null; }} onPointerCancel={() => { pointerSelection.current = false; drag.current = null; }}
             onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; if (event.key === 'ArrowLeft') { event.preventDefault(); moveSelected(item, -step, 0); } else if (event.key === 'ArrowRight') { event.preventDefault(); moveSelected(item, step, 0); } else if (event.key === 'ArrowUp') { event.preventDefault(); moveSelected(item, 0, -step); } else if (event.key === 'ArrowDown') { event.preventDefault(); moveSelected(item, 0, step); } else if (event.key === 'Delete') { event.preventDefault(); selectedIds.includes(item.id) ? removeSelection() : removeElement(item.id); } }}>
             {item.kind === 'line' ? <svg className="task-wireframe-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line className="task-wireframe-line-hit" x1="2" y1={item.lineDirection === 'rising' ? '98' : '2'} x2="98" y2={item.lineDirection === 'rising' ? '2' : '98'} /><line className="task-wireframe-line-visible" x1="2" y1={item.lineDirection === 'rising' ? '98' : '2'} x2="98" y2={item.lineDirection === 'rising' ? '2' : '98'} /></svg> : item.kind === 'field' ? <span>{item.text || 'Eingabe'}</span> : item.text}
@@ -523,7 +551,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
             onPointerUp={(event) => { if (resize.current?.pointerId === event.pointerId) resize.current = null; }} onPointerCancel={() => { resize.current = null; }}
             onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; const change: [number, number] | null = event.key === 'ArrowRight' ? [step, 0] : event.key === 'ArrowLeft' ? [-step, 0] : event.key === 'ArrowDown' ? [0, step] : event.key === 'ArrowUp' ? [0, -step] : null; if (!change) return; event.preventDefault(); event.stopPropagation(); const next = resizeWireframeElement(selected, change[0], change[1], canvas.width, canvas.height); editElement(selected.id, { width: next.width, height: next.height }); }}><CornerDownRight size={12} aria-hidden="true" /></button> : null}
         </div></div></div><p className="task-wireframe-canvas-hint"><MousePointer2 size={13} aria-hidden="true" /> Ziehen oder Pfeiltasten · Leertaste + Ziehen / mittlere Maustaste: Ansicht verschieben · Strg + Mausrad: Zoom · Doppelklick/F2: Text · Ecke: Größe</p></div>
-        <aside className="task-wireframe-properties" aria-label="Eigenschaften"><h3>Eigenschaften</h3><label>Entwurfstitel<input value={draft.title} disabled={busy} maxLength={100} onChange={(event) => edit({ ...draft, title: event.target.value })} /></label>{selectedElements.length ? <button type="button" className="secondary-button small task-wireframe-duplicate" disabled={busy || elements.length + selectedElements.length > 40} onClick={() => duplicateSelection()} title="Auswahl duplizieren (Strg+D)"><Copy size={14} aria-hidden="true" />Auswahl duplizieren</button> : null}{selectedElements.length > 1 ? <div className="task-wireframe-multi" role="group" aria-label="Mehrfachauswahl ausrichten"><strong>{selectedElements.length} Elemente ausgewählt</strong><div className="task-wireframe-group-actions"><button type="button" className="secondary-button small" disabled={busy || Boolean(selectedElements[0]?.groupId && selectedElements.every((item) => item.groupId === selectedElements[0]?.groupId))} onClick={groupSelection}>Gruppieren</button>{selectedElements.some((item) => item.groupId) ? <button type="button" className="secondary-button small" disabled={busy} onClick={ungroupSelection}>Gruppe lösen</button> : null}</div>{selectedElements.some((item) => item.groupId) ? <small>Zum Ausrichten zuerst die Gruppe lösen.</small> : null}<div className="task-wireframe-align-grid">{([
+        <aside className="task-wireframe-properties" aria-label="Eigenschaften"><h3>Eigenschaften</h3><label>Entwurfstitel<input value={draft.title} disabled={busy} maxLength={100} onChange={(event) => edit({ ...draft, title: event.target.value })} /></label>{selectedElements.length ? <button type="button" className="secondary-button small task-wireframe-duplicate" disabled={busy || elements.length + selectedElements.length > 40} onClick={() => duplicateSelection()} title="Auswahl duplizieren (Strg+D)"><Copy size={14} aria-hidden="true" />Auswahl duplizieren</button> : null}{selectedElements.length > 1 ? <div className="task-wireframe-multi" role="group" aria-label="Mehrfachauswahl ausrichten"><strong>{selectedElements.length} Elemente ausgewählt</strong>{selectedGroupId && !enteredGroupId ? <button type="button" className="secondary-button small" disabled={busy} onClick={() => enterGroup(selectedGroupId)}>Gruppe bearbeiten</button> : null}<div className="task-wireframe-group-actions"><button type="button" className="secondary-button small" disabled={busy || Boolean(selectedElements[0]?.groupId && selectedElements.every((item) => item.groupId === selectedElements[0]?.groupId))} onClick={groupSelection}>Gruppieren</button>{selectedElements.some((item) => item.groupId) ? <button type="button" className="secondary-button small" disabled={busy} onClick={ungroupSelection}>Gruppe lösen</button> : null}</div>{selectedElements.some((item) => item.groupId) ? <small>Zum Ausrichten zuerst die Gruppe lösen.</small> : null}<div className="task-wireframe-align-grid">{([
           ['left', 'Links'], ['center-x', 'Mitte X'], ['right', 'Rechts'], ['top', 'Oben'], ['center-y', 'Mitte Y'], ['bottom', 'Unten'],
         ] as const).map(([mode, label]) => <button key={mode} type="button" className="secondary-button small" disabled={busy || selectedElements.some((item) => item.groupId)} onClick={() => alignSelection(mode)}>{label}</button>)}</div><div className="task-wireframe-distribute"><button type="button" className="secondary-button small" disabled={busy || selectedElements.length < 3 || selectedElements.some((item) => item.groupId)} onClick={() => alignSelection('distribute-x')}>Horizontal verteilen</button><button type="button" className="secondary-button small" disabled={busy || selectedElements.length < 3 || selectedElements.some((item) => item.groupId)} onClick={() => alignSelection('distribute-y')}>Vertikal verteilen</button></div><button type="button" className="secondary-button small" disabled={busy} onClick={removeSelection}>Auswahl entfernen</button></div> : selected ? <>
           <div className="task-wireframe-property-kind">{labelForKind[selected.kind]}</div>

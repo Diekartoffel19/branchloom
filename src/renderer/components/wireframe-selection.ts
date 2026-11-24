@@ -13,31 +13,50 @@ export function expandWireframeGroupSelection(elements: WireframeElement[], ids:
   return elements.filter((item) => chosen.has(item.id)).map((item) => item.id);
 }
 
+/** A group-entry view selects only members of the entered group. Other clicks use whole-group selection. */
+export function selectWireframeTarget(elements: WireframeElement[], id: string, enteredGroupId: string | null = null): string[] {
+  const item = elements.find((candidate) => candidate.id === id);
+  if (!item) return [];
+  return enteredGroupId && item.groupId === enteredGroupId ? [id] : expandWireframeGroupSelection(elements, [id]);
+}
+
+/** Removing a member cannot leave an inert one-member group behind. */
+export function removeWireframeSelection(elements: WireframeElement[], ids: readonly string[]): WireframeElement[] {
+  const removed = new Set(ids);
+  const remaining = elements.filter((item) => !removed.has(item.id));
+  const counts = new Map<string, number>();
+  for (const item of remaining) if (item.groupId) counts.set(item.groupId, (counts.get(item.groupId) ?? 0) + 1);
+  return remaining.map((item) => item.groupId && counts.get(item.groupId) === 1 ? { ...item, groupId: undefined } : item);
+}
+
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
 /** Return layers intersecting a non-empty drag rectangle in artboard coordinates. */
 export function selectWireframeMarquee(
   elements: WireframeElement[], start: WireframePoint, end: WireframePoint, existingIds: readonly string[] = [],
+  enteredGroupId: string | null = null,
 ): string[] {
   const left = Math.min(start.x, end.x);
   const right = Math.max(start.x, end.x);
   const top = Math.min(start.y, end.y);
   const bottom = Math.max(start.y, end.y);
   if (right <= left || bottom <= top) return [...existingIds];
-  const chosen = new Set(existingIds);
-  for (const item of elements) {
+  const scope = enteredGroupId ? elements.filter((item) => item.groupId === enteredGroupId) : elements;
+  const chosen = new Set(existingIds.filter((id) => scope.some((item) => item.id === id)));
+  for (const item of scope) {
     if (item.x < right && item.x + item.width > left && item.y < bottom && item.y + item.height > top) chosen.add(item.id);
   }
-  return expandWireframeGroupSelection(elements, [...chosen]);
+  return enteredGroupId ? scope.filter((item) => chosen.has(item.id)).map((item) => item.id) : expandWireframeGroupSelection(elements, [...chosen]);
 }
 
 /** Duplicate the current artboard selection in front of existing layers. The entire group shifts together. */
 export function duplicateWireframeSelection(
   elements: WireframeElement[], ids: readonly string[], canvasWidth: number, canvasHeight: number,
   makeId: () => string,
+  enteredGroupId: string | null = null,
 ): WireframeDuplication | null {
-  const chosen = new Set(expandWireframeGroupSelection(elements, ids));
-  const selected = elements.filter((item) => chosen.has(item.id));
+  const chosen = new Set(enteredGroupId ? ids : expandWireframeGroupSelection(elements, ids));
+  const selected = elements.filter((item) => chosen.has(item.id) && (!enteredGroupId || item.groupId === enteredGroupId));
   if (!selected.length || elements.length + selected.length > 40) return null;
   const used = new Set(elements.map((item) => item.id));
   const minDx = -Math.min(...selected.map((item) => item.x));
@@ -58,14 +77,14 @@ export function duplicateWireframeSelection(
   });
   const groupMap = new Map<string, string>();
   const usedGroups = new Set(elements.map((item) => item.groupId).filter(Boolean));
-  for (const item of copies) if (item.groupId && !groupMap.has(item.groupId)) {
+  for (const item of copies) if (!enteredGroupId && item.groupId && !groupMap.has(item.groupId)) {
     const base = `group-${item.id.slice(0, 48)}`;
     let next = base;
     for (let suffix = 1; usedGroups.has(next); suffix++) next = `${base}-${suffix}`;
     usedGroups.add(next);
     groupMap.set(item.groupId, next);
   }
-  for (const item of copies) if (item.groupId) item.groupId = groupMap.get(item.groupId)!;
+  for (const item of copies) if (!enteredGroupId && item.groupId) item.groupId = groupMap.get(item.groupId)!;
   return { elements: [...elements, ...copies], selectedIds: copies.map((item) => item.id) };
 }
 
@@ -73,14 +92,15 @@ export function duplicateWireframeSelection(
 export function moveWireframeSelection(
   elements: WireframeElement[], ids: readonly string[], deltaX: number, deltaY: number,
   canvasWidth: number, canvasHeight: number,
+  enteredGroupId: string | null = null,
 ): WireframeElement[] {
-  const expanded = expandWireframeGroupSelection(elements, ids);
-  const selected = elements.filter((item) => expanded.includes(item.id));
+  const expanded = enteredGroupId ? ids : expandWireframeGroupSelection(elements, ids);
+  const selected = elements.filter((item) => expanded.includes(item.id) && (!enteredGroupId || item.groupId === enteredGroupId));
   if (!selected.length) return elements;
   const dx = clamp(Math.round(deltaX), -Math.min(...selected.map((item) => item.x)), Math.min(...selected.map((item) => canvasWidth - item.x - item.width)));
   const dy = clamp(Math.round(deltaY), -Math.min(...selected.map((item) => item.y)), Math.min(...selected.map((item) => canvasHeight - item.y - item.height)));
   if (dx === 0 && dy === 0) return elements;
-  const chosen = new Set(expanded);
+  const chosen = new Set(selected.map((item) => item.id));
   return elements.map((item) => chosen.has(item.id) ? { ...item, x: item.x + dx, y: item.y + dy } : item);
 }
 

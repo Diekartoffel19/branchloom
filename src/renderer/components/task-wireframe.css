@@ -66,6 +66,10 @@
 .task-wireframe-layers li { min-width: 0; }
 .task-wireframe-layers li button { width: 100%; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); padding: 7px; text-align: left; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-wireframe-layers li button:hover, .task-wireframe-layers li button.selected { border-color: var(--border); background: var(--surface-2); }
+.task-wireframe-layers li button.in-entered-group { border-left: 2px solid var(--accent); }
+.task-wireframe-group-path { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
+.task-wireframe-group-path strong { color: var(--text); font-weight: 650; }
+.task-wireframe-group-path button { margin-left: auto; }
 .task-wireframe-layers p, .task-wireframe-properties p { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .task-wireframe-layers .task-wireframe-selection-hint { margin: -6px 0 10px; }
 .task-wireframe-canvas-wrap { min-width: 0; }
@@ -89,6 +93,7 @@
 .task-wireframe-element { position: absolute; display: flex; align-items: center; overflow: hidden; min-width: 0; min-height: 0; padding: 4px 7px; color: var(--text); border: 1px solid var(--border); border-radius: 4px; background: var(--surface); text-align: left; font-size: clamp(9px, 1.1vw, 13px); line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; touch-action: none; cursor: grab; }
 .task-wireframe-element:active { cursor: grabbing; }
 .task-wireframe-element.selected { outline: 2px solid var(--focus, var(--accent)); outline-offset: 1px; }
+.task-wireframe-element.in-entered-group:not(.selected) { outline: 1px dashed var(--accent); outline-offset: 1px; }
 .task-wireframe-element.kind-panel { align-items: start; padding: 10px; background: var(--surface-2); }
 .task-wireframe-element.kind-text { border-color: transparent; background: transparent; font-weight: 650; }
 .task-wireframe-element.kind-button { justify-content: center; font-weight: 600; }

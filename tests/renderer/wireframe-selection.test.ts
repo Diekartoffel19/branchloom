@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WireframeElement } from '../../src/shared/card-wireframe';
 import { snapWireframePosition } from '../../src/renderer/components/wireframe-editing';
-import { alignWireframeSelection, duplicateWireframeSelection, expandWireframeGroupSelection, moveWireframeSelection, selectWireframeMarquee } from '../../src/renderer/components/wireframe-selection';
+import { alignWireframeSelection, duplicateWireframeSelection, expandWireframeGroupSelection, moveWireframeSelection, removeWireframeSelection, selectWireframeMarquee, selectWireframeTarget } from '../../src/renderer/components/wireframe-selection';
 
 const item = (id: string, x: number, y: number, width = 40, height = 20): WireframeElement =>
   ({ id, kind: 'panel', text: id, tone: 'plain', x, y, width, height });
@@ -13,6 +13,34 @@ describe('wireframe multi-selection geometry', () => {
     expect(selectWireframeMarquee(elements, { x: 5, y: 5 }, { x: 30, y: 20 })).toEqual(['a', 'b']);
     expect(moveWireframeSelection(elements, expandWireframeGroupSelection(elements, ['a']), 5, 7, 300, 300).map(({ x, y }) => [x, y]))
       .toEqual([[15, 17], [105, 107], [200, 200]]);
+  });
+
+  it('selects, drags and frames only members inside an entered group', () => {
+    const elements = [{ ...item('a', 10, 10), groupId: 'group-one' }, { ...item('b', 100, 100), groupId: 'group-one' }, item('c', 15, 15)];
+    expect(selectWireframeTarget(elements, 'a')).toEqual(['a', 'b']);
+    expect(selectWireframeTarget(elements, 'a', 'group-one')).toEqual(['a']);
+    expect(selectWireframeTarget(elements, 'c', 'group-one')).toEqual(['c']);
+    expect(selectWireframeMarquee(elements, { x: 0, y: 0 }, { x: 60, y: 60 }, [], 'group-one')).toEqual(['a']);
+    expect(selectWireframeMarquee(elements, { x: 0, y: 0 }, { x: 60, y: 60 }, ['b'], 'group-one')).toEqual(['a', 'b']);
+    expect(moveWireframeSelection(elements, ['a'], 6, 8, 300, 300, 'group-one').map(({ x, y }) => [x, y]))
+      .toEqual([[16, 18], [100, 100], [15, 15]]);
+    expect(moveWireframeSelection(elements, ['a'], 6, 8, 300, 300).map(({ x, y }) => [x, y]))
+      .toEqual([[16, 18], [106, 108], [15, 15]]);
+  });
+
+  it('duplicates a member within its current group without copying siblings or saving', () => {
+    const elements = [{ ...item('a', 10, 10), groupId: 'group-one' }, { ...item('b', 100, 100), groupId: 'group-one' }];
+    const result = duplicateWireframeSelection(elements, ['a'], 300, 300, () => 'copy-a', 'group-one')!;
+    expect(result.selectedIds).toEqual(['copy-a']);
+    expect(result.elements).toHaveLength(3);
+    expect(result.elements[2]).toMatchObject({ id: 'copy-a', groupId: 'group-one', x: 26, y: 26 });
+    expect(elements).toHaveLength(2);
+  });
+
+  it('removes a member and clears an orphaned group ID without touching other groups', () => {
+    const elements = [{ ...item('a', 10, 10), groupId: 'first' }, { ...item('b', 50, 50), groupId: 'first' }, { ...item('c', 90, 90), groupId: 'second' }, { ...item('d', 130, 130), groupId: 'second' }];
+    expect(removeWireframeSelection(elements, ['a'])).toMatchObject([{ id: 'b', groupId: undefined }, { id: 'c', groupId: 'second' }, { id: 'd', groupId: 'second' }]);
+    expect(elements[1]!.groupId).toBe('first');
   });
 
   it('duplicates a group under a fresh group ID while leaving source membership untouched', () => {
