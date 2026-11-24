@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 
-const fake = vi.hoisted(() => ({ windows: [] as Array<{ options: { show: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }; destroyed: boolean; webContents: unknown }>, mode: 'clean' as 'clean' | 'console' | 'remote' | 'load-error' | 'capture-error' | 'capture-large' | 'capture-empty' | 'slow', releases: [] as Array<() => void> }));
+const fake = vi.hoisted(() => ({ windows: [] as Array<{ options: { show: boolean; width: number; height: number; useContentSize: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }; destroyed: boolean; webContents: unknown }>, mode: 'clean' as 'clean' | 'console' | 'remote' | 'load-error' | 'capture-error' | 'capture-large' | 'capture-empty' | 'slow' | 'clamped', releases: [] as Array<() => void> }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
   class Contents extends EventEmitter {
@@ -37,7 +37,9 @@ vi.mock('electron', async () => {
   return { BrowserWindow: class {
     destroyed = false;
     webContents = new Contents();
-    constructor(public options: { show: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }) { fake.windows.push(this); }
+    constructor(public options: { show: boolean; width: number; height: number; useContentSize: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }) { fake.windows.push(this); }
+    setContentSize(width: number, height: number) { this.options.width = width; this.options.height = fake.mode === 'clamped' ? 684 : height; }
+    getContentSize() { return [this.options.width, this.options.height]; }
     isDestroyed() { return this.destroyed; }
     destroy() { this.destroyed = true; }
   } };
@@ -61,11 +63,36 @@ function fixture() {
 }
 
 describe('explicit local card QA', () => {
+  it('validates exact viewport choices before opening a browser and stores measured content sizes', async () => {
+    const { store, card } = fixture();
+    for (const viewport of ['', 'Desktop', 'mobile-large', '__proto__', 1280, null]) {
+      await expect(runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/', viewport: viewport as 'desktop' })).rejects.toThrow('Prüfgröße');
+    }
+    expect(fake.windows).toHaveLength(0);
+    for (const [viewport, width, height] of [['desktop', 1280, 800], ['tablet', 768, 1024], ['mobile', 390, 844]] as const) {
+      const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/', viewport });
+      expect(fake.windows.at(-1)?.options).toMatchObject({ width, height, useContentSize: true });
+      expect(report).toMatchObject({ viewportWidth: width, viewportHeight: height, screenshotAvailable: true });
+      expect(cardQaReports(store, card.id)[0]).toMatchObject({ id: report.id, viewportWidth: width, viewportHeight: height });
+    }
+    store.close();
+  });
+
+  it('keeps a failed report with the actual size if the OS clamps the selected viewport', async () => {
+    const { store, card } = fixture();
+    fake.mode = 'clamped';
+    const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/', viewport: 'tablet' });
+    expect(report).toMatchObject({ status: 'error', viewportWidth: 768, viewportHeight: 684, screenshotAvailable: false });
+    expect(report.note).toContain('Prüfgröße konnte nicht gesetzt werden');
+    expect(fake.windows[0]?.destroyed).toBe(true);
+    store.close();
+  });
+
   it('rejects remote, credential and non-web URLs before creating a browser or report', async () => {
     const { store, card } = fixture();
     expect(normalizeCardQaUrl('http://127.0.0.1:5173/?token=private')).toContain('127.0.0.1');
     for (const url of ['https://example.com/', 'https://localhost.evil.example/', 'file:///etc/passwd', 'http://user:pass@localhost:5173/']) {
-      await expect(runCardQa(store, { cardId: card.id, url })).rejects.toThrow();
+      await expect(runCardQa(store, { viewport: 'desktop', cardId: card.id, url })).rejects.toThrow();
     }
     expect(fake.windows).toHaveLength(0);
     expect(cardQaReports(store, card.id)).toEqual([]);
@@ -75,7 +102,7 @@ describe('explicit local card QA', () => {
   it('records a sandboxed page error with sanitized source, persists it, and never starts an agent', async () => {
     const { file, store, project, card } = fixture();
     fake.mode = 'console';
-    const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/page?token=private' });
+    const report = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/page?token=private' });
     expect(report).toMatchObject({ status: 'failed', requestedUrl: 'http://127.0.0.1:5173/page', finalUrl: 'http://127.0.0.1:5173/page', screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     expect(report.diagnostics[0]).toMatchObject({ message: 'Synthetic TypeError', sourceUrl: 'http://127.0.0.1:5173/app.js', line: 7 });
     expect(fake.windows[0]).toMatchObject({ destroyed: true, options: { show: false, webPreferences: { sandbox: true, nodeIntegration: false, webSecurity: true } } });
@@ -91,7 +118,7 @@ describe('explicit local card QA', () => {
   it('requires the matching card for a persisted screenshot', async () => {
     const { store, project, card } = fixture();
     const other = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Other' });
-    const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
+    const report = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
     expect(() => cardQaScreenshot(store, { cardId: other.id, reportId: report.id })).toThrow('gehört nicht');
     store.close();
   });
@@ -99,12 +126,12 @@ describe('explicit local card QA', () => {
   it('blocks requests outside the selected origin and distinguishes a clean limited pass', async () => {
     const { store, card } = fixture();
     fake.mode = 'remote';
-    const blocked = await runCardQa(store, { cardId: card.id, url: 'http://localhost:5173/' });
+    const blocked = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://localhost:5173/' });
     expect(blocked.status).toBe('failed');
     expect(blocked.diagnostics[0]?.message).toContain('blockiert');
     expect(JSON.stringify(blocked)).not.toContain('token=private');
     fake.mode = 'clean';
-    const clean = await runCardQa(store, { cardId: card.id, url: 'http://localhost:5173/' });
+    const clean = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://localhost:5173/' });
     expect(clean.status).toBe('passed');
     expect(clean.diagnostics).toEqual([]);
     expect(cardQaReports(store, card.id).map((item) => item.id)).toEqual([clean.id, blocked.id]);
@@ -114,13 +141,13 @@ describe('explicit local card QA', () => {
   it('stores load failures without query values and releases the card for retry', async () => {
     const { store, card } = fixture();
     fake.mode = 'load-error';
-    const failed = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/?token=private' });
+    const failed = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/?token=private' });
     expect(failed.status).toBe('error');
     expect(failed.screenshotAvailable).toBe(false);
     expect(failed.note).toContain('ERR_CONNECTION_REFUSED');
     expect(JSON.stringify(failed)).not.toContain('token=private');
     fake.mode = 'clean';
-    expect((await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' })).status).toBe('passed');
+    expect((await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' })).status).toBe('passed');
     store.close();
   });
 
@@ -128,7 +155,7 @@ describe('explicit local card QA', () => {
     const { store, card } = fixture();
     for (const mode of ['capture-error', 'capture-empty', 'capture-large'] as const) {
       fake.mode = mode;
-      const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
+      const report = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
       expect(report).toMatchObject({ status: 'passed', screenshotAvailable: false, note: expect.stringContaining('Screenshot konnte nicht') });
       expect(() => cardQaScreenshot(store, { cardId: card.id, reportId: report.id })).toThrow('kein gültiger Screenshot');
     }
@@ -146,7 +173,7 @@ describe('explicit local card QA', () => {
       insert.run(`old-${index}`, oldCard.id, project.id, Buffer.from('synthetic'));
     }
     insert.run('future-same-card', card.id, project.id, Buffer.from('synthetic'));
-    const newest = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
+    const newest = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
     const retained = store.db.prepare('SELECT COUNT(*) AS count FROM card_qa_reports WHERE screenshot_png IS NOT NULL').get() as { count: number };
     expect(retained.count).toBe(100);
     expect(newest.screenshotAvailable).toBe(true);
@@ -158,7 +185,7 @@ describe('explicit local card QA', () => {
 
   it('adds the screenshot column to an existing QA report table on upgrade', async () => {
     const { store, file, card } = fixture();
-    const old = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/old' });
+    const old = await runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/old' });
     store.close();
     const legacy = new Database(file);
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN screenshot_png');
@@ -167,7 +194,7 @@ describe('explicit local card QA', () => {
     legacy.close();
     const reopened = new StudioStore(file);
     expect(cardQaReports(reopened, card.id).find((item) => item.id === old.id)).toMatchObject({ viewportWidth: 0, viewportHeight: 0, screenshotAvailable: false });
-    const report = await runCardQa(reopened, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
+    const report = await runCardQa(reopened, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
     expect(report).toMatchObject({ screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     reopened.close();
   });
@@ -177,14 +204,14 @@ describe('explicit local card QA', () => {
     const second = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Second' });
     const third = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Third' });
     fake.mode = 'slow';
-    const firstRun = runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
-    const secondRun = runCardQa(store, { cardId: second.id, url: 'http://127.0.0.1:5173/' });
+    const firstRun = runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
+    const secondRun = runCardQa(store, { viewport: 'desktop', cardId: second.id, url: 'http://127.0.0.1:5173/' });
     expect(fake.releases).toHaveLength(2);
-    await expect(runCardQa(store, { cardId: third.id, url: 'http://127.0.0.1:5173/' })).rejects.toThrow('zwei lokale QA-Prüfungen');
+    await expect(runCardQa(store, { viewport: 'desktop', cardId: third.id, url: 'http://127.0.0.1:5173/' })).rejects.toThrow('zwei lokale QA-Prüfungen');
     for (const release of fake.releases.splice(0)) release();
     expect((await Promise.all([firstRun, secondRun])).map((report) => report.status)).toEqual(['passed', 'passed']);
     fake.mode = 'clean';
-    expect((await runCardQa(store, { cardId: third.id, url: 'http://127.0.0.1:5173/' })).status).toBe('passed');
+    expect((await runCardQa(store, { viewport: 'desktop', cardId: third.id, url: 'http://127.0.0.1:5173/' })).status).toBe('passed');
     store.close();
   });
 });

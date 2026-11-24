@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import type Database from 'better-sqlite3';
-import type { BrowserDiagnostic, CardQaReport } from '../shared/types';
+import type { BrowserDiagnostic, CardQaReport, CardQaViewport } from '../shared/types';
 import { diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import type { StudioStore } from './store';
 
@@ -12,8 +12,11 @@ const SETTLE_MS = 900;
 const MAX_SCREENSHOT_BYTES = 1_000_000;
 const MAX_SCREENSHOTS = 100;
 const MAX_ACTIVE_QA = 2;
-const VIEWPORT_WIDTH = 1280;
-const VIEWPORT_HEIGHT = 800;
+const VIEWPORTS: Record<CardQaViewport, { width: number; height: number }> = {
+  desktop: { width: 1280, height: 800 },
+  tablet: { width: 768, height: 1024 },
+  mobile: { width: 390, height: 844 },
+};
 const SCREENSHOT_WIDTH = 960;
 const SCREENSHOT_HEIGHT = 600;
 const SCREENSHOT_TIMEOUT_MS = 3_000;
@@ -90,10 +93,12 @@ function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | 
 }
 
 /** An explicit page-load QA pass in a fresh in-memory browser partition. Branchloom itself does not run an agent or write to the checkout; page JavaScript may call its own local server. */
-export async function runCardQa(store: StudioStore, input: { cardId: string; url: string }): Promise<CardQaReport> {
+export async function runCardQa(store: StudioStore, input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport> {
   const card = store.card(input.cardId);
   if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
   const url = normalizeCardQaUrl(input.url);
+  if (typeof input.viewport !== 'string' || !Object.hasOwn(VIEWPORTS, input.viewport)) throw new Error('Wähle Desktop, Tablet oder Mobile als Prüfgröße.');
+  const requestedViewport = VIEWPORTS[input.viewport];
   if (activeCards.has(card.id)) throw new Error('Für diese Karte läuft bereits eine QA-Prüfung.');
   if (activeCards.size >= MAX_ACTIVE_QA) throw new Error('Es laufen bereits zwei lokale QA-Prüfungen. Warte auf deren Abschluss.');
   activeCards.add(card.id);
@@ -114,11 +119,18 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
   let note: string | null = null;
   let status: CardQaReport['status'] = 'error';
   let screenshot: Buffer | null = null;
+  let contentViewport = { width: 0, height: 0 };
   try {
-    qaWindow = new BrowserWindow({ show: false, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT, useContentSize: true, webPreferences: {
+    qaWindow = new BrowserWindow({ show: false, width: requestedViewport.width, height: requestedViewport.height, useContentSize: true, webPreferences: {
       nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
       webviewTag: false, backgroundThrottling: false, partition: `branchloom-qa-${randomUUID()}`,
     } });
+    qaWindow.setContentSize(requestedViewport.width, requestedViewport.height);
+    const [contentWidth, contentHeight] = qaWindow.getContentSize();
+    contentViewport = { width: contentWidth ?? 0, height: contentHeight ?? 0 };
+    if (contentViewport.width !== requestedViewport.width || contentViewport.height !== requestedViewport.height) {
+      throw new Error(`Die gewählte Prüfgröße konnte nicht gesetzt werden (${contentViewport.width} × ${contentViewport.height} statt ${requestedViewport.width} × ${requestedViewport.height} px).`);
+    }
     const contents = qaWindow.webContents;
     const qaSession = contents.session;
     qaSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
@@ -151,9 +163,13 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
     ]);
     if (timeout) { clearTimeout(timeout); timeout = null; }
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    const [finalContentWidth, finalContentHeight] = qaWindow.getContentSize();
+    contentViewport = { width: finalContentWidth ?? 0, height: finalContentHeight ?? 0 };
     const loaded = contents.getURL();
     finalUrl = diagnosticSource(loaded);
-    if (!loaded || new URL(loaded).origin !== origin) {
+    if (contentViewport.width !== requestedViewport.width || contentViewport.height !== requestedViewport.height) {
+      status = 'error'; note = `Die gewählte Prüfgröße änderte sich auf ${contentViewport.width} × ${contentViewport.height} px.`;
+    } else if (!loaded || new URL(loaded).origin !== origin) {
       status = 'error'; note = 'Die Vorschau wurde nicht auf der erwarteten lokalen Origin geladen.';
     } else {
       status = diagnostics.length ? 'failed' : 'passed';
@@ -172,5 +188,5 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
     activeCards.delete(card.id);
   }
-  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null, viewportWidth: VIEWPORT_WIDTH, viewportHeight: VIEWPORT_HEIGHT }, screenshot);
+  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height }, screenshot);
 }

@@ -566,6 +566,11 @@ function createWindow(): void {
               if (!qaValueSetter) throw new Error('Browser-QA-Eingabe kann im Smoke nicht gesetzt werden.');
               qaValueSetter.call(qaInput, ${JSON.stringify(qaUrl)});
               qaInput.dispatchEvent(new Event('input', { bubbles: true }));
+              const qaViewport = qaForm.querySelector('select');
+              const viewportSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!qaViewport || !viewportSetter) throw new Error('Karten-QA-Prüfgrößen fehlen.');
+              viewportSetter.call(qaViewport, 'tablet');
+              qaViewport.dispatchEvent(new Event('change', { bubbles: true }));
               const qaButton = qaForm.querySelector('button[type="submit"]');
               for (let attempt = 0; attempt < 100 && qaButton?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!qaButton || qaButton.disabled) throw new Error('Karten-QA-Schaltfläche wurde nicht aktiv.');
@@ -578,7 +583,7 @@ function createWindow(): void {
                 if (qaReport) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
-              if (qaReport?.status !== 'failed' || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR'))) throw new Error('Lokale Karten-QA hat den Browserfehler nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
+              if (qaReport?.status !== 'failed' || qaReport.viewportWidth !== 768 || qaReport.viewportHeight !== 1024 || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR'))) throw new Error('Lokale Karten-QA hat Tablet-Viewport oder Browserfehler nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('Karten-QA-Bericht wurde nicht sichtbar gerendert.');
               const screenshotButton = [...document.querySelectorAll('.card-qa-screenshot button')].find((item) => item.textContent?.includes('Screenshot ansehen'));
@@ -591,6 +596,8 @@ function createWindow(): void {
               if (!screenshotImage.naturalWidth || screenshotImage.naturalWidth > 960 || screenshotImage.naturalHeight > 600) throw new Error('QA-Screenshot überschreitet die begrenzten Bildmaße.');
               for (let attempt = 0; attempt < 100 && qaButton.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (qaButton.disabled) throw new Error('Zweiter QA-Lauf konnte nicht gestartet werden.');
+              viewportSetter.call(qaViewport, 'mobile');
+              qaViewport.dispatchEvent(new Event('change', { bubbles: true }));
               qaButton.click();
               let comparisonReports;
               for (let attempt = 0; attempt < 300; attempt++) {
@@ -598,7 +605,7 @@ function createWindow(): void {
                 if (comparisonReports.length >= 2) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
-              if (comparisonReports?.length !== 2 || !comparisonReports.every((item) => item.screenshotAvailable)) throw new Error('Zwei gespeicherte QA-Screenshots fehlen.');
+              if (comparisonReports?.length !== 2 || !comparisonReports.every((item) => item.screenshotAvailable) || comparisonReports[0].viewportWidth !== 390 || comparisonReports[0].viewportHeight !== 844) throw new Error('Zwei QA-Screenshots oder Mobile-Viewport fehlen.');
               for (let attempt = 0; attempt < 100 && document.querySelector('.card-qa-screenshot img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.card-qa-screenshot img')) throw new Error('Eingeklappter QA-Bericht hielt den geladenen Screenshot im DOM.');
               let comparisonSelects;
@@ -622,7 +629,7 @@ function createWindow(): void {
               const comparedImages = [...document.querySelectorAll('.card-qa-comparison-images img')];
               if (comparedImages.length !== 2) throw new Error('Visual-Diff zeigte nicht beide gespeicherten Bilder.');
               await Promise.all(comparedImages.map((image) => image.decode()));
-              if (!document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 1280 × 800 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Keine Pixelbewertung')) throw new Error('Visual-Diff-Quellen oder Grenzen fehlen.');
+              if (!document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 768 × 1024 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 390 × 844 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Keine Pixelbewertung')) throw new Error('Visual-Diff-Quellen, Prüfgrößen oder Grenzen fehlen.');
               [...document.querySelectorAll('.card-qa-comparison-images button')].find((item) => item.textContent?.includes('Screenshot A vergrößern'))?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-comparison-images figure.expanded'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-comparison-images figure.expanded')) throw new Error('Visual-Diff-Vergrößerung fehlt.');

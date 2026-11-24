@@ -52,6 +52,7 @@ export interface BrowserDiagnostic { id: string; kind: 'console' | 'load'; messa
 export interface BrowserState { tabs: BrowserTabState[]; activeTabId: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null; diagnostics: BrowserDiagnostic[] }
 export interface BrowserCaptureResult { width: number; height: number }
 export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number }
+export type CardQaViewport = 'desktop' | 'tablet' | 'mobile';
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
@@ -172,7 +173,7 @@ export interface StudioAPI {
   browserSetBounds(bounds: BrowserBounds | null): Promise<BrowserState>;
   browserCreateDiagnosticCard(input: { projectId: string; columnId: string; diagnosticId: string; reproduction: string }): Promise<Card>;
   cardQaReports(cardId: string): Promise<CardQaReport[]>;
-  runCardQa(input: { cardId: string; url: string }): Promise<CardQaReport>;
+  runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
   previewOutputErrors(input: { projectId: string; sourceKind: OutputErrorSourceKind; sourceId: string }): Promise<OutputErrorPreview>;
   createOutputErrorCard(input: CreateOutputErrorCard): Promise<Card>;
