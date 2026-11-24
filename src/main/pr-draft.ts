@@ -3,6 +3,7 @@ import type { CardQaReport, PrDraftPreview } from '../shared/types';
 import type { StudioStore } from './store';
 import { cardQaReports } from './card-qa';
 import { reviewCardWorktree } from './git-worktree';
+import { diagnosticSource } from './browser-policy';
 
 function git(cwd: string, args: string[]): string {
   const result = spawnSync('git', ['-c', 'core.fsmonitor=false', ...args], {
@@ -68,7 +69,7 @@ export function previewPrDraft(store: StudioStore, cardId: string): PrDraftPrevi
     '- Code-Review: noch nicht für diesen PR-Entwurf nachgewiesen.',
     ...(reports.length ? [
       '- Lokale Browser-QA an dieser Karte (Dev-Server-Auslieferung **nicht an diesen Commit gebunden**):',
-      ...reports.map((report) => `  - ${oneLine(report.endedAt)} · ${report.status} · ${report.viewportWidth || '?'} × ${report.viewportHeight || '?'} · ${code(report.requestedUrl.slice(0, 200))}${qaCheckoutNote(report, review.sourceHead)}${report.screenshotAvailable ? ' · Screenshot nur lokal in Branchloom' : ''}`),
+      ...reports.map((report) => `  - ${oneLine(report.endedAt)} · ${report.status} · ${report.viewportWidth || '?'} × ${report.viewportHeight || '?'} · ${code(diagnosticSource(report.requestedUrl) ?? 'URL nicht lesbar')}${qaCheckoutNote(report, review.sourceHead)}${report.screenshotAvailable ? ' · Screenshot nur lokal in Branchloom' : ''}`),
     ] : ['- Lokale Browser-QA: kein gespeicherter Bericht an dieser Karte.']),
     ...(review.sourceStatus.length ? ['', '> Hinweis: Der Worktree hat nicht committete Änderungen. Sie sind nicht Teil dieses Entwurfs.'] : []),
     ...(review.blockers.length ? ['', `> Merge-Status: ${review.blockers.map(oneLine).join(' ')}`] : []),

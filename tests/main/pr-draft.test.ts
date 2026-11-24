@@ -54,7 +54,7 @@ describe('read-only PR draft', () => {
     const otherTree = ensureCardWorktree(store, other.id);
     commit(otherTree.path, 'other.txt', 'Other change');
     store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, started_at, ended_at, status, diagnostics_json, viewport_width, viewport_height)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run('qa-1', card.id, project.id, 'http://127.0.0.1:5173/', '2026-11-24T00:00:00.000Z', '2026-11-24T00:00:01.000Z', 'passed', '[]', 390, 844);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run('qa-1', card.id, project.id, 'http://127.0.0.1:5173/?token=synthetic-secret', '2026-11-24T00:00:00.000Z', '2026-11-24T00:00:01.000Z', 'passed', '[]', 390, 844);
     const preview = previewPrDraft(store, card.id)!;
     expect(preview.reportCount).toBe(1);
     expect(preview.text).toContain('Add feature A');
@@ -63,6 +63,7 @@ describe('read-only PR draft', () => {
     expect(preview.text).toContain('nicht an diesen Commit gebunden');
     expect(preview.text).toContain('Checkout-Gitstand nicht erfasst');
     expect(preview.text).toContain('390 × 844');
+    expect(preview.text).not.toContain('synthetic-secret');
     expect(preview.text).toContain('Automatisierte Tests: noch nicht');
     expect(preview.text).not.toContain('Other change');
     expect(preview.text).not.toContain('other.txt');
