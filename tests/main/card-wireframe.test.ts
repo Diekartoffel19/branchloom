@@ -41,6 +41,17 @@ describe('task-linked wireframes', () => {
     reopened.close();
   });
 
+  it('keeps the approved revision when an identical draft is saved again', () => {
+    const { store, key } = fixture();
+    const saved = saveCardWireframe(store, { ...key, title: 'Fensterentwurf', elements: [element], expectedRevision: 0 });
+    const approved = approveCardWireframe(store, { ...key, expectedRevision: saved.revision });
+    const unchanged = saveCardWireframe(store, { ...key, title: ' Fensterentwurf ', elements: [element], expectedRevision: approved.revision });
+    expect(unchanged).toEqual(approved);
+    expect(cardWireframe(store, key)).toEqual(approved);
+    expect(approvedCardWireframeContext(store, key)).toContain('Projektübersicht');
+    store.close();
+  });
+
   it('rejects stale writes, empty approval and cross-project access without changing the saved document', () => {
     const { root, store, key } = fixture();
     const otherPath = join(root, 'other'); mkdirSync(otherPath);

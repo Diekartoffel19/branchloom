@@ -3,7 +3,7 @@ import { Check, CornerDownRight, MousePointer2, Plus, Redo2, RotateCcw, Undo2 } 
 import type { Card } from '../../shared/types';
 import type { CardWireframe, WireframeElement, WireframeElementKind, WireframeElementTone } from '../../shared/card-wireframe';
 import { WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
-import { moveWireframeLayer, resizeWireframeElement } from './wireframe-editing';
+import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent } from './wireframe-editing';
 import './task-wireframe.css';
 
 interface Draft { title: string; elements: WireframeElement[] }
@@ -102,8 +102,14 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
   }, [projectId, cardId]);
 
   function retainDraft(next: Draft) {
-    if (cardId) unsavedDrafts.set(draftKey(projectId, cardId), next);
-    setDraft(next); setDirty(true); setNotice('Ungespeicherte Änderungen.'); setError('');
+    const unchanged = sameWireframeContent(next, saved);
+    if (cardId) {
+      const key = draftKey(projectId, cardId);
+      if (unchanged) unsavedDrafts.delete(key);
+      else unsavedDrafts.set(key, next);
+    }
+    setDraft(next); setDirty(!unchanged);
+    setNotice(unchanged ? 'Gespeicherten Stand wiederhergestellt.' : 'Ungespeicherte Änderungen.'); setError('');
   }
   function edit(next: Draft, record = true) { if (!interactionLocked.current) { if (draft && record) recordHistory(draft); retainDraft(next); } }
   function editElement(id: string, change: Partial<WireframeElement>, record = true) {
@@ -161,7 +167,8 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
       const result = await window.studio.saveCardWireframe({ projectId, cardId: card.id, expectedRevision: saved?.revision ?? 0, title: draft.title, elements: draft.elements });
       if (unsavedDrafts.get(key) === submittedDraft) unsavedDrafts.delete(key);
       if (generation.current !== currentGeneration) return;
-      setSaved(result); setDraft({ title: result.title, elements: result.elements }); setDirty(false); setNotice('Entwurf gespeichert. Für Agentenläufe ist eine eigene Freigabe nötig.');
+      setSaved(result); setDraft({ title: result.title, elements: result.elements }); setDirty(false);
+      setNotice(result.approvedRevision === result.revision ? 'Entwurf unverändert; Freigabe bleibt bestehen.' : 'Entwurf gespeichert. Für Agentenläufe ist eine eigene Freigabe nötig.');
     } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
     finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
   }

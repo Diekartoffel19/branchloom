@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WireframeElement } from '../../src/shared/card-wireframe';
-import { moveWireframeLayer, resizeWireframeElement } from '../../src/renderer/components/wireframe-editing';
+import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent } from '../../src/renderer/components/wireframe-editing';
 
 const element = (id: string, x = 100, y = 100, width = 200, height = 80): WireframeElement => ({ id, kind: 'panel', text: '', tone: 'plain', x, y, width, height });
 
@@ -20,5 +20,17 @@ describe('wireframe editor geometry and layer helpers', () => {
     expect(moveWireframeLayer(layers, 'front', 1)).toBe(layers);
     expect(moveWireframeLayer(layers, 'missing', -1)).toBe(layers);
     expect(layers.map((item) => item.id)).toEqual(['back', 'middle', 'front']);
+  });
+
+  it('recognizes an undone edit as the stored content regardless of property key order', () => {
+    const saved = { title: 'Fenster', elements: [element('first'), element('second')] };
+    const same = { title: 'Fenster', elements: saved.elements.map((item) => ({
+      width: item.width, text: item.text, id: item.id, y: item.y, tone: item.tone,
+      height: item.height, kind: item.kind, x: item.x,
+    })) };
+    expect(sameWireframeContent(same, saved)).toBe(true);
+    expect(sameWireframeContent({ ...same, elements: [...same.elements].reverse() }, saved)).toBe(false);
+    expect(sameWireframeContent({ ...same, elements: [{ ...same.elements[0]!, x: 101 }, same.elements[1]!] }, saved)).toBe(false);
+    expect(sameWireframeContent(same, null)).toBe(false);
   });
 });

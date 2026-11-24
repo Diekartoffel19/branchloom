@@ -1502,6 +1502,14 @@ function createWindow(): void {
               approve.click();
               for (let attempt = 0; attempt < 100 && (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }))?.approvedRevision !== 1; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }))?.approvedRevision !== 1 || (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.length !== beforeSessions) throw new Error('Entwurfsfreigabe startete einen Agenten oder blieb nicht gespeichert.');
+              const approvedElement = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Geprüfter Entwurf'));
+              if (!(approvedElement instanceof HTMLButtonElement)) throw new Error('Freigegebenes Element fehlt.');
+              approvedElement.focus(); approvedElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-geometry input')?.value !== '60'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelector('.task-wireframe-geometry input')?.value !== '60') throw new Error('Freigegebener Entwurf ließ sich nicht lokal ändern.');
+              undo.click();
+              for (let attempt = 0; attempt < 100 && (wireframe.querySelector('.task-wireframe-geometry input')?.value !== '61' || !save.disabled); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelector('.task-wireframe-geometry input')?.value !== '61' || !save.disabled || !wireframe.querySelector('.task-wireframe-actions span')?.textContent?.includes('Version 1 · freigegeben') || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }))?.approvedRevision !== 1) throw new Error('Rückgängig auf gespeicherten Stand ließ Freigabe oder Speicherzustand nicht unverändert.');
               for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-toolbar'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const input = document.querySelector('.design-inspection-toolbar input');
               const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;

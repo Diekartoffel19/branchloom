@@ -87,6 +87,7 @@ export function saveCardWireframe(store: StudioStore, input: SaveCardWireframeIn
   return store.db.transaction(() => {
     const current = cardWireframe(store, input);
     if ((current?.revision ?? 0) !== input.expectedRevision) throw new Error('Der Entwurf wurde zwischenzeitlich geändert. Lade ihn neu, bevor du speicherst.');
+    if (current && current.title === title && JSON.stringify(current.elements) === JSON.stringify(elements)) return current;
     const revision = input.expectedRevision + 1;
     const updatedAt = new Date().toISOString();
     if (current) {
