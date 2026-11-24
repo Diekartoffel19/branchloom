@@ -3,6 +3,7 @@ import { FlaskConical } from 'lucide-react';
 import type { Card, CardQaBatchResult, CardQaPageObservation, CardQaReport, CardQaViewport } from '../../shared/types';
 import { CardQaComparison } from './CardQaComparison';
 import { CardQaViewportMatrix } from './CardQaViewportMatrix';
+import { CardQaFixCard } from './CardQaFixCard';
 import './card-qa.css';
 
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -38,7 +39,7 @@ function CardQaScreenshot({ cardId, reportId }: { cardId: string; reportId: stri
   </div>;
 }
 
-function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; report: CardQaReport; initiallyOpen: boolean }) {
+function CardQaReportItem({ card, report, initiallyOpen }: { card: Card; report: CardQaReport; initiallyOpen: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
   useEffect(() => { setOpen(initiallyOpen); }, [initiallyOpen]);
   return <details className="card-qa-report" id={"card-qa-report-" + report.id} tabIndex={-1} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -52,7 +53,8 @@ function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; r
         {report.pageObservations.length ? <ul>{report.pageObservations.map((item) => <li key={item.kind}>{observationOf(item)}</li>)}</ul> : <p>Bei diesen drei Prüfungen kein Hinweis.</p>}
       </>}
     </div>
-    {open && report.screenshotAvailable ? <CardQaScreenshot cardId={cardId} reportId={report.id} /> : null}
+    {open && report.screenshotAvailable ? <CardQaScreenshot cardId={card.id} reportId={report.id} /> : null}
+    {open && report.status !== 'passed' ? <CardQaFixCard sourceCard={card} report={report} /> : null}
   </details>;
 }
 
@@ -123,7 +125,7 @@ export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: {
     {batchResult ? <p className="inline-note" role="status">{batchResult.reports.length} von {batchResult.requested} Routen gespeichert · {batchResult.reports.filter((item) => item.status === 'passed').length} ohne erfasste Fehler · {batchResult.reports.filter((item) => item.status === 'failed').length} mit Fehlern · {batchResult.reports.filter((item) => item.status === 'error').length} nicht abgeschlossen.{batchResult.error ? ` Lauf vorzeitig beendet: ${batchResult.error}` : ''}</p> : null}
     {!loading && !showLatest && focusReport && !reports.some((item) => item.id === focusReport.id) ? <p className="inline-note" role="status">Dieser QA-Bericht ist nicht mehr gespeichert.</p> : null}
     {loading ? <p className="section-copy" role="status">Gespeicherte Prüfungen werden geladen…</p> : reports.length === 0 ? <p className="section-copy">Für diese Karte liegt noch kein Browser-QA-Bericht vor.</p> : <div className="card-qa-reports">
-      {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === (showLatest ? reports[0]?.id : focusReport?.id ?? reports[0]?.id)} />)}
+      {reports.map((report) => <CardQaReportItem key={report.id} card={card} report={report} initiallyOpen={report.id === (showLatest ? reports[0]?.id : focusReport?.id ?? reports[0]?.id)} />)}
     </div>}
     {!loading ? <CardQaComparison cardId={card.id} reports={reports} /> : null}
     {!loading ? <CardQaViewportMatrix cardId={card.id} reports={reports} /> : null}

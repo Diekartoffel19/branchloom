@@ -22,6 +22,8 @@ In einer offenen Board-Karte kann eine bis fünf laufende Dev-Server-Routen mit 
 
 Die Karten-QA zeigt zusätzlich drei begrenzte [Seitenstruktur-Hinweise](docs/CARD_QA.md): fehlender Seitentitel, Bilder ohne `alt`-Attribut und messbares horizontales Überlaufen. Diese Hinweise sind keine vollständige Layout- oder Barrierefreiheitsprüfung.
 
+Aus einem gespeicherten fehlgeschlagenen QA-Bericht kannst du per **Fixkarte vorbereiten** einen editierbaren Kartenentwurf erzeugen. Erst **Fixkarte erstellen** speichert eine lokale Karte mit Quellenbezug in einer manuellen Spalte. Der Vorgang startet keinen Agenten; [Grenzen und Ablauf](docs/CARD_QA.md).
+
 Unter **Dateien** kann ein vorhandener Anhang innerhalb des Projekts in **Kontextbezüge** gezogen oder per Knopf als relativer Projektpfad vorbereitet werden. Erst **Bezug hinzufügen** speichert ihn; [Details](docs/CARD_CONTEXT.md).
 
 Unter **Design** öffnet die [Inspektion](docs/DESIGN_INSPECTION.md) ausdrücklich eine lokale Dev-Server-Seite, deren Element- und CSS-Belege nach Klick projektlokal gespeichert werden. Daneben finden [begrenzte Komponenten-](docs/COMPONENT_CATALOG.md) und [CSS-Token-Inventuren](docs/THEME_TOKENS.md) nach Klick versionierte Quellstellen mit Datei und Zeile. Einen gefundenen Farb- oder Radius-Token kannst du testweise anwenden und zurücksetzen. Nach gesonderter Diff-Prüfung lässt sich genau diese Git-CSS-Definition bewusst in die Projektdatei schreiben und, solange unverändert, über denselben Prüfpfad zurücknehmen. Eine gerenderte Komponentenbibliothek und allgemeine Codeübernahme fehlen noch.

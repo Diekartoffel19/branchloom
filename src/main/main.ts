@@ -9,6 +9,7 @@ import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, Studi
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
+import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections } from './design-inspection';
 import { addCardContextReference, cardContextCandidateFromAttachment, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
@@ -367,6 +368,8 @@ function installIpc(): void {
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('runCardQaBatch', (input: Parameters<StudioAPI['runCardQaBatch']>[0]) => runCardQaBatch(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
+  bind('previewQaFixCard', (input: Parameters<StudioAPI['previewQaFixCard']>[0]) => previewQaFixCard(db, input));
+  bind('createQaFixCard', (input: Parameters<StudioAPI['createQaFixCard']>[0]) => createQaFixCard(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
   bind('designInspectionState', () => designInspector?.state());
   bind('designInspectionApplyThemePreview', (input: Parameters<StudioAPI['designInspectionApplyThemePreview']>[0]) => designInspector?.applyThemePreview(input));
@@ -665,6 +668,31 @@ function createWindow(): void {
               if (qaReport?.status !== 'failed' || qaReport.viewportWidth !== 768 || qaReport.viewportHeight !== 1024 || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR')) || qaReport.pageCheck !== 'complete' || !qaReport.pageObservations.some((item) => item.kind === 'missing-image-alt') || !qaReport.pageObservations.some((item) => item.kind === 'horizontal-overflow')) throw new Error('Lokale Karten-QA hat Tablet-Viewport, Browserfehler oder DOM-Hinweise nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR') || !document.querySelector('.card-qa-report')?.textContent?.includes('Bildern ohne alt-Attribut') || !document.querySelector('.card-qa-report')?.textContent?.includes('breiter als der sichtbare Inhaltsbereich')) throw new Error('Karten-QA-Bericht wurde nicht samt DOM-Hinweisen sichtbar gerendert.');
+              const fixButton = [...document.querySelectorAll('.card-qa-report .card-qa-fix-card button')].find((item) => item.textContent?.includes('Fixkarte vorbereiten'));
+              if (!fixButton) throw new Error('QA-Fixkarten-Aktion fehlt im gespeicherten Fehlerbericht.');
+              const countBeforeFix = (await window.studio.snapshot(boardProject.id)).cards.length;
+              fixButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-fix-card form'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const fixForm = document.querySelector('.card-qa-fix-card form');
+              if (!fixForm || !(fixForm.querySelector('textarea')?.value ?? '').includes('BRANCHLOOM_QA_SMOKE_ERROR') || (await window.studio.snapshot(boardProject.id)).cards.length !== countBeforeFix) throw new Error('QA-Fixkarten-Entwurf oder unveränderte Karte vor Bestätigung fehlt.');
+              const fixTitle = fixForm.querySelector('input');
+              const fixDescription = fixForm.querySelector('textarea');
+              const fixColumn = fixForm.querySelector('select');
+              const textSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!fixTitle || !fixDescription || !fixColumn || !textSetter) throw new Error('QA-Fixkarten-Entwurf ist nicht editierbar.');
+              qaValueSetter.call(fixTitle, 'BRANCHLOOM_QA_FIX_CARD'); fixTitle.dispatchEvent(new Event('input', { bubbles: true }));
+              textSetter.call(fixDescription, 'Synthetischer Reproduktionsschritt'); fixDescription.dispatchEvent(new Event('input', { bubbles: true }));
+              const planningColumn = (await window.studio.snapshot(boardProject.id)).columns.find((item) => item.name === 'Planning');
+              if (!planningColumn) throw new Error('Manuelle Planning-Spalte fehlt.');
+              viewportSetter.call(fixColumn, planningColumn.id); fixColumn.dispatchEvent(new Event('change', { bubbles: true }));
+              fixForm.querySelector('button[type="submit"]')?.click();
+              let qaFixCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                qaFixCard = (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.title === 'BRANCHLOOM_QA_FIX_CARD');
+                if (qaFixCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!qaFixCard || qaFixCard.columnId !== planningColumn.id || !qaFixCard.description.includes('Synthetischer Reproduktionsschritt') || !qaFixCard.description.includes(qaReport.id) || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Bestätigte QA-Fixkarte, Quellenbezug oder Agentenruhe fehlt.');
               const screenshotButton = [...document.querySelectorAll('.card-qa-screenshot button')].find((item) => item.textContent?.includes('Screenshot ansehen'));
               if (!screenshotButton) throw new Error('QA-Screenshot-Knopf fehlt.');
               screenshotButton.click();

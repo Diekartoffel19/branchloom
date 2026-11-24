@@ -19,6 +19,7 @@ import { installMilestones } from './milestones';
 import { installReviewRules } from './review-rules';
 import { installReviewInbox } from './review-inbox';
 import { installCardQa } from './card-qa';
+import { installQaFixCards } from './qa-fix-card';
 import { installCardContext } from './card-context';
 import { installOutputErrors } from './output-errors';
 import { installDesignInspection } from './design-inspection';
@@ -121,6 +122,7 @@ export class StudioStore {
     installMilestones(this.db);
     installReviewRules(this.db);
     installCardQa(this.db);
+    installQaFixCards(this.db);
     installReviewInbox(this.db);
     installCardContext(this.db);
     installOutputErrors(this.db);

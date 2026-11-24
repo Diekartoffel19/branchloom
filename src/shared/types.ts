@@ -196,6 +196,8 @@ export interface StudioAPI {
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   runCardQaBatch(input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
+  previewQaFixCard(input: { projectId: string; sourceCardId: string; reportId: string }): Promise<import('./qa-fix-card').QaFixCardPreview>;
+  createQaFixCard(input: import('./qa-fix-card').CreateQaFixCard): Promise<Card>;
   designSelections(projectId: string): Promise<DesignSelection[]>;
   designInspectionState(): Promise<DesignInspectionState>;
   designInspectionApplyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState>;

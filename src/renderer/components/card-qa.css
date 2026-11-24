@@ -29,3 +29,9 @@
 .card-qa-screenshot figure { margin: 0; }
 .card-qa-screenshot img { display: block; max-width: 100%; height: auto; max-height: 450px; border: 1px solid var(--border); border-radius: 5px; object-fit: contain; }
 .card-qa-screenshot figcaption { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.card-qa-fix-card { display: grid; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.card-qa-fix-card > button, .card-qa-fix-card form > button { justify-self: start; }
+.card-qa-fix-card form { display: grid; gap: 8px; }
+.card-qa-fix-card label { display: grid; gap: 5px; color: var(--soft); font-size: 11px; font-weight: 600; }
+.card-qa-fix-card input, .card-qa-fix-card select, .card-qa-fix-card textarea { width: 100%; min-width: 0; }
+.card-qa-fix-source { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
