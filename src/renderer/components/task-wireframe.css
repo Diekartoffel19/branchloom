@@ -93,6 +93,11 @@
 .task-wireframe-element.kind-line { padding: 0; border-color: transparent; background: transparent; overflow: visible; }
 .task-wireframe-line { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .task-wireframe-line line { stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.task-wireframe-inline-text { position: absolute; z-index: 3; box-sizing: border-box; min-width: 0; min-height: 0; padding: 4px 7px; border: 1px solid var(--accent); border-radius: 4px; background: var(--surface); color: var(--text); font: inherit; font-size: clamp(9px, 1.1vw, 13px); line-height: 1.2; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus, var(--accent)); }
+.task-wireframe-inline-text.kind-text { font-weight: 650; }
+.task-wireframe-inline-text.kind-button { text-align: center; font-weight: 600; }
+.task-wireframe-inline-text.tone-accent.kind-button { background: var(--accent); color: var(--bg); }
+.task-wireframe-inline-text:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-resize { position: absolute; z-index: 7; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; transform: translate(-50%, -50%); border: 1px solid var(--text); border-radius: 4px; background: var(--surface); color: var(--text); box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 18%, transparent); cursor: nwse-resize; touch-action: none; }
 .task-wireframe-resize:hover { background: var(--surface-2); }
 .task-wireframe-resize:focus-visible, .task-wireframe-element:focus-visible, .task-wireframe-layers button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
