@@ -186,4 +186,32 @@ describe('durable store and workflow gate', () => {
     expect(started).toHaveLength(1);
     store.close();
   });
+
+  it('rejects direct draft/done state changes without stopping or completing a live step', () => {
+    const { store, dbPath, project, columns, card, agent } = fixture();
+    const { runner, started, stopped } = fakeRunner(store);
+    const engine = new WorkflowEngine(store, runner);
+    const flow = store.createWorkflow({ projectId: project.id, name: 'Gated route', cardIds: [card.id], steps: [
+      { id: 'execute', columnId: columns[2]!.id, agentId: agent.id, requireApproval: false },
+    ] });
+
+    expect(() => engine.setState({ id: flow.id, state: 'paused' })).toThrow('ungestarteter Workflow');
+    expect(store.workflow(flow.id).state).toBe('draft');
+    engine.setState({ id: flow.id, state: 'running' });
+    expect(started).toHaveLength(1);
+
+    // Runtime requests still need validation even though the typed API only
+    // exposes start and pause. A stale or malformed IPC payload must not win.
+    expect(() => engine.setState({ id: flow.id, state: 'done' as 'paused' })).toThrow('nur gestartet oder pausiert');
+    expect(() => engine.setState({ id: flow.id, state: 'draft' as 'paused' })).toThrow('nur gestartet oder pausiert');
+    expect(store.workflow(flow.id).state).toBe('running');
+    expect(store.workflowProgress(flow.id, 0)[0]).toMatchObject({ sessionId: started[0]!.id, state: 'running' });
+    expect(stopped).toHaveLength(0);
+    store.close();
+
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.workflow(flow.id).state).toBe('paused');
+    expect(reopened.workflowProgress(flow.id, 0)[0]?.state).toBe('needs_review');
+    reopened.close();
+  });
 });

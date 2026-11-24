@@ -1,4 +1,4 @@
-import type { Session, Workflow, WorkflowState } from '../shared/types';
+import type { Session, Workflow } from '../shared/types';
 import { DONE_MARKER, SessionRunner } from './cli';
 import { StudioStore } from './store';
 
@@ -19,10 +19,14 @@ export class WorkflowEngine {
   private readonly pumping = new Set<string>();
   constructor(private readonly store: StudioStore, private readonly runner: SessionRunner) {}
 
-  setState(input: { id: string; state: WorkflowState }): Workflow {
+  setState(input: { id: string; state: 'running' | 'paused' }): Workflow {
+    // The renderer can request a start or pause. Draft and done are durable
+    // results of creation and the gated engine, never direct user transitions.
+    if (input.state !== 'running' && input.state !== 'paused') throw new Error('Workflow kann nur gestartet oder pausiert werden.');
     const old = this.store.workflow(input.id);
     if (old.queueSkip && input.state !== 'paused') throw new Error('Dieser Queue-Workflow wurde übersprungen und kann nicht erneut gestartet werden. Sein Verlauf bleibt erhalten.');
-    if (old.state === 'done' && input.state !== 'done') throw new Error('Completed workflows cannot be restarted');
+    if (old.state === 'done') throw new Error('Completed workflows cannot be restarted');
+    if (old.state === 'draft' && input.state === 'paused') throw new Error('Ein ungestarteter Workflow kann nicht pausiert werden.');
     if (input.state === 'running') {
       if (old.cardIds.some((cardId) => this.store.card(cardId).archivedAt)) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
       const overlapping = this.store.snapshot(old.projectId).workflows.find((other) =>

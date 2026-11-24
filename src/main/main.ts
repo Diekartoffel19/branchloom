@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
-import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep, WorkflowState } from '../shared/types';
+import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
@@ -277,7 +277,7 @@ function installIpc(): void {
     queueEngine.onBoardChanged(projectId);
     return projectId;
   });
-  bind('setWorkflowState', (input: { id: string; state: WorkflowState }) => {
+  bind('setWorkflowState', (input: Parameters<StudioAPI['setWorkflowState']>[0]) => {
     const workflow = workflowEngine.setState(input);
     queueEngine.onBoardChanged(workflow.projectId);
     return workflow;
@@ -1329,7 +1329,12 @@ function createWindow(): void {
               const secondCard = await window.studio.createCard({ projectId: secondProject.id, columnId: secondSnapshot.columns[0].id, title: 'Zweitprojekt-Aufgabe' });
               const secondWorkflow = await window.studio.createWorkflow({ projectId: secondProject.id, name: 'BRANCHLOOM_GLOBAL_OTHER_PROJECT', cardIds: [secondCard.id],
                 steps: [{ id: 'second-approval', columnId: secondSnapshot.columns[0].id, agentId: null, requireApproval: true }] });
-              await window.studio.setWorkflowState({ id: secondWorkflow.id, state: 'paused' });
+              let invalidCompletionRejected = false;
+              try { await window.studio.setWorkflowState({ id: secondWorkflow.id, state: 'done' }); }
+              catch (error) { invalidCompletionRejected = String(error).includes('nur gestartet oder pausiert'); }
+              if (!invalidCompletionRejected || (await window.studio.snapshot(secondProject.id)).workflows.find((item) => item.id === secondWorkflow.id)?.state !== 'draft') throw new Error('Direkter Abschluss eines ungestarteten Workflows wurde nicht abgewiesen.');
+              await window.studio.setWorkflowState({ id: secondWorkflow.id, state: 'running' });
+              if ((await window.studio.snapshot(secondProject.id)).workflows.find((item) => item.id === secondWorkflow.id)?.state !== 'paused') throw new Error('Zweitprojekt-Workflow erreichte die Freigabepause nicht.');
               const projectSelect = document.querySelector('#project-select');
               const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!projectSelect || !selectSetter) throw new Error('Projektwahl fehlt.');
