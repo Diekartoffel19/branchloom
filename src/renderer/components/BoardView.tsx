@@ -37,10 +37,13 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const [filterPriority, setFilterPriority] = useState<CardPriority | ''>('');
   const [filterLabel, setFilterLabel] = useState('');
   const [announcement, setAnnouncement] = useState('');
+  const [bulkNotice, setBulkNotice] = useState('');
   const [bulkIds, setBulkIds] = useState<Set<string>>(() => new Set());
   const [bulkDestinationId, setBulkDestinationId] = useState('');
+  const [bulkPriority, setBulkPriority] = useState<CardPriority | ''>('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
+  const [confirmBulkPriority, setConfirmBulkPriority] = useState<{ cardIds: string[]; priority: CardPriority; changeCount: number } | null>(null);
   const [focusMoved, setFocusMoved] = useState<{ cardId: string; columnId: string } | null>(null);
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const visibleCards = useMemo(() => filterBoardCards(snapshot.cards, { query, columnId: filterColumnId, visibility, priority: filterPriority, label: filterLabel }), [snapshot.cards, query, filterColumnId, visibility, filterPriority, filterLabel]);
@@ -61,10 +64,11 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const selectedBulkCards = selectableCards.filter((card) => bulkIds.has(card.id));
   const bulkDestination = columns.find((column) => column.id === bulkDestinationId);
   const bulkMoveCount = selectedBulkCards.filter((card) => card.columnId !== bulkDestinationId).length;
+  const bulkPriorityCount = bulkPriority ? selectedBulkCards.filter((card) => card.priority !== bulkPriority).length : 0;
 
   useEffect(() => { if (filterLabel && !labels.some((label) => label.toLocaleLowerCase('de-DE') === filterLabel.toLocaleLowerCase('de-DE'))) setFilterLabel(''); }, [labels, filterLabel]);
-  useEffect(() => { setBulkIds(new Set()); setConfirmBulkArchive(false); }, [snapshot.project.id, query, filterColumnId, visibility, filterPriority, filterLabel]);
-  useEffect(() => { setBulkIds((previous) => new Set([...previous].filter((id) => selectableCards.some((card) => card.id === id)))); }, [snapshot.cards]);
+  useEffect(() => { setBulkIds(new Set()); setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); }, [snapshot.project.id, query, filterColumnId, visibility, filterPriority, filterLabel]);
+  useEffect(() => { setBulkIds((previous) => new Set([...previous].filter((id) => selectableCards.some((card) => card.id === id)))); setConfirmBulkPriority(null); }, [snapshot.cards]);
   useEffect(() => { if (!columns.some((column) => column.id === bulkDestinationId)) setBulkDestinationId(columns[0]?.id ?? ''); }, [columns, bulkDestinationId]);
   // A cross-view navigation can arrive before the refreshed snapshot contains
   // a newly created card. Open it when that card becomes available as well.
@@ -123,6 +127,8 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
 
   function toggleBulk(id: string) {
     setConfirmBulkArchive(false);
+    setConfirmBulkPriority(null);
+    setBulkNotice('');
     setBulkIds((previous) => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id); else if (next.size < 100) next.add(id);
@@ -142,9 +148,24 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       if (!changed) return;
       setBulkIds(new Set());
       setConfirmBulkArchive(false);
-      setAnnouncement(action === 'move'
+      setConfirmBulkPriority(null);
+      setBulkNotice(action === 'move'
         ? `${bulkMoveCount} Karten wurden nach „${bulkDestination?.name}“ verschoben. Spaltenagenten wurden nicht gestartet.`
         : `${changed.length} Karten wurden archiviert.`);
+    } finally { setBulkBusy(false); }
+  }
+
+  async function applyBulkPriority() {
+    const confirmation = confirmBulkPriority;
+    if (!confirmation || bulkBusy || snapshot.queue?.state === 'running') return;
+    setBulkBusy(true);
+    try {
+      const changed = await mutate(() => window.studio.bulkUpdateCards({ projectId: snapshot.project.id, cardIds: confirmation.cardIds, action: 'priority', priority: confirmation.priority }));
+      if (!changed) return;
+      setBulkIds(new Set());
+      setConfirmBulkPriority(null);
+      const label = CARD_PRIORITIES.find((item) => item.value === confirmation.priority)?.label ?? confirmation.priority;
+      setBulkNotice(`${changed.length} ${changed.length === 1 ? 'Karte hat' : 'Karten haben'} jetzt Priorität „${label}“. Es wurden keine Agenten gestartet.`);
     } finally { setBulkBusy(false); }
   }
 
@@ -160,18 +181,35 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
       <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
     <div className="board-bulk-actions" aria-label="Sammelaktionen">
-      <label className="board-bulk-all"><input type="checkbox" checked={selectableCards.length > 0 && selectedBulkCards.length === selectableCards.length} disabled={selectableCards.length === 0 || selectableCards.length > 100 || bulkBusy} onChange={(event) => { setConfirmBulkArchive(false); setBulkIds(event.target.checked ? new Set(selectableCards.map((card) => card.id)) : new Set()); }} /> Sichtbare aktive Karten auswählen</label>
+      <label className="board-bulk-all"><input type="checkbox" checked={selectableCards.length > 0 && selectedBulkCards.length === selectableCards.length} disabled={selectableCards.length === 0 || selectableCards.length > 100 || bulkBusy} onChange={(event) => { setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); setBulkIds(event.target.checked ? new Set(selectableCards.map((card) => card.id)) : new Set()); }} /> Sichtbare aktive Karten auswählen</label>
       <strong>{selectedBulkCards.length} ausgewählt</strong>
-      {selectedBulkCards.length ? <><button className="secondary-button small" type="button" onClick={() => { setBulkIds(new Set()); setConfirmBulkArchive(false); }}>Auswahl aufheben</button>
+      {selectedBulkCards.length ? <><button className="secondary-button small" type="button" onClick={() => { setBulkIds(new Set()); setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); }}>Auswahl aufheben</button>
         <label>Zielspalte <select aria-label="Zielspalte für ausgewählte Karten" value={bulkDestinationId} disabled={bulkBusy || snapshot.queue?.state === 'running'} onChange={(event) => setBulkDestinationId(event.target.value)}>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
         <button className="secondary-button small" type="button" disabled={!bulkDestination || !bulkMoveCount || bulkBusy || snapshot.queue?.state === 'running'} onClick={() => void applyBulk('move')}>Ausgewählte verschieben</button>
-        <button className="secondary-button small" type="button" disabled={bulkBusy || snapshot.queue?.state === 'running'} onClick={() => setConfirmBulkArchive(true)}>Ausgewählte archivieren</button>
+        <button className="secondary-button small" type="button" disabled={bulkBusy || snapshot.queue?.state === 'running'} onClick={() => { setConfirmBulkPriority(null); setConfirmBulkArchive(true); }}>Ausgewählte archivieren</button>
+        <details className="board-bulk-more">
+          <summary>Weitere Aktion</summary>
+          <div className="board-bulk-more-body">
+            <label>Priorität <select aria-label="Priorität für ausgewählte Karten" value={bulkPriority} disabled={bulkBusy || snapshot.queue?.state === 'running'} onChange={(event) => { setBulkPriority(event.target.value as CardPriority | ''); setConfirmBulkPriority(null); }}>
+              <option value="">Bitte wählen</option>
+              {CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select></label>
+            <button className="secondary-button small" type="button" disabled={!bulkPriorityCount || bulkBusy || snapshot.queue?.state === 'running'} onClick={() => {
+              if (!bulkPriority || !bulkPriorityCount) return;
+              setConfirmBulkArchive(false);
+              setConfirmBulkPriority({ cardIds: selectedBulkCards.map((card) => card.id), priority: bulkPriority, changeCount: bulkPriorityCount });
+            }}>Priorität prüfen</button>
+            {bulkPriority && !bulkPriorityCount ? <span className="board-bulk-note">Alle ausgewählten Karten haben diese Priorität bereits.</span> : null}
+          </div>
+        </details>
       </> : null}
       <span className="board-bulk-note">Sammelverschieben startet keine Spaltenagenten.</span>
       {selectableCards.length > 100 ? <span role="status">Maximal 100 Karten pro Sammelaktion; bitte zuerst filtern.</span> : null}
       {snapshot.queue?.state === 'running' ? <span role="status">Warteschlange vor Sammelaktionen pausieren.</span> : null}
     </div>
     {confirmBulkArchive && selectedBulkCards.length ? <BulkArchiveConfirmation count={selectedBulkCards.length} busy={bulkBusy} onConfirm={() => void applyBulk('archive')} onCancel={() => setConfirmBulkArchive(false)} /> : null}
+    {confirmBulkPriority ? <BulkPriorityConfirmation selectedCount={confirmBulkPriority.cardIds.length} changeCount={confirmBulkPriority.changeCount} priorityLabel={CARD_PRIORITIES.find((item) => item.value === confirmBulkPriority.priority)?.label ?? confirmBulkPriority.priority} busy={bulkBusy} onConfirm={() => void applyBulkPriority()} onCancel={() => setConfirmBulkPriority(null)} /> : null}
+    {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
       {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
@@ -187,6 +225,15 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
 
 export function BulkArchiveConfirmation({ count, busy, onConfirm, onCancel }: { count: number; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
   return <div className="board-bulk-confirm" role="group" aria-label="Archivierung bestätigen"><strong>{count} Karten archivieren?</strong><span>Die Karten bleiben im Archiv wiederherstellbar.</span><button className="primary-button small" type="button" disabled={busy} onClick={onConfirm}>Archivierung bestätigen</button><button className="secondary-button small" type="button" disabled={busy} onClick={onCancel}>Abbrechen</button></div>;
+}
+
+export function BulkPriorityConfirmation({ selectedCount, changeCount, priorityLabel, busy, onConfirm, onCancel }: { selectedCount: number; changeCount: number; priorityLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
+  return <div className="board-bulk-confirm" role="group" aria-label="Prioritätsänderung bestätigen">
+    <strong>{selectedCount} {selectedCount === 1 ? 'Karte' : 'Karten'} auf „{priorityLabel}“ setzen?</strong>
+    <span>{changeCount} davon {changeCount === 1 ? 'ändert sich' : 'ändern sich'}. Kein Agent wird gestartet.</span>
+    <button className="primary-button small" type="button" disabled={busy} onClick={onConfirm}>Priorität setzen</button>
+    <button className="secondary-button small" type="button" disabled={busy} onClick={onCancel}>Abbrechen</button>
+  </div>;
 }
 
 function compareCardOrder(a: Card, b: Card): number {

@@ -44,6 +44,30 @@ describe('bulk card actions', () => {
     store.close();
   });
 
+  it('sets priority for a mixed selection atomically, persists, and starts no agent', () => {
+    const { store, path, project, first, second } = fixture();
+    store.updateCard({ id: second.id, priority: 'high' });
+    store.db.exec(`CREATE TRIGGER reject_unchanged_priority BEFORE UPDATE ON cards WHEN NEW.id = '${second.id}' BEGIN SELECT RAISE(ABORT, 'unchanged card updated'); END;`);
+    const changed = store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id, second.id], action: 'priority', priority: 'high' });
+    expect(changed.map((card) => card.priority)).toEqual(['high', 'high']);
+    expect(store.snapshot(project.id).sessions).toHaveLength(0);
+    store.close();
+    const reopened = new StudioStore(path);
+    expect([reopened.card(first.id).priority, reopened.card(second.id).priority]).toEqual(['high', 'high']);
+    reopened.close();
+  });
+
+  it('rejects invalid priority before any change and rolls back an update failure', () => {
+    const { store, project, first, second } = fixture();
+    const before = [store.card(first.id), store.card(second.id)];
+    expect(() => store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id, second.id], action: 'priority', priority: 'unexpected' as never })).toThrow('Ungültige Kartenpriorität');
+    expect([store.card(first.id), store.card(second.id)]).toEqual(before);
+    store.db.exec(`CREATE TRIGGER reject_second_priority BEFORE UPDATE ON cards WHEN NEW.id = '${second.id}' BEGIN SELECT RAISE(ABORT, 'synthetic priority failure'); END;`);
+    expect(() => store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id, second.id], action: 'priority', priority: 'urgent' })).toThrow('synthetic priority failure');
+    expect([store.card(first.id), store.card(second.id)]).toEqual(before);
+    store.close();
+  });
+
   it('rejects mixed-project, archived, duplicate and malformed selections without partial writes', () => {
     const { store, root, project, destination, first, second } = fixture();
     mkdirSync(join(root, 'other'));
@@ -64,9 +88,11 @@ describe('bulk card actions', () => {
     const { store, project, destination, first, second } = fixture();
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
     expect(() => store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id], action: 'move', columnId: destination.id })).toThrow('Warteschlange');
+    expect(() => store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id], action: 'priority', priority: 'urgent' })).toThrow('Warteschlange');
     store.saveProjectQueue({ projectId: project.id, state: 'paused', templateWorkflowId: null, activeWorkflowId: null, pauseReason: 'user' });
     const session = store.createSession({ cardId: second.id, agentId: store.agents()[0]!.id });
     expect(() => store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id, second.id], action: 'archive' })).toThrow('Agentensitzung');
+    expect(() => store.bulkUpdateCards({ projectId: project.id, cardIds: [first.id, second.id], action: 'priority', priority: 'high' })).toThrow('Agentensitzung');
     store.finishSession(session.id, 'stopped', null);
     const flow = store.createWorkflow({ projectId: project.id, name: 'Synthetic flow', cardIds: [second.id], steps: [{ id: 'one', columnId: destination.id, agentId: null, requireApproval: false }] });
     store.setWorkflowState(flow.id, 'paused');

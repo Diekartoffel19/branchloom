@@ -28,7 +28,7 @@ export interface WhiteboardEdge { id: string; projectId: string; sourceId: strin
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
-export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' };
+export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' } | { projectId: string; cardIds: string[]; action: 'priority'; priority: CardPriority };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
 export type CardContextKind = 'file' | 'folder' | 'url' | 'design';
 export interface CardDesignContextCandidate { selectionId: string; fingerprint: string; label: string; sourceUrl: string }

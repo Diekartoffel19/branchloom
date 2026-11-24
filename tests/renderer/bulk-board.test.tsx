@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { BoardView, BulkArchiveConfirmation } from '../../src/renderer/components/BoardView';
+import { BoardView, BulkArchiveConfirmation, BulkPriorityConfirmation } from '../../src/renderer/components/BoardView';
 import type { ProjectSnapshot } from '../../src/shared/types';
 
 const stamp = '2026-01-01T00:00:00.000Z';
@@ -26,6 +26,14 @@ describe('bulk board controls', () => {
     expect(html).not.toContain('„Archived“ für Sammelaktion auswählen');
     expect(html).toContain('Sammelverschieben startet keine Spaltenagenten.');
     expect(html).not.toContain('Archivierung bestätigen');
+  });
+
+  it('shows a bounded priority confirmation with the affected count and cancel path', () => {
+    const confirmation = renderToStaticMarkup(createElement(BulkPriorityConfirmation, { selectedCount: 3, changeCount: 2, priorityLabel: 'Hoch', busy: false, onConfirm: () => undefined, onCancel: () => undefined }));
+    expect(confirmation).toContain('3 Karten auf „Hoch“ setzen?');
+    expect(confirmation).toContain('2 davon ändern sich. Kein Agent wird gestartet.');
+    expect(confirmation).toContain('Priorität setzen');
+    expect(confirmation).toContain('Abbrechen');
   });
 
   it('shows queue pause requirement and explicit two-step archive confirmation', () => {

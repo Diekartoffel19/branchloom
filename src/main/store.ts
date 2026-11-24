@@ -398,7 +398,8 @@ export class StudioStore {
   }
   bulkUpdateCards(input: BulkCardAction): Card[] {
     if (!input || !Array.isArray(input.cardIds) || input.cardIds.length < 1 || input.cardIds.length > 100 || input.cardIds.some((id) => typeof id !== 'string' || !id.trim()) || new Set(input.cardIds).size !== input.cardIds.length) throw new Error('Wähle 1 bis 100 unterschiedliche Karten.');
-    if (input.action !== 'move' && input.action !== 'archive') throw new Error('Ungültige Sammelaktion.');
+    if (input.action !== 'move' && input.action !== 'archive' && input.action !== 'priority') throw new Error('Ungültige Sammelaktion.');
+    const priority = input.action === 'priority' ? cardPriority(input.priority) : null;
     return this.db.transaction(() => {
       this.project(input.projectId);
       // A running queue may claim or launch cards when the board changes. Require an explicit pause first.
@@ -417,6 +418,9 @@ export class StudioStore {
       if (input.action === 'archive') {
         const update = this.db.prepare('UPDATE cards SET archived_at = ?, updated_at = ? WHERE id = ?');
         for (const item of cards) update.run(stamp, stamp, item.id);
+      } else if (priority !== null) {
+        const update = this.db.prepare('UPDATE cards SET priority = ?, updated_at = ? WHERE id = ?');
+        for (const item of cards) if (item.priority !== priority) update.run(priority, stamp, item.id);
       } else {
         const update = this.db.prepare('UPDATE cards SET column_id = ?, position = ?, updated_at = ? WHERE id = ?');
         let position = (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE column_id = ?').get(destination!.id) as { next: number }).next;

@@ -564,6 +564,36 @@ function createWindow(): void {
               const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);
               const renderedColumns = [...document.querySelectorAll('.board-column .column-title h3')].map((item) => item.textContent);
               if (JSON.stringify(renderedColumns) !== JSON.stringify(storedColumns)) throw new Error('Gespeicherte Spaltenreihenfolge wurde nach Reload nicht gerendert.');
+              const bulkCard = (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.title === 'Smoke-Karte');
+              if (!bulkCard || bulkCard.priority !== 'none') throw new Error('Bulk-Priorität: Ausgangskarte fehlt.');
+              const bulkSelect = document.querySelector('.board-card-wrap input[aria-label="„Smoke-Karte“ für Sammelaktion auswählen"]');
+              if (!bulkSelect) throw new Error('Bulk-Priorität: Kartenauswahl fehlt.');
+              bulkSelect.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.board-bulk-more'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const bulkMore = document.querySelector('.board-bulk-more');
+              if (!bulkMore) throw new Error('Bulk-Priorität: weitere Aktion fehlt.');
+              bulkMore.querySelector('summary')?.click();
+              const bulkPrioritySelect = bulkMore.querySelector('select[aria-label="Priorität für ausgewählte Karten"]');
+              const bulkSelectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!bulkPrioritySelect || !bulkSelectSetter) throw new Error('Bulk-Priorität: Auswahlliste fehlt.');
+              bulkSelectSetter.call(bulkPrioritySelect, 'high');
+              bulkPrioritySelect.dispatchEvent(new Event('change', { bubbles: true }));
+              let bulkCheckButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                bulkCheckButton = [...document.querySelectorAll('.board-bulk-more button')].find((item) => item.textContent?.includes('Priorität prüfen'));
+                if (bulkCheckButton && !bulkCheckButton.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!bulkCheckButton || bulkCheckButton.disabled || (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.priority !== 'none') throw new Error('Bulk-Priorität: Vorschau fehlt oder schrieb vor Bestätigung.');
+              bulkCheckButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('[aria-label="Prioritätsänderung bestätigen"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const bulkConfirmation = document.querySelector('[aria-label="Prioritätsänderung bestätigen"]');
+              if (!bulkConfirmation?.textContent?.includes('1 Karte auf „Hoch“ setzen?') || !bulkConfirmation.textContent.includes('1 davon ändert sich.')) throw new Error('Bulk-Priorität: Bestätigung zeigt keine echte Änderung.');
+              bulkConfirmation.querySelector('button')?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.priority !== 'high'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.snapshot(boardProject.id)).cards.find((item) => item.id === bulkCard.id)?.priority !== 'high' || (await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Bulk-Priorität: Bestätigung speicherte nicht atomar oder startete einen Agenten.');
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.board-bulk-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.board-bulk-result')?.textContent?.includes('1 Karte hat jetzt Priorität „Hoch“')) throw new Error('Bulk-Priorität: sichtbarer Ergebnistext fehlt.');
               const ideasNavAfterReload = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Ideenraum'));
               if (!ideasNavAfterReload) throw new Error('Ideenraum-Navigation fehlt.');
               ideasNavAfterReload.click();

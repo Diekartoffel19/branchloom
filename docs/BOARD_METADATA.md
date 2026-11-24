@@ -6,4 +6,6 @@ Auf der Karte werden Priorität und bis zu drei Labels angezeigt; bei weiteren L
 
 Die Metadaten liegen in der lokalen SQLite-Datenbank im App-Datenordner. Bestehende Karten erhalten beim Öffnen einer älteren Datenbank automatisch „Keine“ und eine leere Labelliste; Titel, Beschreibung, Position und Archivstatus bleiben erhalten. Die To-Do-Warteschlange verarbeitet Karten weiterhin nach Board-Position, nicht nach Priorität. Der [Trello-JSON-Import](IMPORT.md) übernimmt benannte Labels nach Vorschau; aus Trello-Farben wird keine Priorität abgeleitet.
 
+Für mehrere aktive Karten kann die Priorität über die [Board-Sammelaktion](BULK_BOARD.md) nach Vorschau und Bestätigung zusammen geändert werden. Auch diese Änderung sortiert die To-Do-Warteschlange nicht neu und startet keinen Agenten.
+
 Gezielte synthetische Prüfung: `npx vitest run tests/main/card-metadata.test.ts tests/renderer/board-filters.test.tsx tests/renderer/memory-board.test.tsx`.

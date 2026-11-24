@@ -7,3 +7,8 @@
 :root[data-theme='light'] .board-bulk-actions { background:#e9f3f2; border-color:#9bbfc1; }
 :root[data-theme='light'] .board-bulk-confirm { background:#fff5e9; }
 :root[data-theme='light'] .board-bulk-card-select, :root[data-theme='light'] .board-bulk-note { color:#315d60; }
+.board-bulk-more { flex-basis:100%; }
+.board-bulk-more > summary { width:max-content; cursor:pointer; color:var(--muted); }
+.board-bulk-more > summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.board-bulk-more-body { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
+.board-bulk-result { margin:0 0 12px; color:var(--muted); font-size:.84rem; }

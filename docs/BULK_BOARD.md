@@ -6,6 +6,8 @@ Für **Ausgewählte verschieben** eine Zielspalte wählen und die Aktion auslös
 
 **Ausgewählte archivieren** zeigt zuerst eine Bestätigung. Die Karten bleiben im Archiv mit ihrem Verlauf erhalten und lassen sich einzeln wiederherstellen. Datenbankänderungen einer Sammelaktion werden zusammen bestätigt oder vollständig zurückgerollt.
 
+Unter **Weitere Aktion** lässt sich eine Priorität für die Auswahl festlegen. **Priorität prüfen** zeigt vor dem Schreiben die Anzahl der ausgewählten und tatsächlich zu ändernden Karten. Erst **Priorität setzen** speichert die Änderung zusammen in SQLite. Die Priorität „Keine“ entfernt eine bisherige Priorität. Diese Aktion verschiebt keine Karte und startet keinen Agenten.
+
 Eine laufende Projekt-Warteschlange muss vor einer Sammelaktion pausiert werden. Karten mit laufender Agentensitzung oder einem laufenden beziehungsweise pausierten Workflow können nicht gesammelt verschoben oder archiviert werden. Die Prüfung gilt auch für direkte IPC-Aufrufe und verhindert gemischte Projekte, archivierte Karten sowie eine Zielspalte aus einem anderen Projekt. Nach Wiederaufnahme einer pausierten Queue liest sie den dann gespeicherten Board-Zustand. Ein Bulk-Verschieben startet weder einen Spaltenagenten noch die Queue unmittelbar.
 
-Grenze: Die Auswahl und Archivbestätigung sind bisher automatisiert anhand der gerenderten Oberfläche und der Datenbank geprüft; ein sichtbarer Klickdurchlauf im Electron-Fenster steht noch aus.
+Grenze: Die Auswahl und Bestätigungen sind anhand der gerenderten Oberfläche und der Datenbank geprüft; ein sichtbarer Klickdurchlauf im Electron-Fenster steht noch aus.
