@@ -1,15 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Session } from '../../src/shared/types';
-import { DONE_MARKER, type SessionRunner } from '../../src/main/cli';
+import { AgentSpawnError, DONE_MARKER, type SessionRunner } from '../../src/main/cli';
 import { ProjectQueueEngine } from '../../src/main/queue';
 import { StudioStore } from '../../src/main/store';
 import { WorkflowEngine } from '../../src/main/workflows';
 
 const roots: string[] = [];
 afterEach(() => {
+  vi.useRealTimers();
   for (const root of roots.splice(0)) {
     try { rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); }
     catch (error) {
@@ -19,7 +20,7 @@ afterEach(() => {
   }
 });
 
-function fixture() {
+function fixture(spawnFailures = 0, failureKind: 'spawn' | 'other' = 'spawn') {
   const root = mkdtempSync(join(tmpdir(), 'jarvis-studio-queue-'));
   roots.push(root);
   const dbPath = join(root, 'studio.sqlite');
@@ -32,17 +33,119 @@ function fixture() {
   const second = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Second queued' });
   const template = store.createWorkflow({ projectId: project.id, name: 'Implement route', cardIds: [templateCard.id], steps: [{ id: 'execute', columnId: columns[2]!.id, agentId: agent.id, requireApproval: false }] });
   const started: Session[] = [];
+  const attempts: Session[] = [];
   const stopped: string[] = [];
   const runner = {
-    start: ({ cardId, agentId }: { cardId: string; agentId: string }) => { const session = store.createSession({ cardId, agentId }); started.push(session); return session; },
+    start: ({ cardId, agentId }: { cardId: string; agentId: string }) => {
+      const session = store.createSession({ cardId, agentId });
+      attempts.push(session);
+      if (attempts.length <= spawnFailures) {
+        store.finishSession(session.id, 'failed', null);
+        if (failureKind === 'spawn') throw new AgentSpawnError('Synthetische PTY-Startausnahme');
+        throw new Error('Synthetischer Konfigurationsfehler vor dem PTY-Start');
+      }
+      started.push(session);
+      return session;
+    },
     stop: (id: string) => { stopped.push(id); store.finishSession(id, 'stopped', null); },
   } as unknown as SessionRunner;
   const workflows = new WorkflowEngine(store, runner);
   const queue = new ProjectQueueEngine(store, workflows);
-  return { store, dbPath, project, columns, template, first, second, started, stopped, workflows, queue };
+  return { store, dbPath, project, columns, template, first, second, started, attempts, stopped, workflows, queue };
 }
 
 describe('explicit durable project queue', () => {
+  it('retries only a proven synchronous PTY spawn error twice, with persisted delay and no duplicate claim', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-24T02:00:00.000Z'));
+    const { store, project, template, first, started, attempts, queue } = fixture(2);
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const activeId = store.projectQueue(project.id).activeWorkflowId;
+    expect(attempts).toHaveLength(1);
+    expect(started).toHaveLength(0);
+    expect(store.queueLaunchRetry(project.id)).toMatchObject({ workflowId: activeId, attemptCount: 1, retryAt: '2026-11-24T02:00:05.000Z' });
+    expect(store.projectQueue(project.id).pauseReason).toContain('vor Prozessbeginn');
+    queue.onBoardChanged(project.id);
+    queue.onBoardChanged(project.id);
+    expect(attempts).toHaveLength(1);
+    vi.advanceTimersByTime(5_000);
+    expect(attempts).toHaveLength(2);
+    expect(store.queueLaunchRetry(project.id)).toMatchObject({ workflowId: activeId, attemptCount: 2, retryAt: '2026-11-24T02:00:25.000Z' });
+    vi.advanceTimersByTime(20_000);
+    expect(attempts).toHaveLength(3);
+    expect(started.map((session) => session.cardId)).toEqual([first.id]);
+    expect(new Set(attempts.map((session) => session.cardId))).toEqual(new Set([first.id]));
+    expect(store.projectQueue(project.id).activeWorkflowId).toBe(activeId);
+    expect(store.queueLaunchRetry(project.id)).toBeNull();
+    expect(store.projectQueue(project.id).pauseReason).toBeNull();
+    expect(store.snapshot(project.id).sessions.filter((session) => session.state === 'running')).toHaveLength(1);
+    queue.dispose();
+    store.close();
+  });
+
+  it('cancels a pending launch retry on pause and never replays it after restart', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-24T02:00:00.000Z'));
+    const { store, dbPath, project, template, attempts, queue } = fixture(2);
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    expect(store.queueLaunchRetry(project.id)?.attemptCount).toBe(1);
+    queue.setState({ projectId: project.id, state: 'paused' });
+    vi.advanceTimersByTime(60_000);
+    expect(attempts).toHaveLength(1);
+    expect(store.queueLaunchRetry(project.id)).toBeNull();
+    queue.dispose();
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.projectQueue(project.id).state).toBe('paused');
+    reopened.close();
+  });
+
+  it('stops after two automatic retries and keeps the claimed card for review', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-24T02:00:00.000Z'));
+    const { store, project, template, first, attempts, queue } = fixture(3);
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    vi.advanceTimersByTime(25_000);
+    expect(attempts).toHaveLength(3);
+    expect(store.projectQueue(project.id).state).toBe('paused');
+    expect(store.projectQueue(project.id).pauseReason).toContain('dreimal fehlgeschlagen');
+    expect(store.queueLaunchRetry(project.id)).toBeNull();
+    expect(store.workflow(store.projectQueue(project.id).activeWorkflowId!).state).toBe('paused');
+    expect(store.nextQueueCard(project.id)?.id).not.toBe(first.id);
+    vi.advanceTimersByTime(60_000);
+    expect(attempts).toHaveLength(3);
+    queue.dispose();
+    store.close();
+  });
+
+  it('does not retry a configuration error outside the typed PTY spawn boundary', () => {
+    vi.useFakeTimers();
+    const { store, project, template, attempts, queue } = fixture(2, 'other');
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    expect(store.projectQueue(project.id).state).toBe('paused');
+    expect(store.projectQueue(project.id).pauseReason).toContain('Konfigurationsfehler');
+    expect(store.queueLaunchRetry(project.id)).toBeNull();
+    vi.advanceTimersByTime(60_000);
+    expect(attempts).toHaveLength(1);
+    queue.dispose();
+    store.close();
+  });
+
+  it('marks an interrupted pending retry for review without starting it on app reopen', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-24T02:00:00.000Z'));
+    const { store, dbPath, project, template, attempts, queue } = fixture(2);
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    queue.dispose();
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.projectQueue(project.id).state).toBe('paused');
+    expect(reopened.projectQueue(project.id).pauseReason).toContain('CLI-Startfehlers');
+    expect(reopened.queueLaunchRetry(project.id)).toBeNull();
+    vi.advanceTimersByTime(60_000);
+    expect(attempts).toHaveLength(1);
+    reopened.close();
+  });
   it('rejects activation without a To-Do column and leaves the queue off', () => {
     const { store, project, columns, template, queue } = fixture();
     store.updateColumn({ id: columns[0]!.id, name: 'Inbox' });
@@ -105,6 +208,7 @@ describe('explicit durable project queue', () => {
     queue.onSessionFinished(finished);
     expect(store.projectQueue(project.id).state).toBe('paused');
     expect(store.projectQueue(project.id).pauseReason).toContain('prüfen');
+    expect(store.queueLaunchRetry(project.id)).toBeNull();
     expect(started).toHaveLength(1);
     expect(() => queue.setState({ projectId: project.id, state: 'running' })).toThrow('nicht selbst erneut');
     store.close();

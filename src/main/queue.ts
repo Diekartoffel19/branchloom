@@ -2,6 +2,9 @@ import type { ProjectQueue, QueueState, Session, Workflow } from '../shared/type
 import { StudioStore } from './store';
 import { WorkflowEngine } from './workflows';
 import { detectQueueFailureLoop } from './loop-guard';
+import { AgentSpawnError } from './cli';
+
+const RETRY_DELAYS_MS = [5_000, 20_000] as const;
 
 function pauseMessage(workflow: Workflow): string {
   if (workflow.pauseReason === 'approval') return 'Workflow wartet auf eine ausdrückliche Schrittfreigabe.';
@@ -13,7 +16,13 @@ function pauseMessage(workflow: Workflow): string {
 /** Explicit project queue. Restart and any uncertain outcome leave it paused. */
 export class ProjectQueueEngine {
   private readonly pumping = new Set<string>();
+  private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   constructor(private readonly store: StudioStore, private readonly workflows: WorkflowEngine) {}
+
+  dispose(): void {
+    for (const timer of this.retryTimers.values()) clearTimeout(timer);
+    this.retryTimers.clear();
+  }
 
   setState(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): ProjectQueue {
     const current = this.store.projectQueue(input.projectId);
@@ -33,6 +42,7 @@ export class ProjectQueueEngine {
       return this.store.projectQueue(input.projectId);
     }
     if (input.state !== 'paused' && input.state !== 'off') throw new Error('Ungültiger Warteschlangen-Status.');
+    this.clearLaunchRetry(input.projectId);
     if (current.activeWorkflowId) {
       const active = this.store.workflow(current.activeWorkflowId);
       if (active.state === 'running') this.workflows.setState({ id: active.id, state: 'paused' });
@@ -54,8 +64,34 @@ export class ProjectQueueEngine {
   onBoardChanged(projectId: string): void { this.pump(projectId); }
 
   private pause(projectId: string, message: string): void {
+    this.clearLaunchRetry(projectId);
     const queue = this.store.projectQueue(projectId);
     this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: queue.activeWorkflowId, pauseReason: message });
+  }
+
+  private clearLaunchRetry(projectId: string): void {
+    const timer = this.retryTimers.get(projectId);
+    if (timer) clearTimeout(timer);
+    this.retryTimers.delete(projectId);
+    this.store.clearQueueLaunchRetry(projectId);
+  }
+
+  private scheduleLaunchRetry(projectId: string, workflowId: string, error: AgentSpawnError): void {
+    const previous = this.store.queueLaunchRetry(projectId);
+    const attemptCount = (previous?.workflowId === workflowId ? previous.attemptCount : 0) + 1;
+    if (attemptCount > RETRY_DELAYS_MS.length) {
+      this.pause(projectId, `CLI-Start vor Prozessbeginn dreimal fehlgeschlagen. Kein weiterer automatischer Versuch. Letzter Fehler: ${error.message.slice(0, 300)}`);
+      return;
+    }
+    const delay = RETRY_DELAYS_MS[attemptCount - 1]!;
+    const retryAt = new Date(Date.now() + delay).toISOString();
+    this.store.saveQueueLaunchRetry({ projectId, workflowId, attemptCount, retryAt, lastError: error.message });
+    const queue = this.store.projectQueue(projectId);
+    this.store.saveProjectQueue({ projectId, state: 'running', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: workflowId,
+      pauseReason: `CLI-Start vor Prozessbeginn fehlgeschlagen (${attemptCount}/${RETRY_DELAYS_MS.length} automatische Wiederholungen). Nächster Versuch ${new Date(retryAt).toLocaleTimeString('de-DE')}. ${error.message.slice(0, 240)}` });
+    const old = this.retryTimers.get(projectId);
+    if (old) clearTimeout(old);
+    this.retryTimers.set(projectId, setTimeout(() => { this.retryTimers.delete(projectId); this.pump(projectId); }, delay));
   }
 
   private pump(projectId: string): void {
@@ -66,8 +102,31 @@ export class ProjectQueueEngine {
         const queue = this.store.projectQueue(projectId);
         if (queue.state !== 'running' || !queue.templateWorkflowId) return;
         if (queue.activeWorkflowId) {
-          const active = this.store.workflow(queue.activeWorkflowId);
-          if (active.state === 'running') return;
+          let active = this.store.workflow(queue.activeWorkflowId);
+          if (active.state === 'done' && this.store.queueLaunchRetry(projectId)) this.clearLaunchRetry(projectId);
+          if (active.state === 'running') {
+            if (this.store.queueLaunchRetry(projectId)) {
+              this.clearLaunchRetry(projectId);
+              this.store.saveProjectQueue({ projectId, state: 'running', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: active.id, pauseReason: null });
+            }
+            return;
+          }
+          const retry = this.store.queueLaunchRetry(projectId);
+          if (retry?.workflowId === active.id && active.state === 'paused') {
+            const remaining = Date.parse(retry.retryAt) - Date.now();
+            if (remaining > 0) return;
+            if (this.store.activeSessionForProject(projectId)) { this.pause(projectId, 'CLI-Startwiederholung abgebrochen: Im Projekt läuft bereits ein Agent. Ablauf prüfen.'); return; }
+            try { this.workflows.setState({ id: active.id, state: 'running' }); }
+            catch (error) {
+              if (error instanceof AgentSpawnError) this.scheduleLaunchRetry(projectId, active.id, error);
+              else this.pause(projectId, `Workflow-Start fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+              return;
+            }
+            this.clearLaunchRetry(projectId);
+            this.store.saveProjectQueue({ projectId, state: 'running', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: active.id, pauseReason: null });
+            active = this.store.workflow(active.id);
+            if (active.state === 'running') return;
+          }
           if (active.state === 'paused' || active.state === 'draft') { this.pause(projectId, pauseMessage(active)); return; }
           if (active.currentStep < active.steps.length) { this.pause(projectId, 'Aktiver Workflow wurde vorzeitig als erledigt markiert; bitte prüfen.'); return; }
           this.store.saveProjectQueue({ projectId, state: 'running', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: null, pauseReason: null });
@@ -77,7 +136,11 @@ export class ProjectQueueEngine {
         if (!next) return; // Running but idle: newly created To-Do cards can be picked up.
         const flow = this.store.claimQueueCard(projectId, next.id, queue.templateWorkflowId);
         try { this.workflows.setState({ id: flow.id, state: 'running' }); }
-        catch (error) { this.pause(projectId, `Workflow-Start fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`); return; }
+        catch (error) {
+          if (error instanceof AgentSpawnError) this.scheduleLaunchRetry(projectId, flow.id, error);
+          else this.pause(projectId, `Workflow-Start fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+          return;
+        }
         const started = this.store.workflow(flow.id);
         if (started.state === 'paused') { this.pause(projectId, pauseMessage(started)); return; }
         if (started.state === 'running') return;

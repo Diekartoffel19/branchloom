@@ -36,6 +36,16 @@ describe('queue recovery view', () => {
     expect(running).not.toContain('Aktive Karte überspringen');
   });
 
+  it('shows a pending spawn-only retry and keeps the pause control available', () => {
+    const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: {
+      ...snapshot, queue: { ...snapshot.queue, state: 'running', pauseReason: 'CLI-Start vor Prozessbeginn fehlgeschlagen (1/2 automatische Wiederholungen). Nächster Versuch 03:15:00.' },
+    }, mutate }));
+    expect(html).toContain('vor Prozessbeginn fehlgeschlagen');
+    expect(html).toContain('Nächster Versuch 03:15:00');
+    expect(html).toContain('Queue pausieren');
+    expect(html).not.toContain('Aktive Karte überspringen');
+  });
+
   it('shows the audited skip and removes the workflow restart action', () => {
     const skipped = { ...route, queueSkip: { reason: '<blocked>', at: route.updatedAt } };
     const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, activeWorkflowId: null }, workflows: [skipped] }, mutate }));

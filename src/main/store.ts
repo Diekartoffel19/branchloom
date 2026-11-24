@@ -51,6 +51,7 @@ export interface CardWorktree { cardId: string; projectId: string; sourceRoot: s
 interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
 interface QueueRow { project_id: string; state: QueueState; template_workflow_id: string | null; active_workflow_id: string | null; pause_reason: string | null; updated_at: string }
+interface QueueLaunchRetryRow { project_id: string; workflow_id: string; attempt_count: number; retry_at: string; last_error: string }
 interface NoteRow { id: string; project_id: string; title: string; body: string; tags_json: string; links_json: string; created_at: string; updated_at: string }
 interface AttachmentRow { id: string; card_id: string; path: string; name: string; size: number; added_at: string }
 
@@ -91,6 +92,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS project_queues (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, state TEXT NOT NULL, template_workflow_id TEXT REFERENCES workflows(id), active_workflow_id TEXT REFERENCES workflows(id), pause_reason TEXT, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS queue_runs (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL UNIQUE REFERENCES workflows(id) ON DELETE CASCADE, PRIMARY KEY (project_id, card_id));
       CREATE TABLE IF NOT EXISTS queue_run_skips (workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE, reason TEXT NOT NULL, skipped_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS queue_launch_retries (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, attempt_count INTEGER NOT NULL CHECK (attempt_count BETWEEN 1 AND 2), retry_at TEXT NOT NULL, last_error TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_columns_project ON columns(project_id, position);
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
       CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id, added_at);
@@ -142,7 +144,8 @@ export class StudioStore {
       .run(now(), '\n[Branchloom restarted; this terminal was not replayed.]\n');
     this.db.prepare("UPDATE workflows SET state = 'paused', updated_at = ? WHERE state = 'running'").run(now());
     this.db.prepare("UPDATE workflow_progress SET state = 'needs_review' WHERE state = 'running'").run();
-    this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.', updated_at = ? WHERE state = 'running'").run(now());
+    this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = CASE WHEN EXISTS (SELECT 1 FROM queue_launch_retries r WHERE r.project_id = project_queues.project_id) THEN 'App neu gestartet während eines CLI-Startfehlers. Es lief kein automatischer Retry nach Neustart; prüfe den Workflow und starte ihn ausdrücklich.' ELSE 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.' END, updated_at = ? WHERE state = 'running'").run(now());
+    this.db.prepare('DELETE FROM queue_launch_retries').run();
   }
 
   close(): void { this.db.close(); }
@@ -239,6 +242,18 @@ export class StudioStore {
     this.db.prepare('INSERT INTO project_queues (project_id, state, template_workflow_id, active_workflow_id, pause_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET state=excluded.state, template_workflow_id=excluded.template_workflow_id, active_workflow_id=excluded.active_workflow_id, pause_reason=excluded.pause_reason, updated_at=excluded.updated_at').run(input.projectId, input.state, input.templateWorkflowId, input.activeWorkflowId, input.pauseReason, now());
     return this.projectQueue(input.projectId);
   }
+  queueLaunchRetry(projectId: string): { workflowId: string; attemptCount: number; retryAt: string; lastError: string } | null {
+    this.project(projectId);
+    const row = this.db.prepare('SELECT * FROM queue_launch_retries WHERE project_id = ?').get(projectId) as QueueLaunchRetryRow | undefined;
+    return row ? { workflowId: row.workflow_id, attemptCount: row.attempt_count, retryAt: row.retry_at, lastError: row.last_error } : null;
+  }
+  saveQueueLaunchRetry(input: { projectId: string; workflowId: string; attemptCount: number; retryAt: string; lastError: string }): void {
+    if (!Number.isInteger(input.attemptCount) || input.attemptCount < 1 || input.attemptCount > 2 || !Number.isFinite(Date.parse(input.retryAt))) throw new Error('Ungültiger CLI-Startwiederholungszustand.');
+    if (this.workflow(input.workflowId).projectId !== input.projectId) throw new Error('CLI-Startwiederholung gehört zu einem anderen Projekt.');
+    this.db.prepare('INSERT INTO queue_launch_retries (project_id, workflow_id, attempt_count, retry_at, last_error) VALUES (?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET workflow_id=excluded.workflow_id, attempt_count=excluded.attempt_count, retry_at=excluded.retry_at, last_error=excluded.last_error')
+      .run(input.projectId, input.workflowId, input.attemptCount, input.retryAt, input.lastError.slice(0, 500));
+  }
+  clearQueueLaunchRetry(projectId: string): void { this.db.prepare('DELETE FROM queue_launch_retries WHERE project_id = ?').run(projectId); }
   activeSessionForProject(projectId: string): Session | null {
     const row = this.db.prepare("SELECT * FROM sessions WHERE project_id = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1").get(projectId) as SessionRow | undefined;
     return row ? session(row) : null;

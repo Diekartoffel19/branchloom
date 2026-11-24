@@ -45,6 +45,7 @@ let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
+let queueEngine: ProjectQueueEngine;
 let browser: StudioBrowser | null = null;
 let designInspector: DesignInspector | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
@@ -93,7 +94,6 @@ function mustStore(): StudioStore {
 function installIpc(): void {
   const db = mustStore();
   let workflowEngine: WorkflowEngine;
-  let queueEngine: ProjectQueueEngine;
   let previewedPackage: { file: string; fingerprint: string } | null = null;
   let previewedVault: { projectId: string; root: string; fingerprint: string; token: string } | null = null;
   const packageContent = (file: string): { json: string; fingerprint: string } => {
@@ -1168,6 +1168,7 @@ else app.quit();
 app.on('before-quit', () => {
   smokeQaServer?.close();
   smokeQaServer = null;
+  queueEngine?.dispose();
   browser?.dispose();
   browser = null;
   designInspector?.dispose();

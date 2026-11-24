@@ -201,6 +201,14 @@ export function stepLaunchOverrides(
   return { model: step?.model ?? inherited.model, effort: step?.effort ?? inherited.effort };
 }
 
+/** A synchronous PTY spawn exception before a process handle exists. */
+export class AgentSpawnError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentSpawnError';
+  }
+}
+
 /** A single explicit user-triggered agent run. No shell string or implicit restart. */
 export class SessionRunner {
   private readonly processes = new Map<string, IPty>();
@@ -244,9 +252,17 @@ export class SessionRunner {
       throw error;
     }
     if (finalFile) this.finalMessageFiles.set(row.id, finalFile);
+    let args: string[];
+    try {
+      args = [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)];
+    } catch (error) {
+      this.readAndClearFinalMessage(row.id);
+      this.store.finishSession(row.id, 'failed', null);
+      throw error;
+    }
     let child: IPty;
     try {
-      child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)], {
+      child = spawnPty(launcher.executable, args, {
         cwd: worktree?.cwd ?? project.path,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
@@ -256,7 +272,9 @@ export class SessionRunner {
       this.readAndClearFinalMessage(row.id);
       const failed = this.store.finishSession(row.id, 'failed', null);
       this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: String(error), state: failed.state });
-      throw error;
+      // Only this synchronous spawn path proves that no PTY was returned.
+      // Missing CLIs, nonzero exits and uncertain outcomes never enter retry.
+      throw new AgentSpawnError(error instanceof Error ? error.message : String(error));
     }
     this.attachProcess(row, child, agent.kind === 'codex' && input.mode === 'one-shot');
     if ((input.mode ?? 'interactive') === 'interactive' && agent.kind !== 'codex' && agent.kind !== 'antigravity' && prompt) {
