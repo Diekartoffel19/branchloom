@@ -1586,6 +1586,17 @@ function createWindow(): void {
               inlineInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
               for (let attempt = 0; attempt < 100 && !inlineTitle.textContent?.includes('Direkt geändert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!inlineTitle.textContent?.includes('Direkt geändert') || wireframe.querySelector('[data-wireframe-inline-editor]') || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Direkte Textänderung fehlte oder wurde ohne Speichern persistiert.');
+              // Reopen before the previous edit's animation-frame focus restore can
+              // take focus away from the newly mounted input.
+              inlineTitle.focus(); inlineTitle.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !wireframe.querySelector('[data-wireframe-inline-editor]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const reopenedInput = wireframe.querySelector('[data-wireframe-inline-editor]');
+              if (!(reopenedInput instanceof HTMLInputElement)) throw new Error('Schnelles erneutes Öffnen des Texteditors fehlte.');
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              if (document.activeElement !== reopenedInput) throw new Error('Ein älterer Fokus-Restore verdrängte den erneut geöffneten Texteditor: ' + document.activeElement?.outerHTML?.slice(0, 160));
+              reopenedInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              for (let attempt = 0; attempt < 100 && wireframe.querySelector('[data-wireframe-inline-editor]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelector('[data-wireframe-inline-editor]') || !inlineTitle.textContent?.includes('Direkt geändert')) throw new Error('Schnelles erneutes Öffnen und Verwerfen änderte den Text.');
               const inlineUndo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Rückgängig'));
               if (!(inlineUndo instanceof HTMLButtonElement)) throw new Error('Rückgängig für direkte Textänderung fehlt.');
               inlineUndo.click();
