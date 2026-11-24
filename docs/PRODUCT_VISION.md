@@ -10,7 +10,7 @@ Die App wird öffentlich und allgemein nutzbar. Persönlicher Jarvis-Assistent, 
 
 ## Designrichtung
 
-Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Steintöne, ein dunkles neutralgraues Gegenstück, wenige funktionale Akzente, klare Typografie und dichte, gut bedienbare Arbeitsflächen. Keine dunkelblauen Hintergründe, Neonfarben, Glows, dekorativen Verläufe, Sparkle-Motive, Fake-Kennzahlen oder identischen Marketing-Karten. Vor UI-Änderungen den `anti-slop-design`-Skill lesen, echte Zustände und Tastaturpfade prüfen und die Oberfläche sichtbar kontrollieren. Der Skill ist ein Qualitätsmaßstab, kein Ersatz für Nutzerfeedback.
+Ruhige, präzise Werkstatt statt generischem AI-Dashboard: helle und dunkle neutrale Arbeitsflächen, ein sparsamer immergrüner Akzent, eine eigenständige gut lesbare Schrift und dichte, gut bedienbare Arbeitsflächen. Keine goldbraune Grundstimmung, dunkelblauen Hintergründe, Neonfarben, Glows, dekorativen Verläufe, Sparkle-Motive, Fake-Kennzahlen oder identischen Marketing-Karten. Vor UI-Änderungen den `anti-slop-design`-Skill lesen, echte Zustände und Tastaturpfade prüfen und die Oberfläche sichtbar kontrollieren. Der Skill ist ein Qualitätsmaßstab, kein Ersatz für Nutzerfeedback.
 
 ## Funktionskarte
 

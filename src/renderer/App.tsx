@@ -11,6 +11,7 @@ import { ActivityView } from './components/ActivityView';
 import { DecisionInbox } from './components/DecisionInbox';
 import { ChangelogView } from './components/ChangelogView';
 import { ProjectPackageDialog } from './components/ProjectPackageDialog';
+import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
@@ -338,7 +339,7 @@ export function App() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark"><GitBranch size={19} strokeWidth={2} /></span><strong>Branchloom</strong></div>
+      <div className="brand"><span className="brand-mark"><BranchloomMark /></span><strong>Branchloom</strong></div>
       <div className="side-section-title">Projekte</div>
       <label className="sr-only" htmlFor="project-select">Projekt auswählen</label>
       <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
