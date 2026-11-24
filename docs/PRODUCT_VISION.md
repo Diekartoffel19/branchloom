@@ -41,7 +41,7 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: warme Papier- und Ste
 | Loop- und Kostenbremse | Nutzungsdaten, wiederholte Fehler und Limits pro Task sichtbar machen und sicher pausieren | Erste begrenzte Stufe: drei gleiche strukturierte Fehlerzeilen aus aufeinanderfolgenden Queue-Sitzungen erzeugen eine dauerhafte Pausenwarnung. Die Queue pausiert bereits beim ersten Fehlschlag. Kosten und Token bleiben ohne verifizierte Anbietertelemetrie offen. |
 | Zeitmaschine | Git-Stand plus Preview-Screenshot als benannte, wiederherstellbare Meilensteine | Manuell markierte saubere Git-Commits, lokale Ref, optionaler Screenshot einer ausdrücklich gewählten lokalen Dev-Server-Seite, Commit-Vergleich und ausdrücklich angelegtes isoliertes Checkout. Slider und Übernahme in den Haupt-Checkout bleiben offen. |
 | Worktree teilen | Temporäre Vorschau ausdrücklich teilen; externes Feedback in Inbox | Offen. Öffentliche Tunnel sind optional und brauchen sichtbare Freigaben. |
-| Changelog | Täglich/wöchentlich aus echten Commits, Tests und Reviews zusammenfassen | Erste lesende Git-Stufe: 24 Stunden oder sieben Tage, Commit-Hash, Zeit und Betreff aus aktuellem HEAD; bewusste Markdown-Kopie. Test-/Review-Zuordnung und automatische Berichte offen. |
+| Changelog | Täglich/wöchentlich aus echten Commits, Tests und Reviews zusammenfassen | Lesende Git-Stufe: 24 Stunden oder sieben Tage, Commit-Hash, Zeit und Betreff aus aktuellem HEAD; optional geprüfte gespeicherte Karten-Worktrees mit Quellenzuordnung und sichtbaren Teilergebnissen. Bewusste Markdown-Kopie. Test-/Review-Zuordnung und automatische Berichte offen. |
 
 ## Umsetzungsfolge
 

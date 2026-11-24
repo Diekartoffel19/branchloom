@@ -12,6 +12,14 @@
 .changelog-subject { overflow-wrap: anywhere; font-weight: 600; }
 .changelog-commit-meta { display: flex; flex-wrap: wrap; gap: 7px 16px; color: var(--muted); font-size: 12px; }
 .changelog-commit-meta code { overflow-wrap: anywhere; }
+.changelog-provenance { display: flex; flex-wrap: wrap; gap: 5px 12px; color: var(--muted); font-size: 12px; }
+.changelog-provenance span { border-left: 2px solid var(--border); padding-left: 7px; overflow-wrap: anywhere; }
+.changelog-worktree-summary { margin: 13px 0 0; font-size: 12px; color: var(--muted); }
+.changelog-issues { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12px; line-height: 1.5; }
+.changelog-issues strong { font-weight: 650; }
+.changelog-issues ul { margin: 6px 0 0; padding-left: 18px; }
+.changelog-issues li + li { margin-top: 3px; }
+.changelog-issues li span { font-weight: 600; }
 .changelog-empty, .changelog-error { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 18px; }
 .changelog-error { color: var(--danger); }
 .changelog-scope, .changelog-limit { color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 70ch; }

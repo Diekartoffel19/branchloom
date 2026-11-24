@@ -1,15 +1,20 @@
 import { execFile } from 'node:child_process';
-import type { ChangelogCommit, ChangelogPeriod, ProjectChangelog } from '../shared/changelog';
+import { lstat, realpath, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { ChangelogCommit, ChangelogIssue, ChangelogPeriod, ChangelogScope, ChangelogSource, ProjectChangelog } from '../shared/changelog';
+import type { CardWorktree } from './store';
 import type { StudioStore } from './store';
 
 const MAX_VISIBLE = 100;
 const MAX_OUTPUT = 512 * 1024;
 const GIT_TIMEOUT_MS = 5_000;
+const MAX_WORKTREES = 12;
+const WORKTREE_BUDGET_MS = 30_000;
 
-function git(cwd: string, args: string[]): Promise<{ stdout: string; failed: boolean }> {
+function git(cwd: string, args: string[], timeout = GIT_TIMEOUT_MS): Promise<{ stdout: string; failed: boolean }> {
   return new Promise((resolve, reject) => {
     execFile('git', ['-c', 'core.fsmonitor=false', '-c', 'log.showSignature=false', ...args], {
-      cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_OUTPUT, windowsHide: true,
+      cwd, encoding: 'utf8', timeout, maxBuffer: MAX_OUTPUT, windowsHide: true,
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' },
     }, (error, stdout) => {
       if (error?.killed || error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') { reject(new Error('Git-Changelog überschritt das Zeit- oder Größenlimit.')); return; }
@@ -18,6 +23,43 @@ function git(cwd: string, args: string[]): Promise<{ stdout: string; failed: boo
       resolve({ stdout, failed: Boolean(error) });
     });
   });
+}
+
+function remaining(deadline: number): number {
+  const left = deadline - Date.now();
+  if (left < 1) throw new Error('Zeitlimit für Karten-Worktrees erreicht.');
+  return Math.min(GIT_TIMEOUT_MS, left);
+}
+
+async function checkedGit(cwd: string, args: string[], deadline: number): Promise<string> {
+  const result = await git(cwd, args, remaining(deadline));
+  if (result.failed) throw new Error('Gespeicherter Karten-Worktree konnte nicht mit Git geprüft werden.');
+  return result.stdout.trim();
+}
+
+async function sameDirectory(left: string, right: string): Promise<boolean> {
+  try {
+    const [a, b] = await Promise.all([stat(left, { bigint: true }), stat(right, { bigint: true })]);
+    if (a.ino !== 0n && b.ino !== 0n) return a.dev === b.dev && a.ino === b.ino;
+    const [first, second] = await Promise.all([realpath(left), realpath(right)]);
+    return process.platform === 'win32' ? first.toLowerCase() === second.toLowerCase() : first === second;
+  } catch { return false; }
+}
+
+async function verifySavedWorktree(store: StudioStore, record: CardWorktree, projectRoot: string, commonDir: string, deadline: number): Promise<void> {
+  if ((await lstat(record.path)).isSymbolicLink()) throw new Error('Gespeicherter Worktree-Pfad ist ein symbolischer Link.');
+  const expected = join(store.worktreeBase, record.projectId, record.cardId);
+  if (!await sameDirectory(record.path, expected) || !await sameDirectory(record.sourceRoot, projectRoot)) {
+    throw new Error('Gespeicherter Worktree gehört nicht mehr zu diesem Projekt.');
+  }
+  const [root, common, branch] = await Promise.all([
+    checkedGit(record.path, ['rev-parse', '--show-toplevel'], deadline),
+    checkedGit(record.path, ['rev-parse', '--path-format=absolute', '--git-common-dir'], deadline),
+    checkedGit(record.path, ['symbolic-ref', '--quiet', '--short', 'HEAD'], deadline),
+  ]);
+  if (!await sameDirectory(root, record.path) || !await sameDirectory(common, commonDir) || branch !== record.branch) {
+    throw new Error('Gespeicherter Worktree hat einen anderen Git-Ursprung oder Branch.');
+  }
 }
 
 export function parseChangelogLog(output: string): ChangelogCommit[] {
@@ -36,14 +78,16 @@ export function limitChangelogCommits(all: ChangelogCommit[]): { commits: Change
   return { commits: all.slice(0, MAX_VISIBLE), moreAvailable: all.length > MAX_VISIBLE };
 }
 
-/** Read-only history of commits reachable from this project's current HEAD. */
-export async function projectChangelog(store: StudioStore, projectId: string, period: ChangelogPeriod, now = new Date()): Promise<ProjectChangelog> {
+/** Read-only history of project HEAD, optionally including verified saved card worktrees. */
+export async function projectChangelog(store: StudioStore, projectId: string, period: ChangelogPeriod, now = new Date(), scope: ChangelogScope = 'head'): Promise<ProjectChangelog> {
   if (period !== 'day' && period !== 'week') throw new Error('Ungültiger Changelog-Zeitraum.');
+  if (scope !== 'head' && scope !== 'saved-worktrees') throw new Error('Ungültige Changelog-Quelle.');
   if (!Number.isFinite(now.getTime())) throw new Error('Ungültiger Prüfzeitpunkt.');
   const project = store.project(projectId);
   const checkedAt = now.toISOString();
   const since = new Date(now.getTime() - (period === 'day' ? 24 : 7 * 24) * 60 * 60 * 1_000).toISOString();
-  const base = { projectId, period, since, until: checkedAt, checkedAt, head: null, commits: [] as ChangelogCommit[], moreAvailable: false };
+  const base = { projectId, period, scope, since, until: checkedAt, checkedAt, head: null, commits: [] as ChangelogCommit[], moreAvailable: false,
+    issues: [] as ChangelogIssue[], checkedWorktrees: 0 };
   const inside = await git(project.path, ['rev-parse', '--is-inside-work-tree']);
   if (inside.failed || inside.stdout.trim() !== 'true') return { ...base, state: 'no-repository' };
   const head = await git(project.path, ['rev-parse', '--verify', 'HEAD']);
@@ -57,5 +101,53 @@ export async function projectChangelog(store: StudioStore, projectId: string, pe
   ]);
   if (result.failed) throw new Error('Git-Changelog konnte nicht gelesen werden.');
   const all = parseChangelogLog(result.stdout);
-  return { ...base, state: 'ready', head: hash, ...limitChangelogCommits(all) };
+  const headHistory = limitChangelogCommits(all);
+  const withHeadSource = headHistory.commits.map((commit) => ({ ...commit, sources: [{ kind: 'project-head' as const }] }));
+  if (scope === 'head') return { ...base, state: 'ready', head: hash, commits: withHeadSource, moreAvailable: headHistory.moreAvailable };
+
+  const issues: ChangelogIssue[] = [];
+  const byHash = new Map<string, ChangelogCommit>(withHeadSource.map((commit) => [commit.hash, commit]));
+  const saved = store.cardWorktreesForProject(projectId);
+  if (saved.length > MAX_WORKTREES) issues.push({ cardId: null, cardTitle: null, reason: `Nur ${MAX_WORKTREES} von ${saved.length} gespeicherten Karten-Worktrees wurden geprüft.` });
+  let checkedWorktrees = 0;
+  let moreAvailable = headHistory.moreAvailable;
+  const deadline = Date.now() + WORKTREE_BUDGET_MS;
+  let projectRoot: string | null = null;
+  let commonDir: string | null = null;
+  try {
+    projectRoot = await checkedGit(project.path, ['rev-parse', '--show-toplevel'], deadline);
+    commonDir = await checkedGit(projectRoot, ['rev-parse', '--path-format=absolute', '--git-common-dir'], deadline);
+  } catch {
+    issues.push({ cardId: null, cardTitle: null, reason: 'Git-Ursprung des Projektordners konnte nicht geprüft werden.' });
+    return { ...base, state: 'ready', head: hash, commits: withHeadSource, moreAvailable: headHistory.moreAvailable, issues, checkedWorktrees };
+  }
+  for (const record of saved.slice(0, MAX_WORKTREES)) {
+    let cardTitle: string | null = null;
+    try {
+      cardTitle = store.card(record.cardId).title.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 120);
+      if (record.projectId !== projectId) throw new Error('Projektzuordnung fehlt.');
+      await verifySavedWorktree(store, record, projectRoot, commonDir, deadline);
+      const log = await checkedGit(record.path, [
+        'log', '--no-show-signature', '--no-decorate', '--no-ext-diff', '-z',
+        `--since=${since}`, `--until=${checkedAt}`, `--max-count=${MAX_VISIBLE + 1}`,
+        '--format=%H%x00%cI%x00%s%x00', 'HEAD',
+      ], deadline);
+      const history = limitChangelogCommits(parseChangelogLog(log));
+      if (history.moreAvailable) moreAvailable = true;
+      const source: ChangelogSource = { kind: 'card-worktree', cardId: record.cardId, cardTitle, branch: record.branch };
+      for (const commit of history.commits) {
+        const existing = byHash.get(commit.hash);
+        if (existing) existing.sources!.push(source);
+        else byHash.set(commit.hash, { ...commit, sources: [source] });
+      }
+      checkedWorktrees++;
+    } catch (reason) {
+      const message = reason instanceof Error && /Zeitlimit/.test(reason.message) ? 'Zeitlimit für Karten-Worktrees erreicht.' : 'Gespeicherter Karten-Worktree fehlt oder konnte nicht sicher geprüft werden.';
+      issues.push({ cardId: record.cardId, cardTitle, reason: message });
+      if (Date.now() >= deadline) break;
+    }
+  }
+  const combined = [...byHash.values()].sort((a, b) => Date.parse(b.committedAt) - Date.parse(a.committedAt) || a.hash.localeCompare(b.hash));
+  const visible = limitChangelogCommits(combined);
+  return { ...base, state: 'ready', head: hash, commits: visible.commits, moreAvailable: moreAvailable || visible.moreAvailable, issues, checkedWorktrees };
 }

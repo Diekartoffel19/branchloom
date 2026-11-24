@@ -1,7 +1,7 @@
 import type { ConflictRadarResult, ProjectConflictRadarResult } from './conflict-radar';
 import type { DraftTurn, TaskDraftReply } from './task-draft';
 import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
-import type { ChangelogPeriod, ProjectChangelog } from './changelog';
+import type { ChangelogPeriod, ChangelogScope, ProjectChangelog } from './changelog';
 import type { ThemeTokenInventory, ThemeTokenDefinition, ThemeTokenEditPreview, ThemeTokenEditResult } from './theme-tokens';
 import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
 import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
@@ -80,7 +80,7 @@ export interface StudioAPI {
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
-  projectChangelog(input: { projectId: string; period: ChangelogPeriod }): Promise<ProjectChangelog>;
+  projectChangelog(input: { projectId: string; period: ChangelogPeriod; scope?: ChangelogScope }): Promise<ProjectChangelog>;
   listMilestones(projectId: string): Promise<import('./milestones').ProjectMilestone[]>;
   createMilestone(input: { projectId: string; label: string }): Promise<import('./milestones').ProjectMilestone>;
   createMilestoneWithPreview(input: { projectId: string; label: string; url: string }): Promise<import('./milestones').ProjectMilestone>;

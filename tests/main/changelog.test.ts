@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { limitChangelogCommits, parseChangelogLog, projectChangelog } from '../../src/main/changelog';
+import { ensureCardWorktree } from '../../src/main/git-worktree';
 import { StudioStore } from '../../src/main/store';
 
 const roots: string[] = [];
@@ -47,12 +48,93 @@ describe('project changelog', () => {
       writeFileSync(join(repository, 'untracked.txt'), 'not committed');
       const now = new Date('2026-01-03T12:00:00.000Z');
       const day = await projectChangelog(store, project.id, 'day', now);
-      expect(day).toMatchObject({ state: 'ready', period: 'day', head: recentHash, since: '2026-01-02T12:00:00.000Z', until: now.toISOString(), moreAvailable: false });
+      expect(day).toMatchObject({ state: 'ready', period: 'day', scope: 'head', head: recentHash, since: '2026-01-02T12:00:00.000Z', until: now.toISOString(), moreAvailable: false, checkedWorktrees: 0, issues: [] });
       expect(day.commits.map((item) => [item.hash, item.subject])).toEqual([[recentHash, 'Add visible card flow']]);
       const week = await projectChangelog(store, project.id, 'week', now);
       expect(week.commits).toHaveLength(2);
       expect(week.commits.some((item) => item.hash === otherHash)).toBe(false);
       expect(week.commits.some((item) => item.subject.includes('untracked'))).toBe(false);
+    } finally { store.close(); }
+  });
+
+  it('includes only verified saved card worktrees on request, deduplicates history and attributes each source', async () => {
+    const { repository, store, project } = fixture();
+    try {
+      const shared = commit(repository, 1, 'Shared foundation', '2026-01-02T09:00:00+00:00');
+      const column = store.snapshot(project.id).columns[0]!;
+      const first = store.createCard({ projectId: project.id, columnId: column.id, title: 'First card' });
+      const second = store.createCard({ projectId: project.id, columnId: column.id, title: 'Second card' });
+      const firstWorktree = ensureCardWorktree(store, first.id);
+      const secondWorktree = ensureCardWorktree(store, second.id);
+      const firstHash = commit(firstWorktree.path, 2, 'First branch work', '2026-01-03T10:00:00+00:00');
+      const secondHash = commit(secondWorktree.path, 3, 'Second branch work', '2026-01-03T11:00:00+00:00');
+      const unrelated = git(repository, ['branch', '--show-current']);
+      git(repository, ['checkout', '-qb', 'unrelated']);
+      const unrelatedHash = commit(repository, 4, 'Unregistered branch', '2026-01-03T11:30:00+00:00');
+      git(repository, ['checkout', '-q', unrelated]);
+      const now = new Date('2026-01-03T12:00:00.000Z');
+      const defaultView = await projectChangelog(store, project.id, 'week', now);
+      expect(defaultView.commits.map((item) => item.hash)).toEqual([shared]);
+      const expanded = await projectChangelog(store, project.id, 'week', now, 'saved-worktrees');
+      expect(expanded).toMatchObject({ scope: 'saved-worktrees', checkedWorktrees: 2, issues: [], moreAvailable: false });
+      expect(expanded.commits.map((item) => item.hash)).toEqual([secondHash, firstHash, shared]);
+      expect(expanded.commits.some((item) => item.hash === unrelatedHash)).toBe(false);
+      expect(expanded.commits.find((item) => item.hash === firstHash)?.sources).toEqual([{ kind: 'card-worktree', cardId: first.id, cardTitle: first.title, branch: firstWorktree.branch }]);
+      expect(expanded.commits.find((item) => item.hash === shared)?.sources).toEqual([
+        { kind: 'project-head' },
+        { kind: 'card-worktree', cardId: first.id, cardTitle: first.title, branch: firstWorktree.branch },
+        { kind: 'card-worktree', cardId: second.id, cardTitle: second.title, branch: secondWorktree.branch },
+      ]);
+    } finally { store.close(); }
+  });
+
+  it('keeps valid commits visible and marks a missing saved worktree as a partial result', async () => {
+    const { repository, store, project } = fixture();
+    try {
+      const shared = commit(repository, 1, 'Shared foundation', '2026-01-02T09:00:00+00:00');
+      const column = store.snapshot(project.id).columns[0]!;
+      const card = store.createCard({ projectId: project.id, columnId: column.id, title: 'Lost checkout' });
+      const worktree = ensureCardWorktree(store, card.id);
+      rmSync(worktree.path, { recursive: true, force: true });
+      const result = await projectChangelog(store, project.id, 'week', new Date('2026-01-03T12:00:00Z'), 'saved-worktrees');
+      expect(result.commits.map((item) => item.hash)).toEqual([shared]);
+      expect(result).toMatchObject({ checkedWorktrees: 0, moreAvailable: false });
+      expect(result.issues).toEqual([{ cardId: card.id, cardTitle: 'Lost checkout', reason: expect.stringContaining('fehlt') }]);
+    } finally { store.close(); }
+  });
+
+  it('does not trust a saved card checkout after its Git branch changes', async () => {
+    const { repository, store, project } = fixture();
+    try {
+      const shared = commit(repository, 1, 'Shared foundation', '2026-01-02T09:00:00+00:00');
+      const column = store.snapshot(project.id).columns[0]!;
+      const card = store.createCard({ projectId: project.id, columnId: column.id, title: 'Moved branch' });
+      const worktree = ensureCardWorktree(store, card.id);
+      git(worktree.path, ['checkout', '-qb', 'different-branch']);
+      const movedHash = commit(worktree.path, 2, 'Unverified change', '2026-01-03T10:00:00+00:00');
+      const result = await projectChangelog(store, project.id, 'week', new Date('2026-01-03T12:00:00Z'), 'saved-worktrees');
+      expect(result.commits.map((item) => item.hash)).toEqual([shared]);
+      expect(result.commits.some((item) => item.hash === movedHash)).toBe(false);
+      expect(result.issues).toHaveLength(1);
+      expect(result.checkedWorktrees).toBe(0);
+    } finally { store.close(); }
+  });
+
+  it('limits saved worktree checks and reports that additional card sources were not examined', async () => {
+    const { repository, store, project } = fixture();
+    try {
+      commit(repository, 1, 'Shared foundation', '2026-01-02T09:00:00+00:00');
+      const column = store.snapshot(project.id).columns[0]!;
+      for (let index = 0; index < 13; index++) {
+        const card = store.createCard({ projectId: project.id, columnId: column.id, title: `Saved card ${index}` });
+        store.saveCardWorktree({ cardId: card.id, projectId: project.id, sourceRoot: repository,
+          path: join(store.worktreeBase, project.id, card.id), branch: `jarvis/card-${card.id}` });
+      }
+      const result = await projectChangelog(store, project.id, 'week', new Date('2026-01-03T12:00:00Z'), 'saved-worktrees');
+      expect(result.checkedWorktrees).toBe(0);
+      expect(result.issues).toHaveLength(13);
+      expect(result.issues[0]?.reason).toContain('Nur 12 von 13');
+      expect(result.moreAvailable).toBe(false);
     } finally { store.close(); }
   });
 
@@ -64,6 +146,7 @@ describe('project changelog', () => {
     try {
       expect((await projectChangelog(unborn.store, unborn.project.id, 'week')).state).toBe('no-commits');
       await expect(projectChangelog(unborn.store, unborn.project.id, 'month' as 'week')).rejects.toThrow('Ungültiger');
+      await expect(projectChangelog(unborn.store, unborn.project.id, 'week', new Date(), 'invalid' as 'head')).rejects.toThrow('Quelle');
     } finally { unborn.store.close(); }
   });
 

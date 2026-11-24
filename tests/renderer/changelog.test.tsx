@@ -8,6 +8,7 @@ import type { ProjectChangelog } from '../../src/shared/changelog';
 const result: ProjectChangelog = {
   projectId: 'synthetic', period: 'day', since: '2026-01-02T12:00:00.000Z', until: '2026-01-03T12:00:00.000Z',
   checkedAt: '2026-01-03T12:00:00.000Z', state: 'ready', head: 'a'.repeat(40), moreAvailable: false,
+  scope: 'head', issues: [], checkedWorktrees: 0,
   commits: [{ hash: 'a'.repeat(40), committedAt: '2026-01-03T10:00:00Z', subject: 'Fix <script>unsafe</script>' }],
 };
 
@@ -16,9 +17,20 @@ describe('changelog presentation', () => {
     const html = renderToStaticMarkup(createElement(ChangelogView, { projectId: 'synthetic' }));
     expect(html).toContain('Git-Historie wird gelesen');
     expect(html).toContain('Letzte 24 Stunden');
+    expect(html).toContain('Projekt-HEAD + Karten-Worktrees');
     expect(html).toContain('Markdown kopieren');
     expect(html).not.toContain('Fix &lt;script&gt;');
     expect(renderToStaticMarkup(createElement(App))).toContain('Changelog');
+  });
+
+  it('names actual card and branch sources and exposes incomplete reads in copied Markdown', () => {
+    const report = changelogMarkdown({ ...result, scope: 'saved-worktrees', checkedWorktrees: 1,
+      commits: [{ ...result.commits[0]!, sources: [{ kind: 'project-head' }, { kind: 'card-worktree', cardId: 'card-1', cardTitle: 'UI <fix>', branch: 'cards/ui' }] }],
+      issues: [{ cardId: 'card-2', cardTitle: 'Missing checkout', reason: 'Gespeicherter Karten-Worktree fehlt.' }], moreAvailable: true });
+    expect(report).toContain('1 verifizierte gespeicherte Karten-Worktrees');
+    expect(report).toContain('Quellen: Projekt-HEAD; UI &lt;fix&gt; · cards/ui');
+    expect(report).toContain('Unvollständige Quellen:');
+    expect(report).toContain('Missing checkout: Gespeicherter Karten-Worktree fehlt.');
   });
 
   it('copies a deterministic Markdown report with full Git hashes and an explicit evidence limit', () => {

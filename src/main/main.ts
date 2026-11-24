@@ -160,7 +160,7 @@ function installIpc(): void {
     return created;
   });
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
-  bind('projectChangelog', (input: Parameters<StudioAPI['projectChangelog']>[0]) => projectChangelog(db, input.projectId, input.period));
+  bind('projectChangelog', (input: Parameters<StudioAPI['projectChangelog']>[0]) => projectChangelog(db, input.projectId, input.period, new Date(), input.scope ?? 'head'));
   bind('listMilestones', (projectId: string) => listMilestones(db, projectId));
   bind('createMilestone', (input: Parameters<StudioAPI['createMilestone']>[0]) => createMilestone(db, input));
   bind('createMilestoneWithPreview', (input: Parameters<StudioAPI['createMilestoneWithPreview']>[0]) => createMilestoneWithPreview(db, input));
@@ -1131,6 +1131,23 @@ function createWindow(): void {
             execFileSync('git', ['init', '-q', smokeDataDirectory!], { windowsHide: true });
             execFileSync('git', ['-C', smokeDataDirectory!, 'add', '--', 'src/theme.css'], { windowsHide: true });
             execFileSync('git', ['-C', smokeDataDirectory!, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic smoke theme'], { windowsHide: true });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const project = (await window.studio.projects())[0];
+              const report = await window.studio.projectChangelog({ projectId: project.id, period: 'week', scope: 'saved-worktrees' });
+              if (report.state !== 'ready' || report.scope !== 'saved-worktrees' || report.checkedWorktrees !== 0 || report.issues.length || !report.commits.some((item) => item.subject === 'Synthetic smoke theme' && item.sources?.[0]?.kind === 'project-head')) throw new Error('Changelog-IPC lieferte den synthetischen Git-Commit nicht.');
+              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Changelog');
+              if (!nav) throw new Error('Changelog-Navigation fehlt.');
+              nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.changelog-page select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const source = [...document.querySelectorAll('.changelog-controls label')].find((item) => item.textContent?.includes('Quellen'))?.querySelector('select');
+              if (!source || source.value !== 'head') throw new Error('Changelog-Quellwahl fehlt oder Standard wurde verändert.');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!setter) throw new Error('Changelog-Quellwahl ist nicht bedienbar.');
+              setter.call(source, 'saved-worktrees'); source.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.changelog-worktree-summary'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.changelog-worktree-summary')?.textContent?.includes('0 gespeicherte') || !document.querySelector('.changelog-groups')?.textContent?.includes('Synthetic smoke theme')) throw new Error('Changelog-Worktree-Ansicht zeigte den geprüften Commit nicht.');
+              return true;
+            })()`);
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Design');
               if (!nav) throw new Error('Design-Navigation fehlt.');
