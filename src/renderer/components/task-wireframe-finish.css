@@ -1,0 +1,95 @@
+/* A neutral workbench keeps the target layout visually separate from editor chrome. */
+.task-wireframe-canvas-wrap[data-artboard="tablet"] {
+  width: 100%;
+  max-width: 700px;
+  justify-self: center;
+}
+.task-wireframe-canvas-wrap[data-artboard="mobile"] {
+  width: 100%;
+  max-width: 440px;
+  justify-self: center;
+}
+.task-wireframe-canvas-viewport {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 82%, var(--text) 5%);
+}
+.task-wireframe-canvas {
+  border-radius: 2px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent),
+    0 12px 30px color-mix(in srgb, var(--text) 10%, transparent);
+}
+.task-wireframe-canvas.has-grid {
+  background-color: var(--surface);
+}
+.task-wireframe-canvas-head > span {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+.task-wireframe-toolbar {
+  padding-block: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.task-wireframe-toolbar > span {
+  font-weight: 600;
+  color: var(--text);
+}
+.task-wireframe-layers,
+.task-wireframe-properties {
+  border-radius: 6px;
+  padding: 16px;
+}
+.task-wireframe-layers h3,
+.task-wireframe-properties h3 {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.task-wireframe-layers li button {
+  min-height: 32px;
+  padding-inline: 10px;
+}
+.task-wireframe-layers li button.selected {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  box-shadow: inset 2px 0 var(--accent);
+}
+.task-wireframe-layers li button:active,
+.task-wireframe-overview-card:active {
+  background: var(--surface-3);
+}
+.task-wireframe-overview-card.active {
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.task-wireframe-element.kind-panel {
+  border-color: color-mix(in srgb, var(--border) 86%, var(--text) 14%);
+  background: var(--surface);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 7%, transparent);
+}
+.task-wireframe-element.kind-field {
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
+}
+.task-wireframe-element.kind-button {
+  border-radius: 5px;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 9%, transparent);
+}
+.task-wireframe-element.kind-text {
+  letter-spacing: -.012em;
+}
+.task-wireframe-element.selected {
+  outline-offset: 2px;
+}
+.task-wireframe-marquee {
+  border-width: 1px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+@media (max-width: 650px) {
+  .task-wireframe-canvas-viewport { padding: 8px; }
+  .task-wireframe-layers,
+  .task-wireframe-properties { padding: 12px; }
+}

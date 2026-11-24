@@ -8,6 +8,7 @@ import { copyDesktopToArtboard } from './wireframe-artboards';
 import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection, selectWireframeMarquee, type WireframeAlignment, type WireframePoint } from './wireframe-selection';
 import { WireframeArtboardOverview } from './WireframeArtboardOverview';
 import './task-wireframe.css';
+import './task-wireframe-finish.css';
 
 interface Draft { title: string; elements: WireframeElement[]; artboards: CardWireframe['artboards'] }
 interface MarqueeDrag { pointerId: number; start: WireframePoint; end: WireframePoint; clientX: number; clientY: number; initialIds: string[]; add: boolean }
