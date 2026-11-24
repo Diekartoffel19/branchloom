@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WorkflowProposal } from '../shared/types';
-import { resolveAgentLauncher } from './cli';
+import { codexPackagedArgs, resolveAgentLauncher } from './cli';
 import { readProjectReadmeContext } from './project-context';
 import { reviewRulePromptContext } from './review-rules';
 import { StudioStore } from './store';
@@ -87,7 +87,7 @@ export async function proposeWorkflow(
       `User request: ${input.request.trim()}`,
     ].filter(Boolean).join('\n\n');
     const model = settings.model ?? preset.model;
-    const args = [...launcher.prefixArgs, 'exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check', '--output-schema', schemaPath, '--output-last-message', outputPath];
+    const args = [...launcher.prefixArgs, ...codexPackagedArgs(launcher, preset), 'exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check', '--output-schema', schemaPath, '--output-last-message', outputPath];
     if (model) args.push('--model', model);
     if (settings.effort) args.push('--config', `model_reasoning_effort="${settings.effort}"`);
     // Preset CLI flags may contain permission overrides. The planner uses a

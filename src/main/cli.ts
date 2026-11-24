@@ -40,11 +40,11 @@ export function resolveExecutable(command: string, env: NodeJS.ProcessEnv = proc
 
 export interface AgentLauncher { executable: string; prefixArgs: string[] }
 
-function codexPackagedArgs(launcher: AgentLauncher, agent: AgentPreset): string[] {
+export function codexPackagedArgs(launcher: AgentLauncher, agent: Pick<AgentPreset, 'kind'>, platform: NodeJS.Platform = process.platform): string[] {
   // The Windows app-bundled Codex binary needs its standalone transport when
   // launched without the desktop app server. Other CLI installations keep
   // their existing launch arguments for compatibility with older versions.
-  return agent.kind === 'codex' && process.platform === 'win32'
+  return agent.kind === 'codex' && platform === 'win32'
     && /[\\/]WindowsApps[\\/]OpenAI\.Codex_[^\\/]+[\\/]app[\\/]resources[\\/]codex\.exe$/i.test(launcher.executable)
     ? ['--no-daemon'] : [];
 }
