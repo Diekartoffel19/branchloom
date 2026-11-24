@@ -101,17 +101,18 @@ describe('real CLI PTY', () => {
     } finally { reopened.close(); }
   });
 
-  it('allows parallel manual cards while the project queue is off', () => {
+  it('requires isolated worktrees before a second manual card runs', () => {
     const { store, card } = fixture();
     const second = store.createCard({ projectId: card.projectId, columnId: card.columnId, title: 'Another manual task' });
     const agent = store.saveAgent({ name: 'Waiting fixture', kind: 'custom', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], model: null, enabled: true });
     const runner = new SessionRunner(store, () => undefined, () => undefined);
     const firstRun = runner.start({ cardId: card.id, agentId: agent.id, prompt: '' });
-    const secondRun = runner.start({ cardId: second.id, agentId: agent.id, prompt: '' });
+    expect(() => runner.start({ cardId: second.id, agentId: agent.id, prompt: '' })).toThrow('eigenen Git-Worktree');
+    expect(() => runner.start({ cardId: second.id, agentId: agent.id, prompt: '', useWorktree: true })).toThrow('eigenen Git-Worktree');
     expect(store.session(firstRun.id).state).toBe('running');
-    expect(store.session(secondRun.id).state).toBe('running');
+    expect(store.latestSession(second.id)).toBeNull();
+    expect(store.cardWorktree(second.id)).toBeNull();
     runner.stop(firstRun.id);
-    runner.stop(secondRun.id);
     runner.dispose();
     store.close();
   });

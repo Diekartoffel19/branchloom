@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
 import type { WorktreeCleanupPreview } from '../../shared/worktree-cleanup';
@@ -12,12 +12,15 @@ import { CardSplitPanel } from './CardSplitPanel';
 import { SessionEvidencePanel } from './SessionEvidencePanel';
 import { SessionRecoveryPanel } from './SessionRecoveryPanel';
 import { AgentHandoffPanel } from './AgentHandoffPanel';
+import { ParallelRunPanel } from './ParallelRunPanel';
+import type { CardRunGate } from '../../shared/parallel-runs';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
 import { CardQaPanel } from './CardQaPanel';
 import { PrDraftPanel } from './PrDraftPanel';
 import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
+import { parallelStartWarning } from '../parallel-run-gate';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
@@ -32,6 +35,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const [agentId, setAgentId] = useState('');
   const [prompt, setPrompt] = useState('');
   const [useWorktree, setUseWorktree] = useState(false);
+  const [runGate, setRunGate] = useState<CardRunGate | null>(null);
   const [message, setMessage] = useState('');
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -87,6 +91,9 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const enabledAgents = snapshot.agents.filter((item) => item.enabled);
   const defaultAgentId = snapshot.columns.find((column) => column.id === card.columnId)?.agentId ?? enabledAgents[0]?.id ?? '';
   const chosenAgentId = agentId || defaultAgentId;
+  const acceptRunGate = useCallback((next: CardRunGate | null) => setRunGate(next), []);
+  const parallelWarning = parallelStartWarning(runGate, useWorktree);
+  const startBlocked = !runGate || runGate.cardId !== card.id || !runGate.canStart || Boolean(parallelWarning);
 
 
   async function saveCard(event: React.FormEvent<HTMLFormElement>) {
@@ -260,7 +267,9 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <label className="field-label">Agent auswählen<select value={chosenAgentId} disabled={Boolean(card.archivedAt)} onChange={(event) => setAgentId(event.target.value)}><option value="">Agent wählen</option>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label>
         <label className="field-label">Auftrag<textarea rows={4} value={prompt} disabled={Boolean(card.archivedAt)} onChange={(event) => setPrompt(event.target.value)} placeholder="Was soll der Agent an dieser Karte tun?" /></label>
         <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={useWorktree} disabled={Boolean(card.archivedAt)} onChange={(event) => setUseWorktree(event.target.checked)} /> Isolierten Git-Worktree für diese Sitzung verwenden</span></label>
-        <div className="agent-actions"><button className="primary-button" type="button" disabled={Boolean(card.archivedAt) || !chosenAgentId || session?.state === 'running'} onClick={() => void mutate(() => window.studio.startSession({ cardId: card.id, agentId: chosenAgentId, prompt: prompt.trim() || undefined, useWorktree }))}><Play size={16} /> Agent starten</button><button type="button" className={recording ? 'voice-button recording' : 'voice-button'} disabled={Boolean(card.archivedAt) || transcribing} onClick={() => recording ? recorderRef.current?.stop() : void startRecording()} title={recording ? 'Aufnahme beenden' : 'Spracheingabe'}>{recording ? <MicOff size={17} /> : <Mic size={17} />}{transcribing ? 'Transkribiere…' : recording ? 'Aufnahme beenden' : 'Sprechen'}</button></div>
+        <ParallelRunPanel key={card.id} card={card} mutate={mutate} onGate={acceptRunGate} />
+        {parallelWarning ? <p className="inline-note">{parallelWarning}</p> : null}
+        <div className="agent-actions"><button className="primary-button" type="button" disabled={Boolean(card.archivedAt) || !chosenAgentId || session?.state === 'running' || startBlocked} onClick={() => void mutate(() => window.studio.startSession({ cardId: card.id, agentId: chosenAgentId, prompt: prompt.trim() || undefined, useWorktree }))}><Play size={16} /> Agent starten</button><button type="button" className={recording ? 'voice-button recording' : 'voice-button'} disabled={Boolean(card.archivedAt) || transcribing} onClick={() => recording ? recorderRef.current?.stop() : void startRecording()} title={recording ? 'Aufnahme beenden' : 'Spracheingabe'}>{recording ? <MicOff size={17} /> : <Mic size={17} />}{transcribing ? 'Transkribiere…' : recording ? 'Aufnahme beenden' : 'Sprechen'}</button></div>
         <AgentHandoffPanel key={`handoff-${card.id}`} card={card} sourceSession={session} targetAgentId={chosenAgentId} useWorktree={useWorktree} queueRunning={snapshot.queue?.state === 'running'} mutate={mutate} />
         {voiceError ? <p className="inline-error" role="alert">{voiceError}</p> : null}
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}

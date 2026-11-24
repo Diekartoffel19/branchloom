@@ -6,6 +6,7 @@ import { join, relative } from 'node:path';
 import { SessionRunner } from '../../src/main/cli';
 import { ensureCardWorktree } from '../../src/main/git-worktree';
 import { StudioStore } from '../../src/main/store';
+import { cardRunGate, setProjectRunCapacity } from '../../src/main/parallel-runs';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -49,6 +50,32 @@ function fixture(withGit = true) {
 }
 
 describe('per-card Git worktrees', () => {
+  it('runs two cards in distinct worktrees, enforces capacity and releases a slot on stop', () => {
+    const { store, project, card } = fixture();
+    const second = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Second card' });
+    const third = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Third card' });
+    const agent = store.saveAgent({ name: 'Waiting fixture', kind: 'custom', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], model: null, enabled: true });
+    const runner = new SessionRunner(store, () => undefined, () => undefined);
+    try {
+      const first = runner.start({ cardId: card.id, agentId: agent.id, useWorktree: true });
+      const next = runner.start({ cardId: second.id, agentId: agent.id, useWorktree: true });
+      expect(first.worktreePath).toBeTruthy();
+      expect(next.worktreePath).toBeTruthy();
+      expect(first.worktreePath).not.toBe(next.worktreePath);
+      expect(cardRunGate(store, third.id)).toMatchObject({ capacity: 2, runningCount: 2, canStart: false });
+      expect(() => runner.start({ cardId: third.id, agentId: agent.id, useWorktree: true })).toThrow('Projektkapazität');
+      expect(store.latestSession(third.id)).toBeNull();
+      expect(() => runner.start({ cardId: card.id, agentId: agent.id, useWorktree: true })).toThrow('already running');
+      runner.stop(first.id);
+      expect(cardRunGate(store, third.id).canStart).toBe(true);
+      const last = runner.start({ cardId: third.id, agentId: agent.id, useWorktree: true });
+      expect(store.session(last.id).state).toBe('running');
+      runner.stop(last.id); runner.stop(next.id);
+      expect(() => setProjectRunCapacity(store, { projectId: project.id, capacity: 0 })).toThrow('zwischen 1 und 4');
+      expect(setProjectRunCapacity(store, { projectId: project.id, capacity: 1 })).toBe(1);
+    } finally { runner.dispose(); store.close(); }
+  }, 60_000);
+
   it('creates a branch outside the repo and reuses uncommitted changes after app restart', () => {
     const { repository, store, dbPath, card } = fixture();
     const first = ensureCardWorktree(store, card.id);
@@ -71,6 +98,10 @@ describe('per-card Git worktrees', () => {
     const runner = new SessionRunner(store, () => undefined, () => undefined);
     const started = runner.start({ cardId: card.id, agentId: agent.id, prompt: '', useWorktree: true });
     expect(started.worktreePath).toBeTruthy();
+    const initialRevision = (store.db.prepare('SELECT content_revision FROM session_card_revisions WHERE session_id = ?').get(started.id) as { content_revision: number }).content_revision;
+    store.updateCard({ id: card.id, title: 'Changed while the PTY is running' });
+    expect((store.db.prepare('SELECT content_revision FROM session_card_revisions WHERE session_id = ?').get(started.id) as { content_revision: number }).content_revision).toBe(initialRevision);
+    expect((store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number }).content_revision).toBe(initialRevision + 1);
     const output = started.worktreePath!;
     await new Promise<void>((resolve, reject) => {
       const deadline = Date.now() + 10_000;

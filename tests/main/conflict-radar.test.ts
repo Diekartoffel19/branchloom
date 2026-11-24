@@ -215,8 +215,9 @@ describe('conflict radar', () => {
   it('queries every running session even after more than 200 completed runs', async () => {
     const { store, project, first, firstRun, secondRun } = fixture();
     const agent = store.agents()[0]!;
+    const historyCard = store.createCard({ projectId: project.id, columnId: first.columnId, title: 'Completed history' });
     for (let index = 0; index < 205; index += 1) {
-      const done = store.createSession({ cardId: first.id, agentId: agent.id });
+      const done = store.createSession({ cardId: historyCard.id, agentId: agent.id });
       store.finishSession(done.id, 'exited', 0);
     }
     expect(store.snapshot(project.id).sessions.some((item) => item.id === firstRun.id)).toBe(false);

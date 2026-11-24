@@ -67,7 +67,7 @@ export function CardSplitPanel({ card, columns, queue, mutate, onOpenCard }: {
 
   return <section className="card-split" aria-label="Teilkarten">
     <div className="section-heading"><ListTree size={19} aria-hidden="true" /><h3>Teilkarten</h3></div>
-    <p className="section-copy">Plane mehrere Aufgaben und ihre Reihenfolge. Erst die bestätigte Vorschau legt Karten an. Abhängigkeiten bleiben als Planung sichtbar; die Warteschlange prüft sie noch nicht.</p>
+    <p className="section-copy">Plane mehrere Aufgaben und ihre Reihenfolge. Erst die bestätigte Vorschau legt Karten an. Ein Vorgänger sperrt den späteren Agentenstart bis zu einem belegten Workflow-Ergebnis oder einer bewussten QA-Freigabe.</p>
     {links?.parent ? <div className="card-split-parent"><span>Teil von</span><button className="text-button" type="button" onClick={() => onOpenCard(links.parent!.cardId)}>{links.parent.title}</button>{links.parent.dependsOnCardId ? <><span>nach</span><button className="text-button" type="button" onClick={() => onOpenCard(links.parent!.dependsOnCardId!)}>{links.parent.dependsOnTitle}</button></> : null}</div> : null}
     {links?.children.length ? <ol className="card-split-children">{links.children.map((child) => <li key={child.cardId}>
       <span className="card-split-order">{child.position + 1}</span>

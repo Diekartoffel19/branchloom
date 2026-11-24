@@ -44,10 +44,10 @@ describe('interrupted session review', () => {
 
   it('persists an actionable interruption without replay, scopes acknowledgement, and keeps the transcript', () => {
     const { dbPath, store, project, second, card, agent } = fixture();
-    const interrupted = store.createSession({ cardId: card.id, agentId: agent.id });
-    store.appendOutput(interrupted.id, 'Synthetic partial output.');
     const regularFailure = store.createSession({ cardId: card.id, agentId: agent.id });
     store.finishSession(regularFailure.id, 'failed', 1);
+    const interrupted = store.createSession({ cardId: card.id, agentId: agent.id });
+    store.appendOutput(interrupted.id, 'Synthetic partial output.');
     store.close();
 
     const reopened = new StudioStore(dbPath);
@@ -76,8 +76,9 @@ describe('interrupted session review', () => {
     const { dbPath, store, project, card, agent } = fixture();
     const interrupted = store.createSession({ cardId: card.id, agentId: agent.id });
     store.db.prepare('UPDATE sessions SET started_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', interrupted.id);
+    const historyCard = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Completed history' });
     for (let index = 0; index < 205; index += 1) {
-      const later = store.createSession({ cardId: card.id, agentId: agent.id });
+      const later = store.createSession({ cardId: historyCard.id, agentId: agent.id });
       store.finishSession(later.id, 'exited', 0);
     }
     store.close();

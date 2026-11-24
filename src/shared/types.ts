@@ -21,6 +21,7 @@ import type { AgentHandoffPreview, AgentHandoffReceipt, AgentHandoffSelection } 
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 import type { SessionRecoveryState } from './session-recovery';
+import type { CardRunGate } from './parallel-runs';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -177,6 +178,9 @@ export interface StudioAPI {
   detectAgents(): Promise<AgentDetection[]>;
   agentCapabilityEvidence(): Promise<AgentCapabilityEvidence[]>;
   sessionRecovery(sessionId: string): Promise<SessionRecoveryState>;
+  cardRunGate(cardId: string): Promise<CardRunGate>;
+  setProjectRunCapacity(input: { projectId: string; capacity: number }): Promise<number>;
+  approveCardDependency(input: { cardId: string; qaReportId: string; note: string }): Promise<CardRunGate>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   resumeCodexSession(input: { sessionId: string; picker?: boolean }): Promise<Session>;

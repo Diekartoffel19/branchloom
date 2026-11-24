@@ -10,6 +10,7 @@ import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
 import { installSessionRecovery } from './session-recovery';
+import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { installSessionEvidence } from './session-evidence';
 import { parseProjectPackage, type ProjectPackage } from './project-package';
@@ -158,6 +159,7 @@ export class StudioStore {
     installAgentCapabilities(this.db);
     installSessionEvidence(this.db);
     installAgentHandoffs(this.db);
+    installParallelRuns(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
@@ -178,6 +180,7 @@ export class StudioStore {
     this.db.prepare("UPDATE workflow_progress SET state = 'needs_review' WHERE state = 'running'").run();
     this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = CASE WHEN EXISTS (SELECT 1 FROM queue_launch_retries r WHERE r.project_id = project_queues.project_id) THEN 'App neu gestartet während eines CLI-Startfehlers. Es lief kein automatischer Retry nach Neustart; prüfe den Workflow und starte ihn ausdrücklich.' ELSE 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.' END, updated_at = ? WHERE state = 'running'").run(now());
     this.db.prepare('DELETE FROM queue_launch_retries').run();
+    installActiveCardIndex(this.db);
   }
 
   close(): void { this.db.close(); }
@@ -625,7 +628,7 @@ export class StudioStore {
     return value;
   }
 
-  latestSession(cardId: string): Session | null { const row = this.db.prepare('SELECT * FROM sessions WHERE card_id = ? ORDER BY started_at DESC LIMIT 1').get(cardId) as SessionRow | undefined; return row ? session(row) : null; }
+  latestSession(cardId: string): Session | null { const row = this.db.prepare('SELECT * FROM sessions WHERE card_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1').get(cardId) as SessionRow | undefined; return row ? session(row) : null; }
   session(id: string): Session { return session(required(this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined, 'Session not found')); }
   sessionForProject(projectId: string, sessionId: string): Session {
     const row = this.db.prepare('SELECT * FROM sessions WHERE id = ? AND project_id = ?').get(sessionId, projectId) as SessionRow | undefined;

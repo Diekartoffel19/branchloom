@@ -7,6 +7,7 @@ import type { AgentCapability, AgentDetection, AgentPreset, Column, ColumnEffort
 import { columnSettings } from '../shared/column-settings';
 import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
+import { cardRunGate, reserveCardSession } from './parallel-runs';
 import { buildAntigravityArgs } from './antigravity';
 import { CodexJsonlOutput } from './codex-jsonl';
 import { approvedCardWireframeContext } from './card-wireframe';
@@ -255,9 +256,14 @@ export class SessionRunner {
       ...(input.prompt === undefined ? [] : [{ field: 'Agentenauftrag', text: input.prompt }]),
       ...(wireframeContext ? [{ field: 'freigegebener Wireframe', text: wireframeContext }] : []),
     ]);
+    const preflight = cardRunGate(this.store, card.id, input.useWorktree === true ? undefined : null);
+    if (!preflight.canStart) throw new Error(preflight.blockers[0]!);
+    if (input.useWorktree === true && preflight.running.some((row) => !row.worktreePath)) {
+      throw new Error('Parallele Kartenläufe brauchen für jede laufende Karte einen eigenen Git-Worktree.');
+    }
     const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
     const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
-    const row = this.store.createSession({ cardId: card.id, agentId, worktreePath: worktree?.path });
+    const row = reserveCardSession(this.store, { cardId: card.id, agentId, worktreePath: worktree?.path });
     let finalFile: { directory: string; path: string } | null = null;
     try {
       if (input.mode === 'one-shot' && agent.kind === 'codex') {
@@ -337,11 +343,13 @@ export class SessionRunner {
     const launcher = resolveAgentLauncher(agent.command);
     if (!launcher) throw new Error(`Codex executable or supported Node shim not found: ${agent.command}`);
     if (previous.worktreePath && this.store.cardWorktree(card.id)?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree ist nicht mehr verknüpft.');
+    const preflight = cardRunGate(this.store, card.id, previous.worktreePath ?? null);
+    if (!preflight.canStart) throw new Error(preflight.blockers[0]!);
     const worktree = previous.worktreePath ? ensureCardWorktree(this.store, card.id) : null;
     if (previous.worktreePath && worktree?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree stimmt nicht mehr überein.');
     const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const exactId = input.picker === true ? null : previous.codexThreadId ?? null;
-    const row = this.store.createSession({ cardId: card.id, agentId: agent.id, worktreePath: worktree?.path, codexThreadId: exactId });
+    const row = reserveCardSession(this.store, { cardId: card.id, agentId: agent.id, worktreePath: worktree?.path, codexThreadId: exactId });
     let child: IPty;
     try {
       // An exact ID is linked only from Codex's structured thread.started

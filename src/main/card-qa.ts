@@ -87,10 +87,10 @@ export function cardQaScreenshot(store: StudioStore, input: { cardId: string; re
   return `data:image/png;base64,${row.screenshot_png.toString('base64')}`;
 }
 
-function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | null): CardQaReport {
+function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | null, contentRevision: number): CardQaReport {
   store.db.transaction(() => {
-    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, screenshot_png, viewport_width, viewport_height, git_evidence_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.pageCheck, JSON.stringify(report.pageObservations), report.note, screenshot, report.viewportWidth, report.viewportHeight, JSON.stringify(report.gitEvidence));
+    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, screenshot_png, viewport_width, viewport_height, git_evidence_json, content_revision)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.pageCheck, JSON.stringify(report.pageObservations), report.note, screenshot, report.viewportWidth, report.viewportHeight, JSON.stringify(report.gitEvidence), contentRevision);
     store.db.prepare(`DELETE FROM card_qa_reports WHERE card_id = ? AND id NOT IN (
       SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
     store.db.prepare(`UPDATE card_qa_reports SET screenshot_png = NULL WHERE id IN (
@@ -108,6 +108,7 @@ function reserveCard(cardId: string): void {
 
 /** An explicit page-load QA pass in a fresh in-memory browser partition. The caller holds one per-card/global reservation. */
 async function runReservedCardQa(store: StudioStore, card: Card, url: string, requestedViewport: { width: number; height: number }): Promise<CardQaReport> {
+  const contentRevision = (store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number }).content_revision;
   const startedAt = new Date().toISOString();
   const gitStart = await qaGitPoint(store, card);
   const diagnostics: BrowserDiagnostic[] = [];
@@ -204,7 +205,7 @@ async function runReservedCardQa(store: StudioStore, card: Card, url: string, re
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
   }
   const gitEnd = await qaGitPoint(store, card);
-  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, pageCheck, pageObservations, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height, gitEvidence: qaGitEvidence(gitStart, gitEnd) }, screenshot);
+  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, pageCheck, pageObservations, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height, gitEvidence: qaGitEvidence(gitStart, gitEnd) }, screenshot, contentRevision);
 }
 
 /** One explicit route. The reservation is retained until its report has been stored. */

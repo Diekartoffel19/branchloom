@@ -44,6 +44,7 @@ import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { SessionRecoveryMonitor } from './session-recovery';
+import { approveCardDependency, cardRunGate, setProjectRunCapacity } from './parallel-runs';
 import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
 import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
@@ -280,6 +281,9 @@ function installIpc(): void {
   bind('detectAgents', () => detectAgents(db.agents()));
   bind('agentCapabilityEvidence', () => db.agentCapabilityEvidence());
   bind('sessionRecovery', (sessionId: string) => recoveryMonitor?.state(sessionId));
+  bind('cardRunGate', (cardId: string) => cardRunGate(db, cardId));
+  bind('setProjectRunCapacity', (input: Parameters<StudioAPI['setProjectRunCapacity']>[0]) => setProjectRunCapacity(db, input));
+  bind('approveCardDependency', (input: Parameters<StudioAPI['approveCardDependency']>[0]) => approveCardDependency(db, input));
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string; picker?: boolean }) => runner?.resumeCodex(input));
@@ -601,6 +605,10 @@ function createWindow(): void {
           const sourceApplied = await window.studio.applyTrelloIdeaSource({ projectId: project.id, json: changedTrelloIdeaJson, sourceId: sourceComparison.sourceId, fingerprint: sourceComparison.fingerprint, localSignature: sourceComparison.localSignature, copyTitle: true, copyBody: false });
           if (sourceApplied.localTitle !== 'Trello-Idee aktualisiert' || sourceApplied.sourceChange !== 'changed' || !(await window.studio.ideas(project.id)).some((item) => item.id === staged.created[0].id && item.title === sourceApplied.localTitle)) throw new Error('Selektive Trello-Quellenübernahme änderte die lokale Idee nicht korrekt.');
           const candidates = await window.studio.queueCandidates(project.id);
+          const initialRunGate = await window.studio.cardRunGate(card.id);
+          if (initialRunGate.capacity !== 2 || initialRunGate.runningCount !== 0 || !initialRunGate.canStart) throw new Error('Parallele Startbedingungen fehlen im IPC.');
+          if (await window.studio.setProjectRunCapacity({ projectId: project.id, capacity: 3 }) !== 3
+            || (await window.studio.cardRunGate(card.id)).capacity !== 3) throw new Error('Projektkapazität wurde nicht gespeichert.');
           if (candidates.length !== 1 || candidates[0].id !== card.id) throw new Error('Queue-Vorschau wich von der freien To-Do-Karte ab.');
           const draft = await window.studio.createWorkflow({ projectId: project.id, name: 'Smoke-Entwurf', cardIds: [card.id], steps: [{ id: 'smoke-step', columnId: saved.columns[2].id, agentId: null, requireApproval: false }] });
           if ((await window.studio.queueCandidates(project.id)).length !== 0) throw new Error('Karte mit Workflow-Entwurf blieb in der Queue.');
@@ -733,6 +741,8 @@ function createWindow(): void {
               keyboardCard.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const gateDialog = document.querySelector('.card-drawer');
+              for (let attempt = 0; attempt < 100 && !gateDialog?.querySelector('[aria-label="Parallele Kartenläufe"]')?.textContent?.includes('0 von 3 Plätzen'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!gateDialog?.querySelector('[aria-label="Parallele Kartenläufe"]')?.textContent?.includes('0 von 3 Plätzen')) throw new Error('Kartenansicht zeigt die gespeicherte Projektkapazität nicht.');
               const gateLabel = [...(gateDialog?.querySelectorAll('label') ?? [])].find((item) => item.textContent?.includes('Wireframe vor Agentenstart prüfen'));
               const gateToggle = gateLabel?.querySelector('input[type="checkbox"]');
               if (!(gateToggle instanceof HTMLInputElement) || gateToggle.checked) throw new Error('Optionale Karten-Wireframe-Freigabe fehlt oder ist standardmäßig aktiv.');
