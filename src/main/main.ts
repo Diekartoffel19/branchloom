@@ -1617,10 +1617,16 @@ function createWindow(): void {
               const glyph = document.createRange(); glyph.selectNodeContents(element);
               const glyphHeight100 = glyph.getBoundingClientRect().height;
               activeGrowView.click();
-              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '125 %'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const glyphHeight125 = glyph.getBoundingClientRect().height;
-              if (!glyphHeight100 || Math.abs(glyphHeight125 / glyphHeight100 - 1.25) > .08) throw new Error('Schriftgröße folgt dem Zoom nicht proportional.');
+              let glyphHeight125 = 0;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                glyphHeight125 = glyph.getBoundingClientRect().height;
+                if (wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() === '125 %' && glyphHeight100 && Math.abs(glyphHeight125 / glyphHeight100 - 1.25) <= .08) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!glyphHeight100 || Math.abs(glyphHeight125 / glyphHeight100 - 1.25) > .08) throw new Error('Schriftgröße folgt dem Zoom nicht proportional: ' + JSON.stringify({ before: glyphHeight100, after: glyphHeight125, expectedRatio: 1.25, zoom: wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() }));
               activeShrinkView.click();
+              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '100 %'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (wireframe.querySelector('.task-wireframe-view-controls output')?.textContent?.trim() !== '100 %') throw new Error('Wireframe-Zoom kehrte nicht zur Ausgangsstufe zurück.');
               undo.click();
               for (let attempt = 0; attempt < 100 && element.style.fontSize !== ''; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (element.style.fontSize !== '') throw new Error('Stiländerung ließ sich nicht rückgängig machen.');
