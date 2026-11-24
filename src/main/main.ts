@@ -1107,8 +1107,8 @@ function createWindow(): void {
               const refreshedPlanButton = refreshedGlobalPlan?.querySelector('button.secondary-button');
               if (!refreshedPlanButton?.isConnected) throw new Error('Plan-Knopf fehlt nach der Aktualisierung der globalen Inbox.');
               refreshedPlanButton.click();
-              for (let attempt = 0; attempt < 200 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht.');
+              for (let attempt = 0; attempt < 200 && (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht: ' + JSON.stringify({ active: document.activeElement?.outerHTML?.slice(0, 250), plan: document.querySelector('#workflow-plan-review')?.textContent?.slice(-300), view: document.querySelector('.topbar-title h1')?.textContent }));
               if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Globale Inbox startete einen Agenten.');
               [...document.querySelectorAll('.sidebar-add')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.modal-backdrop form.dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));

@@ -4,6 +4,9 @@ Stand: 24.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Aktueller Branchloom-Schritt
 
+- Die integrierte Workflow-Nachprüfung bestand mit **454 Tests und fünf optionalen Live-Skips**, Typprüfung, Build und Quell-Electron-Smoke. Der erste integrierte Smoke traf eine zu kurze Wartebedingung für den asynchron geladenen Plantext der globalen Inbox; nach Angleichung an die bestehende Fokus-und-Inhalt-Prüfung bestand der Wiederholungslauf. Doctor und Audit bestanden ohne Funde; Public-Scan folgt vor dem Push.
+- Die Windows-CI für [Zeitmaschinen-Bilder](https://github.com/mschr703/branchloom/actions/runs/45324817520), [Changelog-Worktrees](https://github.com/mschr703/branchloom/actions/runs/45324858970), [deren gemeinsamen Status](https://github.com/mschr703/branchloom/actions/runs/45324905731) und [Design-Einzelmessung](https://github.com/mschr703/branchloom/actions/runs/45325841711) bestand einschließlich portablem Paket-Smoke. CI für Ordnerbox-Kontext und den jüngsten Status läuft noch.
+
 - Ein echter lokaler Zwei-Schritt-PTY-Test verwendet ausschließlich einen synthetischen Node-Agenten: verschiedene Modell-/Effort-Argumente erreichen beide Schritte; ein fehlender finaler Abschlussmarker im zweiten Schritt pausiert den Ablauf zur Prüfung. Nach SQLite-Neustart bleiben erster Schritt, betroffene Karte und die beendete Sitzung ohne Marker erhalten; erst die ausdrückliche Fortsetzung startet den zweiten Schritt erneut und führt bei gültigem Marker zum Abschluss. In der Workflow-Ansicht ist der pausierte Schritt textlich und für Screenreader als aktueller Schritt markiert. Zwei gezielte Backend-/Renderer-Tests, die isolierte Gesamtsuite mit 438 bestandenen Tests und fünf optionalen Live-Skips, Typprüfung, Build, Doctor, Audit ohne Funde und Public-Scan bestanden. Der Quell-Electron-Smoke sah die pausierte Schrittmarkierung in einem synthetischen Workflow; der echte Zwei-Schritt-Prozesslauf wurde separat im PTY-Test geprüft. Ein echter Zwei-Schritt-Anbieteraufruf und die vollständige sichtbare Electron-Bedienung dieses Pfads sind noch nicht geprüft. [Ablauf](WORKFLOW_STEPS.md).
 
 - Die gemeinsame Integration von Design-Einzelmessung und Whiteboard-Ordnerbox-Kontext bestand mit **452 Tests und fünf optionalen Live-Skips**, Typprüfung, Build, Quell-Electron-Smoke mit beiden neuen UI-/IPC-Abläufen, Doctor und Audit ohne Funde. Public-Scan und Windows-CI folgen vor beziehungsweise nach dem Push.
@@ -204,9 +207,9 @@ Der reguläre lokale Forge-Paketbau braucht Visual-Studio-C++-Build-Tools, die h
 
 ## Nächster Schritt
 
-1. Die Windows-CI samt portablem Paket-Smoke für Zeitmaschinen-Screenshots und Changelog-Quellen kontrollieren.
-2. Design-Einzelmessung und Whiteboard-Ordnerbox-Kontext nach bestandenem Public-Scan schrittweise pushen und ihre Windows-CI kontrollieren.
-3. Den mehrstufigen Workflow mit echter lokaler PTY-Ausführung und sichtbarer Pause-Markierung prüfen; weitere Funktionen aus der Produktvision in überprüfbaren Schritten umsetzen.
+1. Die Windows-CI samt portablem Paket-Smoke für Whiteboard-Ordnerbox-Kontext und den kombinierten Stand kontrollieren; die früheren neuen Feature-Runs bestanden bereits.
+2. Die integrierte Workflow-Pause-Markierung nach Public-Scan pushen und ihre Windows-CI prüfen.
+3. Den isoliert entstehenden Kartenkontext aus gespeicherten Design-Belegen prüfen und integrieren; einen vollständigen sichtbaren Zwei-Schritt-Workflow mit realem Anbieter später gesondert abnehmen.
 
 Der persönliche Jarvis-Kern und seine privaten Module werden getrennt von Branchloom betreut. [PARITY.md](PARITY.md) nennt die offenen Studio-Funktionen und Abnahmekriterien.
 
