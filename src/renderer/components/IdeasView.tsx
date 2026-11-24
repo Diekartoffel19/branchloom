@@ -4,6 +4,7 @@ import type { DraftTurn } from '../../shared/task-draft';
 import type { Idea, IdeaCategory, IdeaReply } from '../../shared/ideas';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { Mutate } from './shared';
+import { TrelloImportPanel } from './TrelloImportPanel';
 import './ideas.css';
 
 type Draft = Pick<Idea, 'id' | 'title' | 'body' | 'category' | 'turns' | 'cardId'>;
@@ -28,6 +29,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [showTrelloImport, setShowTrelloImport] = useState(false);
   const dirty = signature(draft) !== baseline;
   const visible = useMemo(() => filter === 'all' ? ideas : ideas.filter((item) => item.category === filter), [ideas, filter]);
 
@@ -98,7 +100,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
   }
 
   return <section className="ideas-page" aria-label="Ideenraum">
-    <header className="ideas-heading"><div><span className="ideas-kicker"><Lightbulb size={15} /> Offene Gedanken</span><h2>Ideenraum</h2><p>Besprich eine Idee, halte sie fest und entscheide später, ob daraus eine Board-Karte wird.</p></div><button className="secondary-button" type="button" onClick={() => switchTo()} disabled={busy}><Plus size={16} /> Neue Idee</button></header>
+    <header className="ideas-heading"><div><span className="ideas-kicker"><Lightbulb size={15} /> Offene Gedanken</span><h2>Ideenraum</h2><p>Besprich eine Idee, halte sie fest und entscheide später, ob daraus eine Board-Karte wird.</p></div><div className="ideas-heading-actions"><button className="secondary-button" type="button" onClick={() => setShowTrelloImport(true)} disabled={busy}>Aus Trello vormerken</button><button className="secondary-button" type="button" onClick={() => switchTo()} disabled={busy}><Plus size={16} /> Neue Idee</button></div></header>
     <div className="ideas-layout">
       <aside className="ideas-list" aria-label="Gespeicherte Ideen"><div className="ideas-list-heading"><strong>Sammlung</strong><span>{ideas.length}</span></div>
         <label className="ideas-filter">Anzeigen<select value={filter} onChange={(event) => setFilter(event.target.value as IdeaCategory | 'all')}><option value="all">Alle Bereiche</option>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label>
@@ -122,5 +124,6 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
     <section className="ideas-convert" aria-label="Ins Board übernehmen"><div><span className="ideas-kicker">Nächster Schritt</span><h3>Aus Idee wird Aufgabe</h3><p>Erst dein Klick legt eine Karte an. Danach entscheidest du im Board über den Agentenlauf.</p></div>{draft.cardId ? <button className="secondary-button" type="button" onClick={() => onOpenCard(draft.cardId!)}>Karte öffnen <ArrowRight size={16} /></button> : <div className="ideas-convert-controls"><label>Spalte<select value={columnId} disabled={busy || !draft.id || dirty} onChange={(event) => setColumnId(event.target.value)}>{snapshot.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="button" onClick={() => void convert()} disabled={busy || !draft.id || dirty || !columnId}>Karte anlegen <ArrowRight size={16} /></button>{dirty ? <small>Speichere die Idee vor dem Übernehmen.</small> : null}</div>}</section>
     {error ? <p role="alert" className="ideas-feedback error">{error}</p> : null}
     {notice ? <p role="status" className="ideas-feedback">{notice}</p> : null}
+    {showTrelloImport ? <TrelloImportPanel key={`ideas-${projectId}`} projectId={projectId} columns={snapshot.columns} mutate={mutate} destination="ideas" onIdeasImported={async () => { setIdeas(await window.studio.ideas(projectId)); }} onClose={() => setShowTrelloImport(false)} /> : null}
   </section>;
 }

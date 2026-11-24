@@ -520,14 +520,15 @@ export class StudioStore {
     this.project(input.projectId);
     const parsed = parseTrelloBoard(input.json);
     const imported = new Map((this.db.prepare('SELECT source_id, card_id FROM trello_imports WHERE project_id = ?').all(input.projectId) as Array<{ source_id: string; card_id: string }>).map((row) => [row.source_id, row.card_id]));
-    const cards = parsed.cards.map((item) => ({ ...item, importedCardId: imported.get(item.sourceId) ?? null }));
+    const importedIdeas = new Map((this.db.prepare('SELECT source_id, idea_id FROM trello_idea_imports WHERE project_id = ?').all(input.projectId) as Array<{ source_id: string; idea_id: string }>).map((row) => [row.source_id, row.idea_id]));
+    const cards = parsed.cards.map((item) => ({ ...item, importedCardId: imported.get(item.sourceId) ?? null, importedIdeaId: importedIdeas.get(item.sourceId) ?? null }));
     return {
       fingerprint: parsed.fingerprint,
       boardName: parsed.boardName,
       cards,
       total: cards.length,
-      eligible: cards.filter((item) => item.eligible && !item.importedCardId).length,
-      duplicates: cards.filter((item) => item.importedCardId !== null).length,
+      eligible: cards.filter((item) => item.eligible && !item.importedCardId && !item.importedIdeaId).length,
+      duplicates: cards.filter((item) => item.importedCardId !== null || item.importedIdeaId !== null).length,
     };
   }
 
@@ -558,9 +559,10 @@ export class StudioStore {
       const created: Card[] = [];
       const skippedDuplicateIds: string[] = [];
       const lookup = this.db.prepare('SELECT card_id FROM trello_imports WHERE project_id = ? AND source_id = ?');
+      const ideaLookup = this.db.prepare('SELECT idea_id FROM trello_idea_imports WHERE project_id = ? AND source_id = ?');
       const insert = this.db.prepare('INSERT INTO trello_imports (project_id, source_id, card_id, imported_at) VALUES (?, ?, ?, ?)');
       for (const sourceId of input.sourceIds) {
-        if (lookup.get(input.projectId, sourceId)) {
+        if (lookup.get(input.projectId, sourceId) || ideaLookup.get(input.projectId, sourceId)) {
           skippedDuplicateIds.push(sourceId);
           continue;
         }

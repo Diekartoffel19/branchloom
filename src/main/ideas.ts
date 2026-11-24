@@ -68,6 +68,13 @@ export function installIdeas(db: Database.Database): void {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_ideas_project_updated ON ideas(project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS trello_idea_imports (
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL,
+      idea_id TEXT NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+      imported_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, source_id)
+    );
   `);
 }
 
@@ -114,6 +121,8 @@ export function convertIdeaToCard(store: StudioStore, input: { projectId: string
       throw new Error('Die laufende To-do-Warteschlange könnte diese Karte sofort starten. Pausiere sie oder wähle eine andere Spalte.');
     }
     const card = store.createCard({ projectId: input.projectId, columnId: input.columnId, title: row.title, description: row.body });
+    const source = store.db.prepare('SELECT source_id FROM trello_idea_imports WHERE project_id = ? AND idea_id = ?').get(input.projectId, row.id) as { source_id: string } | undefined;
+    if (source) store.db.prepare('INSERT OR IGNORE INTO trello_imports (project_id, source_id, card_id, imported_at) VALUES (?, ?, ?, ?)').run(input.projectId, source.source_id, card.id, stamp());
     store.db.prepare('UPDATE ideas SET card_id = ?, updated_at = ? WHERE id = ?').run(card.id, stamp(), row.id);
     return card;
   })();

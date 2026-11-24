@@ -5,7 +5,7 @@ import type { Column, TrelloImportCard, TrelloImportPreview } from '../../src/sh
 import { defaultTrelloSelection, importable, suggestedTrelloListColumns, trelloCardStatus, TrelloCardRow, TrelloImportPanel } from '../../src/renderer/components/TrelloImportPanel';
 
 function card(sourceId: string, overrides: Partial<TrelloImportCard> = {}): TrelloImportCard {
-  return { sourceId, title: `Testkarte ${sourceId}`, description: '', labels: [], labelNote: null, listId: 'aaaaaaaaaaaaaaaaaaaaaaaa', listName: 'Ideen', archived: false, eligible: true, reason: null, importedCardId: null, ...overrides };
+  return { sourceId, title: `Testkarte ${sourceId}`, description: '', labels: [], labelNote: null, listId: 'aaaaaaaaaaaaaaaaaaaaaaaa', listName: 'Ideen', archived: false, eligible: true, reason: null, importedCardId: null, importedIdeaId: null, ...overrides };
 }
 
 const preview: TrelloImportPreview = {
@@ -26,6 +26,10 @@ describe('Trello import UI', () => {
     expect(trelloCardStatus(preview.cards[1])).toBe('Archiviert');
     expect(trelloCardStatus(preview.cards[2])).toBe('Bereits importiert');
     expect(trelloCardStatus(preview.cards[3])).toBe('Fehler: Ungültiger Titel');
+    const staged = card('staged', { importedIdeaId: 'existing-idea' });
+    expect(importable(staged)).toBe(false);
+    expect(trelloCardStatus(staged)).toBe('Bereits im Ideenraum');
+    expect(defaultTrelloSelection({ ...preview, cards: [staged] })).toEqual([]);
   });
 
   it('shows connection first, keeps JSON as an explicit fallback and imports nothing before preview', () => {
@@ -40,6 +44,10 @@ describe('Trello import UI', () => {
     expect(html).not.toContain('Karten importieren');
     expect(html).not.toContain('type="file"');
     expect(html).toContain('nur nach deinem Klick');
+    const ideasHtml = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, destination: 'ideas' }));
+    expect(ideasHtml).toContain('Trello-Ideen vormerken');
+    expect(ideasHtml).not.toContain('Zielspalte');
+    expect(ideasHtml).not.toContain('trello-preview');
   });
 
   it('shows imported names and omitted color-only labels in the preview row', () => {
