@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -45,6 +45,7 @@ import { transcribeAudio } from './voice/transcribe';
 import { projectChangelog } from './changelog';
 import { scanThemeTokens } from './theme-tokens';
 import { applyThemeTokenEdit, previewThemeTokenEdit } from './theme-token-edit';
+import { TrelloConnection } from './trello-connection';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
@@ -98,6 +99,7 @@ function mustStore(): StudioStore {
 
 function installIpc(): void {
   const db = mustStore();
+  const trello = new TrelloConnection(app.getPath('userData'), safeStorage);
   let workflowEngine: WorkflowEngine;
   let previewedPackage: { file: string; fingerprint: string } | null = null;
   let previewedVault: { projectId: string; root: string; fingerprint: string; token: string } | null = null;
@@ -298,6 +300,14 @@ function installIpc(): void {
   bind('acceptWorkflowProposal', (input: { projectId: string; proposal: WorkflowProposal }) => db.acceptWorkflowProposal(input));
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport(input));
+  bind('trelloConnectionStatus', () => trello.status());
+  bind('openTrelloAppAdmin', async () => { await shell.openExternal('https://trello.com/apps/admin'); });
+  bind('openTrelloAuthorization', async (key: string) => { await shell.openExternal(trello.authorizationUrl(key)); });
+  bind('connectTrello', (input: { key: string; token: string }) => trello.connect(input));
+  bind('disconnectTrello', () => trello.disconnect());
+  bind('trelloBoards', () => trello.boards());
+  bind('previewTrelloBoard', async (input: { projectId: string; boardId: string }) => db.previewTrelloImport({ projectId: input.projectId, json: await trello.boardJson(input.boardId) }));
+  bind('acceptTrelloBoard', async (input: { projectId: string; columnId: string; boardId: string; fingerprint: string; sourceIds: string[] }) => db.acceptTrelloImport({ projectId: input.projectId, columnId: input.columnId, fingerprint: input.fingerprint, sourceIds: input.sourceIds, json: await trello.boardJson(input.boardId) }));
   bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
   bind('previewCardWorktreeCleanup', (cardId: string) => previewCardWorktreeCleanup(db, cardId));
   bind('previewPrDraft', (cardId: string) => previewPrDraft(db, cardId));
@@ -1815,6 +1825,30 @@ function createWindow(): void {
               return true;
             })()`);
             if (!statSync(cleanupWorktree.path).isDirectory() || smokeStore.cardWorktree(cleanupCard.id)?.path !== cleanupWorktree.path) throw new Error('Lesende Aufräumprüfung veränderte den Worktree.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const status = await window.studio.trelloConnectionStatus();
+              if (status.connected) throw new Error('Synthetisches Smoke-Profil enthält unerwartet Trello-Zugangsdaten.');
+              document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
+              const open = [...document.querySelectorAll('.board-header-actions button')].find((button) => button.textContent?.includes('Trello importieren'));
+              if (!(open instanceof HTMLButtonElement)) throw new Error('Trello-Importknopf fehlt im Board.');
+              open.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.trello-import-dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const dialog = document.querySelector('.trello-import-dialog');
+              if (!dialog?.textContent?.includes('Trello verbinden') || !dialog.textContent.includes('Lesefreigabe im Browser öffnen')) throw new Error('Trello-Verbindungsansicht fehlt.');
+              const fileTab = [...dialog.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'JSON-Datei');
+              if (!(fileTab instanceof HTMLButtonElement)) throw new Error('JSON-Alternative fehlt.');
+              for (let attempt = 0; attempt < 100 && fileTab.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              fileTab.click();
+              for (let attempt = 0; attempt < 100 && !dialog.querySelector('input[type="file"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!dialog.querySelector('input[type="file"]')) throw new Error('JSON-Dateiauswahl fehlt.');
+              dialog.querySelector('button[aria-label="Schließen"]')?.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.trello-import-dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.trello-import-dialog')) throw new Error('Trello-Import schloss nicht.');
+              return true;
+            })()`);
+            if (!await safeStorage.isAsyncEncryptionAvailable()) throw new Error('Trello-Smoke: Windows-Verschlüsselung ist nicht verfügbar.');
+            const sealed = await safeStorage.encryptStringAsync('branchloom-trello-smoke');
+            if ((await safeStorage.decryptStringAsync(sealed)).result !== 'branchloom-trello-smoke') throw new Error('Trello-Smoke: Windows-Verschlüsselung konnte nicht lesen.');
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);

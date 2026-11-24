@@ -73,6 +73,8 @@ export interface CardQaBatchResult { requested: number; reports: CardQaReport[];
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
+export interface TrelloBoardSummary { id: string; name: string }
+export interface TrelloConnectionStatus { connected: boolean; memberName: string | null }
 export interface WorktreeReview { cardId: string; path: string; branch: string; targetPath: string; targetBranch: string | null; sourceHead: string; targetHead: string; sourceStatus: string[]; targetStatus: string[]; uncommittedStat: string; committedStat: string; ahead: number; behind: number; canFastForward: boolean; blockers: string[]; previewToken: string }
 export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
@@ -173,6 +175,14 @@ export interface StudioAPI {
   acceptWorkflowProposal(input: { projectId: string; proposal: WorkflowProposal }): Promise<Workflow>;
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
+  trelloConnectionStatus(): Promise<TrelloConnectionStatus>;
+  openTrelloAppAdmin(): Promise<void>;
+  openTrelloAuthorization(key: string): Promise<void>;
+  connectTrello(input: { key: string; token: string }): Promise<TrelloConnectionStatus>;
+  disconnectTrello(): Promise<void>;
+  trelloBoards(): Promise<TrelloBoardSummary[]>;
+  previewTrelloBoard(input: { projectId: string; boardId: string }): Promise<TrelloImportPreview>;
+  acceptTrelloBoard(input: { projectId: string; columnId: string; boardId: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
   reviewCardWorktree(cardId: string): Promise<WorktreeReview | null>;
   previewCardWorktreeCleanup(cardId: string): Promise<import('./worktree-cleanup').WorktreeCleanupPreview | null>;
   previewPrDraft(cardId: string): Promise<PrDraftPreview | null>;

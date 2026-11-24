@@ -28,15 +28,18 @@ describe('Trello import UI', () => {
     expect(trelloCardStatus(preview.cards[3])).toBe('Fehler: Ungültiger Titel');
   });
 
-  it('renders a local file picker with explicit preview and no import before inspection', () => {
+  it('shows connection first, keeps JSON as an explicit fallback and imports nothing before preview', () => {
     const columns: Column[] = [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }];
     const html = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
-    expect(html).toContain('type="file"');
-    expect(html).toContain('Trello-JSON importieren');
-    expect(html).toContain('Datei prüfen');
+    expect(html).toContain('Karten aus Trello');
+    expect(html).toContain('Trello verbinden');
+    expect(html).toContain('JSON-Datei');
+    expect(html).toContain('Trello-API-Key');
+    expect(html).toContain('Lesefreigabe im Browser öffnen');
+    expect(html).toContain('type="password"');
     expect(html).not.toContain('Karten importieren');
-    expect(html).toContain('Arbeitsspeicher');
-    expect(html).toContain('Benannte Labels werden übernommen');
+    expect(html).not.toContain('type="file"');
+    expect(html).toContain('nur nach deinem Klick');
   });
 
   it('shows imported names and omitted color-only labels in the preview row', () => {

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileJson2, LoaderCircle, Upload, X } from 'lucide-react';
-import type { Column, TrelloImportCard, TrelloImportPreview, TrelloImportResult } from '../../shared/types';
+import type { Column, TrelloBoardSummary, TrelloConnectionStatus, TrelloImportCard, TrelloImportPreview, TrelloImportResult } from '../../shared/types';
 import type { Mutate } from './shared';
+import './trello-connect.css';
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const DISPLAY_LIMIT = 100;
@@ -30,13 +31,21 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   projectId: string; columns: Column[]; mutate: Mutate; onClose: () => void;
 }) {
   const fileRequestId = useRef(0);
+  const [mode, setMode] = useState<'live' | 'file'>('live');
+  const [connection, setConnection] = useState<TrelloConnectionStatus | null>(null);
+  const [key, setKey] = useState('');
+  const [token, setToken] = useState('');
+  const [boards, setBoards] = useState<TrelloBoardSummary[]>([]);
+  const [boardId, setBoardId] = useState('');
+  const [previewBoardId, setPreviewBoardId] = useState('');
+  const [previewMode, setPreviewMode] = useState<'live' | 'file' | null>(null);
   const [fileName, setFileName] = useState('');
   const [json, setJson] = useState('');
   const [preview, setPreview] = useState<TrelloImportPreview | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [columnId, setColumnId] = useState(columns.find((column) => column.name.toLowerCase() === 'to do')?.id ?? columns[0]?.id ?? '');
   const [filter, setFilter] = useState('');
-  const [busy, setBusy] = useState<'read' | 'preview' | 'accept' | null>(null);
+  const [busy, setBusy] = useState<'status' | 'read' | 'connect' | 'boards' | 'preview' | 'accept' | null>('status');
   const [error, setError] = useState('');
   const [result, setResult] = useState<TrelloImportResult | null>(null);
   const matching = useMemo(() => preview?.cards.filter((card) => `${card.title} ${card.listName ?? ''} ${card.labels.join(' ')}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [preview, filter]);
@@ -49,10 +58,63 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
     return () => window.removeEventListener('keydown', escape);
   }, [busy, onClose]);
 
+  useEffect(() => {
+    let current = true;
+    void window.studio.trelloConnectionStatus().then(async (saved) => {
+      if (!current) return;
+      setConnection(saved);
+      if (saved.connected) {
+        const next = await window.studio.trelloBoards();
+        if (current) { setBoards(next); setBoardId(next[0]?.id ?? ''); }
+      }
+    }).catch((reason) => { if (current) setError(messageOf(reason)); })
+      .finally(() => { if (current) setBusy(null); });
+    return () => { current = false; };
+  }, []);
+
+  function clearPreview() { setPreview(null); setSelectedIds([]); setResult(null); setPreviewBoardId(''); setPreviewMode(null); setError(''); }
+
+  async function openAuthorization() {
+    setError('');
+    try { await window.studio.openTrelloAuthorization(key.trim()); }
+    catch (reason) { setError(messageOf(reason)); }
+  }
+
+  async function openAppAdmin() {
+    setError('');
+    try { await window.studio.openTrelloAppAdmin(); }
+    catch (reason) { setError(messageOf(reason)); }
+  }
+
+  async function connect() {
+    setBusy('connect'); setError(''); clearPreview();
+    try {
+      const saved = await window.studio.connectTrello({ key: key.trim(), token: token.trim() });
+      setConnection(saved); setKey(''); setToken('');
+      const next = await window.studio.trelloBoards();
+      setBoards(next); setBoardId(next[0]?.id ?? '');
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(null); }
+  }
+
+  async function disconnect() {
+    setBusy('connect'); setError('');
+    try { await window.studio.disconnectTrello(); setConnection({ connected: false, memberName: null }); setBoards([]); setBoardId(''); clearPreview(); }
+    catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(null); }
+  }
+
+  async function refreshBoards() {
+    setBusy('boards'); setError(''); clearPreview();
+    try { const next = await window.studio.trelloBoards(); setBoards(next); setBoardId(next.some((board) => board.id === boardId) ? boardId : next[0]?.id ?? ''); }
+    catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(null); }
+  }
+
   async function readFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     const requestId = ++fileRequestId.current;
-    setFileName(file?.name ?? ''); setJson(''); setPreview(null); setSelectedIds([]); setResult(null); setError(''); setBusy(null);
+    setFileName(file?.name ?? ''); setJson(''); clearPreview(); setBusy(null);
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) { setError('Die Trello-Datei darf höchstens 8 MiB groß sein.'); return; }
     setBusy('read');
@@ -62,23 +124,26 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
   }
 
   async function inspect() {
-    if (!json) return;
+    if (mode === 'file' && !json || mode === 'live' && !boardId) return;
     setBusy('preview'); setError(''); setPreview(null); setResult(null);
     try {
-      const next = await window.studio.previewTrelloImport({ projectId, json });
-      setPreview(next); setSelectedIds(defaultTrelloSelection(next));
+      const selectedBoard = boardId;
+      const next = mode === 'live' ? await window.studio.previewTrelloBoard({ projectId, boardId: selectedBoard }) : await window.studio.previewTrelloImport({ projectId, json });
+      setPreview(next); setPreviewMode(mode); setPreviewBoardId(mode === 'live' ? selectedBoard : ''); setSelectedIds(defaultTrelloSelection(next));
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(null); }
   }
 
   async function accept() {
-    if (!preview || !json || !columnId || selectedIds.length === 0) return;
+    if (!preview || !previewMode || previewMode === 'file' && !json || previewMode === 'live' && !previewBoardId || !columnId || selectedIds.length === 0) return;
     setBusy('accept'); setError(''); setResult(null);
     try {
-      const accepted = await window.studio.acceptTrelloImport({ projectId, columnId, json, fingerprint: preview.fingerprint, sourceIds: selectedIds });
+      const accepted = previewMode === 'live'
+        ? await window.studio.acceptTrelloBoard({ projectId, columnId, boardId: previewBoardId, fingerprint: preview.fingerprint, sourceIds: selectedIds })
+        : await window.studio.acceptTrelloImport({ projectId, columnId, json, fingerprint: preview.fingerprint, sourceIds: selectedIds });
       setResult(accepted); setSelectedIds([]);
       await mutate(async () => accepted);
-      setPreview(await window.studio.previewTrelloImport({ projectId, json }));
+      setPreview(previewMode === 'live' ? await window.studio.previewTrelloBoard({ projectId, boardId: previewBoardId }) : await window.studio.previewTrelloImport({ projectId, json }));
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(null); }
   }
@@ -89,11 +154,12 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose }: {
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && busy === null) onClose(); }}>
     <section className="dialog wide trello-import-dialog" role="dialog" aria-modal="true" aria-labelledby="trello-import-title">
-      <div className="dialog-heading"><div><small>LOKALER BOARD-IMPORT</small><h2 id="trello-import-title">Trello-JSON importieren</h2></div><button className="icon-button" type="button" aria-label="Schließen" disabled={busy !== null} onClick={onClose}><X size={18} /></button></div>
-      <p className="field-help">Wähle einen einzelnen Trello-Board-Export als JSON. Die Datei wird nur im Arbeitsspeicher gelesen. Benannte Labels werden übernommen; Anhänge, Kommentare und Mitglieder werden nicht importiert.</p>
-      <label className="trello-file-label"><FileJson2 size={19} /> JSON-Datei auswählen<input autoFocus type="file" accept=".json,application/json" onChange={(event) => void readFile(event)} disabled={busy === 'preview' || busy === 'accept'} /></label>
-      {fileName ? <p className="trello-file-name">{fileName} · maximal 8 MiB und 5.000 Karten</p> : null}
-      <button className="secondary-button" type="button" disabled={!json || busy !== null} onClick={() => void inspect()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Upload size={15} />} Datei prüfen</button>
+      <div className="dialog-heading"><div><small>BOARD-IMPORT</small><h2 id="trello-import-title">Karten aus Trello</h2></div><button className="icon-button" type="button" aria-label="Schließen" disabled={busy !== null} onClick={onClose}><X size={18} /></button></div>
+      <p className="field-help">Verbinde Trello einmalig und wähle ein Board. Branchloom liest Karten nur nach deinem Klick; Benachrichtigungen, Mitglieder, Kommentare und Anhänge werden nicht importiert.</p>
+      <div className="trello-source-tabs" role="group" aria-label="Trello-Quelle"><button type="button" className={mode === 'live' ? 'secondary-button active' : 'secondary-button'} aria-pressed={mode === 'live'} disabled={busy !== null} onClick={() => { setMode('live'); clearPreview(); }}>Trello verbinden</button><button type="button" className={mode === 'file' ? 'secondary-button active' : 'secondary-button'} aria-pressed={mode === 'file'} disabled={busy !== null} onClick={() => { setMode('file'); clearPreview(); }}>JSON-Datei</button></div>
+      {mode === 'live' ? connection?.connected ? <div className="trello-live-source"><div className="trello-account-row"><span>Verbunden: <strong>{connection.memberName}</strong></span><button className="text-button" type="button" disabled={busy !== null} onClick={() => void disconnect()}>Verbindung trennen</button></div><label>Board auswählen<select value={boardId} disabled={busy !== null || boards.length === 0} onChange={(event) => { setBoardId(event.target.value); clearPreview(); }}>{boards.length ? boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>) : <option value="">Keine offenen Boards</option>}</select></label><div className="trello-source-actions"><button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void refreshBoards()}>Boards aktualisieren</button><button className="primary-button" type="button" disabled={busy !== null || !boardId} onClick={() => void inspect()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Upload size={15} />} Board prüfen</button></div></div>
+        : <div className="trello-live-source"><p className="field-help">Für die erste Verbindung brauchst du einen eigenen Trello-API-Key. Erstelle ihn in Trellos App-Verwaltung; öffne dann die Lesefreigabe und füge den angezeigten Token hier ein. Der Token bleibt verschlüsselt im lokalen App-Profil.</p><button className="text-button" type="button" disabled={busy !== null} onClick={() => void openAppAdmin()}>Trello-App-Verwaltung öffnen</button><label>Trello-API-Key<input autoFocus value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy !== null} /></label><button className="secondary-button" type="button" disabled={busy !== null || !key.trim()} onClick={() => void openAuthorization()}>Lesefreigabe im Browser öffnen</button><label>Trello-Token<input type="password" value={token} onChange={(event) => setToken(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy !== null} /></label><button className="primary-button" type="button" disabled={busy !== null || !key.trim() || !token.trim()} onClick={() => void connect()}>{busy === 'connect' ? <LoaderCircle size={15} className="spin" /> : null} Verbindung prüfen und speichern</button></div>
+      : <div className="trello-live-source"><p className="field-help">Offline-Alternative: Wähle den JSON-Export eines einzelnen Trello-Boards. Die Datei wird nur im Arbeitsspeicher gelesen.</p><label className="trello-file-label"><FileJson2 size={19} /> JSON-Datei auswählen<input type="file" accept=".json,application/json" onChange={(event) => void readFile(event)} disabled={busy !== null} /></label>{fileName ? <p className="trello-file-name">{fileName} · maximal 8 MiB und 5.000 Karten</p> : null}<button className="secondary-button" type="button" disabled={!json || busy !== null} onClick={() => void inspect()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Upload size={15} />} Datei prüfen</button></div>}
       {error ? <p className="inline-error" role="alert">{error}</p> : null}
       {preview ? <div className="trello-preview">
         <div className="trello-preview-head"><div><h3>{preview.boardName ?? 'Trello-Board'}</h3><p>{preview.total} Karten · {preview.eligible} importierbar · {preview.duplicates} bereits importiert</p></div><span className="state-badge">Vorschau</span></div>
