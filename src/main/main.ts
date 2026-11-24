@@ -1558,11 +1558,11 @@ function createWindow(): void {
               if (!(wrap instanceof HTMLElement)) throw new Error('Wireframe-Canvas-Container fehlt.');
               const originalStageWidth = activeStage.clientWidth;
               wrap.style.maxWidth = Math.round(originalStageWidth * .75) + 'px';
-              for (let attempt = 0; attempt < 100 && activeStage.clientWidth >= originalStageWidth; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (activeStage.clientWidth >= originalStageWidth || !scaledFont(element, activeStage, 960)) throw new Error('Schriftgröße folgt einer schmaleren Desktop-Zeichenfläche nicht.');
+              for (let attempt = 0; attempt < 100 && (activeStage.clientWidth >= originalStageWidth || !scaledFont(element, activeStage, 960)); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (activeStage.clientWidth >= originalStageWidth || !scaledFont(element, activeStage, 960)) throw new Error('Schriftgröße folgt einer schmaleren Desktop-Zeichenfläche nicht: ' + JSON.stringify({ originalWidth: originalStageWidth, currentWidth: activeStage.clientWidth, computed: getComputedStyle(element).fontSize, expected: 20 * activeStage.clientWidth / 960 }));
               wrap.style.maxWidth = '';
-              for (let attempt = 0; attempt < 100 && activeStage.clientWidth !== originalStageWidth; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (activeStage.clientWidth !== originalStageWidth || !scaledFont(element, activeStage, 960)) throw new Error('Schriftgröße wurde nach Desktop-Resize nicht wiederhergestellt.');
+              for (let attempt = 0; attempt < 100 && (activeStage.clientWidth !== originalStageWidth || !scaledFont(element, activeStage, 960)); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (activeStage.clientWidth !== originalStageWidth || !scaledFont(element, activeStage, 960)) throw new Error('Schriftgröße wurde nach Desktop-Resize nicht wiederhergestellt: ' + JSON.stringify({ originalWidth: originalStageWidth, currentWidth: activeStage.clientWidth, computed: getComputedStyle(element).fontSize, expected: 20 * activeStage.clientWidth / 960 }));
               const glyph = document.createRange(); glyph.selectNodeContents(element);
               const glyphHeight100 = glyph.getBoundingClientRect().height;
               activeGrowView.click();
