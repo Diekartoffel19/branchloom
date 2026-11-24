@@ -25,6 +25,7 @@ import { installOutputErrors } from './output-errors';
 import { installDesignInspection } from './design-inspection';
 import { installDesignStateRoutes } from './design-state-routes';
 import { installMemoryGitSources } from './memory-git-source';
+import { installCardWireframes } from './card-wireframe';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -135,6 +136,7 @@ export class StudioStore {
     installDesignInspection(this.db);
     installDesignStateRoutes(this.db);
     installMemoryGitSources(this.db);
+    installCardWireframes(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

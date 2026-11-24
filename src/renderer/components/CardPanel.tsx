@@ -16,9 +16,9 @@ import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
 
-export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusReviewComment, focusQaReport }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, focusReviewComment, focusQaReport }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -228,6 +228,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
         </fieldset></form>
         <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
+        {onOpenDesign ? <button type="button" className="secondary-button" onClick={() => { onClose(); onOpenDesign(card.id); }}>Wireframe in Design öffnen</button> : null}
         <div className="drawer-divider" />
         <CardAttachments key={`attachments-${card.id}`} card={card} onPrepareContext={(attachmentId) => setContextAttachmentRequest((previous) => ({ cardId: card.id, attachmentId, token: (previous?.token ?? 0) + 1 }))} />
         <div className="drawer-divider" />

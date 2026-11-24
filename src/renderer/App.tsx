@@ -53,6 +53,7 @@ export function App() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [view, setView] = useState<View>('board');
+  const [designCardId, setDesignCardId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -378,7 +379,7 @@ export function App() {
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
       {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} /></Suspense></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Projekt anlegen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
         <Suspense fallback={<div className="content-message" role="status">{activeView.name} wird geladen…</div>}>
-        {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} /> : null}
+        {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} /> : null}
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
@@ -389,7 +390,7 @@ export function App() {
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
         {view === 'terminal' ? <CommandTerminalView key={snapshot.project.id} projectId={snapshot.project.id} columns={snapshot.columns} onOpenCard={async (card) => { await refresh(); navigateToEntity('card', card.id); }} /> : null}
-        {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
+        {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} cards={snapshot.cards} startCardId={designCardId} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
         </Suspense>
       </div>}
     </main>

@@ -8,13 +8,14 @@ import { ThemeTokensPanel } from './ThemeTokensPanel';
 import { DesignViewportCanvas } from './DesignViewportCanvas';
 import { DesignStateRoutes } from './DesignStateRoutes';
 import { DesignVoiceTask } from './DesignVoiceTask';
-import type { Column, QueueState } from '../../shared/types';
+import { TaskWireframeEditor } from './TaskWireframeEditor';
+import type { Card, Column, QueueState } from '../../shared/types';
 import './design-inspection.css';
 
 const emptyState: DesignInspectionState = { projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
-export function DesignInspectionView({ projectId, active, columns, queueState, onOpenCard, onCreated }: { projectId: string; active: boolean; columns: Column[]; queueState: QueueState; onOpenCard: (cardId: string) => void | Promise<void>; onCreated: () => void | Promise<void> }) {
+export function DesignInspectionView({ projectId, active, cards, startCardId, columns, queueState, onOpenCard, onCreated }: { projectId: string; active: boolean; cards: Card[]; startCardId?: string | null; columns: Column[]; queueState: QueueState; onOpenCard: (cardId: string) => void | Promise<void>; onCreated: () => void | Promise<void> }) {
   const [url, setUrl] = useState('');
   const [selector, setSelector] = useState('');
   const [state, setState] = useState<DesignInspectionState>(emptyState);
@@ -122,6 +123,7 @@ export function DesignInspectionView({ projectId, active, columns, queueState, o
   }
 
   return <section className="design-inspection" aria-label="Design-Inspektion">
+    <TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} />
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>
       <label>Lokale Vorschau-URL<input type="url" required maxLength={2048} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="http://127.0.0.1:5173/" /></label>

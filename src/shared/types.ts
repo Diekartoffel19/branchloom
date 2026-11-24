@@ -14,6 +14,7 @@ import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
+import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput } from './card-wireframe';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -231,6 +232,9 @@ export interface StudioAPI {
   previewQaFixCard(input: { projectId: string; sourceCardId: string; reportId: string }): Promise<import('./qa-fix-card').QaFixCardPreview>;
   createQaFixCard(input: import('./qa-fix-card').CreateQaFixCard): Promise<Card>;
   designSelections(projectId: string): Promise<DesignSelection[]>;
+  cardWireframe(input: CardWireframeKey): Promise<CardWireframe | null>;
+  saveCardWireframe(input: SaveCardWireframeInput): Promise<CardWireframe>;
+  approveCardWireframe(input: CardWireframeKey & { expectedRevision: number }): Promise<CardWireframe>;
   designStateRoutes(projectId: string): Promise<DesignStateRoute[]>;
   saveDesignStateRoute(input: DesignStateRouteInput): Promise<DesignStateRoute>;
   removeDesignStateRoute(input: DesignStateRouteKey): Promise<void>;

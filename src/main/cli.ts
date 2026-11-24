@@ -9,6 +9,7 @@ import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
 import { buildAntigravityArgs } from './antigravity';
 import { CodexJsonlOutput } from './codex-jsonl';
+import { approvedCardWireframeContext } from './card-wireframe';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -238,7 +239,9 @@ export class SessionRunner {
     if (input.useWorktree === true && this.store.activeCommandTerminalForCard(card.id)) throw new Error('Im Karten-Worktree läuft noch ein Befehlsterminal. Zuerst stoppen.');
     const launcher = resolveAgentLauncher(agent.command);
     if (!launcher) throw new Error(`Agent executable or supported Node shim not found: ${agent.command}`);
-    const prompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
+    const taskPrompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
+    const wireframeContext = approvedCardWireframeContext(this.store, { projectId: card.projectId, cardId: card.id });
+    const prompt = wireframeContext ? `${taskPrompt}\n\n${wireframeContext}` : taskPrompt;
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
     const row = this.store.createSession({ cardId: card.id, agentId, worktreePath: worktree?.path });
