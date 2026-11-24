@@ -31,6 +31,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   const [voiceError, setVoiceError] = useState('');
   const [archiveError, setArchiveError] = useState('');
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [contextAttachmentRequest, setContextAttachmentRequest] = useState<{ cardId: string; attachmentId: string; token: number } | null>(null);
   const [worktreeReview, setWorktreeReview] = useState<WorktreeReview | null | undefined>(undefined);
   const [worktreeBusy, setWorktreeBusy] = useState(false);
   const [worktreeError, setWorktreeError] = useState('');
@@ -188,9 +189,9 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
         <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         <div className="drawer-divider" />
-        <CardAttachments key={`attachments-${card.id}`} card={card} />
+        <CardAttachments key={`attachments-${card.id}`} card={card} onPrepareContext={(attachmentId) => setContextAttachmentRequest((previous) => ({ cardId: card.id, attachmentId, token: (previous?.token ?? 0) + 1 }))} />
         <div className="drawer-divider" />
-        <CardContextPanel key={`context-${card.id}`} card={card} />
+        <CardContextPanel key={`context-${card.id}`} card={card} attachmentRequest={contextAttachmentRequest?.cardId === card.id ? contextAttachmentRequest : null} />
         <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
         <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>

@@ -22,6 +22,8 @@ In einer offenen Board-Karte kann eine bis fünf laufende Dev-Server-Routen mit 
 
 Die Karten-QA zeigt zusätzlich drei begrenzte [Seitenstruktur-Hinweise](docs/CARD_QA.md): fehlender Seitentitel, Bilder ohne `alt`-Attribut und messbares horizontales Überlaufen. Diese Hinweise sind keine vollständige Layout- oder Barrierefreiheitsprüfung.
 
+Unter **Dateien** kann ein vorhandener Anhang innerhalb des Projekts in **Kontextbezüge** gezogen oder per Knopf als relativer Projektpfad vorbereitet werden. Erst **Bezug hinzufügen** speichert ihn; [Details](docs/CARD_CONTEXT.md).
+
 Unter **Design** öffnet die [Inspektion](docs/DESIGN_INSPECTION.md) ausdrücklich eine lokale Dev-Server-Seite, deren Element- und CSS-Belege nach Klick projektlokal gespeichert werden. Daneben finden [begrenzte Komponenten-](docs/COMPONENT_CATALOG.md) und [CSS-Token-Inventuren](docs/THEME_TOKENS.md) nach Klick versionierte Quellstellen mit Datei und Zeile. Einen gefundenen Farb- oder Radius-Token kannst du in der geöffneten Vorschau testweise anwenden und zurücksetzen. Das ändert keine Projektdatei; eine gerenderte Komponentenbibliothek und Codeübernahme fehlen noch.
 
 1. **Projekt hinzufügen** und einen existierenden absoluten Ordner auswählen. App-Daten liegen unter `%APPDATA%\jarvis-studio` außerhalb des Repositorys. Dieser bestehende Datenordner bleibt beim Namenswechsel erhalten, damit bisherige Projekte weiter sichtbar sind.

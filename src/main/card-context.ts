@@ -4,6 +4,7 @@ import { isIP } from 'node:net';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
 import type { CardContextPreview, CardContextReference } from '../shared/types';
+import { attachmentAvailable } from './card-attachments';
 import type { StudioStore } from './store';
 
 const MAX_REFS = 20;
@@ -64,6 +65,22 @@ export function cardContextReferences(store: StudioStore, cardId: string): CardC
   const rows = store.db.prepare(`SELECT * FROM card_context_refs WHERE card_id = ? ORDER BY added_at, rowid LIMIT ${MAX_REFS + 1}`).all(cardId) as ContextRow[];
   if (rows.length > MAX_REFS) throw new Error('Kartenkontext überschreitet das Anzeigelimit.');
   return rows.map((row) => rowToReference(store, row));
+}
+
+/** Prepare a card attachment as project context without storing it or exposing its absolute path. */
+export function cardContextCandidateFromAttachment(store: StudioStore, input: { cardId: string; attachmentId: string }): string {
+  const card = store.card(input.cardId);
+  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+  if (typeof input.attachmentId !== 'string' || !input.attachmentId) throw new Error('Anhang ist ungültig.');
+  const row = store.db.prepare('SELECT path FROM card_attachments WHERE id = ? AND card_id = ?').get(input.attachmentId, card.id) as { path: string } | undefined;
+  if (!row) throw new Error('Anhang gehört nicht zu dieser Karte.');
+  if (!attachmentAvailable(row.path)) throw new Error('Die verknüpfte Datei fehlt oder ihr Pfad hat sich geändert.');
+  const root = realpathSync(store.project(card.projectId).path);
+  const candidate = checkedFile(store, card.projectId, relative(root, row.path));
+  if (process.platform === 'win32' ? candidate.path.toLowerCase() !== row.path.toLowerCase() : candidate.path !== row.path) {
+    throw new Error('Die verknüpfte Datei wurde verschoben oder ersetzt.');
+  }
+  return candidate.target;
 }
 
 export function addCardContextReference(store: StudioStore, input: { cardId: string; kind: 'file' | 'url'; target: string }): CardContextReference[] {

@@ -113,6 +113,7 @@ export interface StudioAPI {
   openCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
   removeCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
   cardContextReferences(cardId: string): Promise<CardContextReference[]>;
+  cardContextCandidateFromAttachment(input: { cardId: string; attachmentId: string }): Promise<string>;
   addCardContextReference(input: { cardId: string; kind: 'file' | 'url'; target: string }): Promise<CardContextReference[]>;
   previewCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextPreview>;
   removeCardContextReference(input: { cardId: string; referenceId: string }): Promise<CardContextReference[]>;

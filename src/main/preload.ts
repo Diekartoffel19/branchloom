@@ -47,6 +47,7 @@ const studio: StudioAPI = {
   openCardAttachment: (input) => invoke('openCardAttachment', input),
   removeCardAttachment: (input) => invoke('removeCardAttachment', input),
   cardContextReferences: (cardId) => invoke('cardContextReferences', cardId),
+  cardContextCandidateFromAttachment: (input) => invoke('cardContextCandidateFromAttachment', input),
   addCardContextReference: (input) => invoke('addCardContextReference', input),
   previewCardContextReference: (input) => invoke('previewCardContextReference', input),
   removeCardContextReference: (input) => invoke('removeCardContextReference', input),

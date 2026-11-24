@@ -10,7 +10,7 @@ import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { DesignInspector, designSelections } from './design-inspection';
-import { addCardContextReference, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
+import { addCardContextReference, cardContextCandidateFromAttachment, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
@@ -205,6 +205,7 @@ function installIpc(): void {
   });
   bind('removeCardAttachment', (input: { cardId: string; attachmentId: string }) => db.removeCardAttachment(input));
   bind('cardContextReferences', (cardId: string) => cardContextReferences(db, cardId));
+  bind('cardContextCandidateFromAttachment', (input: Parameters<StudioAPI['cardContextCandidateFromAttachment']>[0]) => cardContextCandidateFromAttachment(db, input));
   bind('addCardContextReference', (input: Parameters<StudioAPI['addCardContextReference']>[0]) => addCardContextReference(db, input));
   bind('previewCardContextReference', (input: Parameters<StudioAPI['previewCardContextReference']>[0]) => previewCardContextReference(db, input));
   bind('removeCardContextReference', (input: Parameters<StudioAPI['removeCardContextReference']>[0]) => removeCardContextReference(db, input));
@@ -407,6 +408,7 @@ function createWindow(): void {
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
   if (smoke) {
     writeFileSync(join(smokeDataDirectory!, 'context.md'), '# BRANCHLOOM_CONTEXT_SMOKE\n');
+    writeFileSync(join(smokeDataDirectory!, 'drop.md'), '# BRANCHLOOM_DROP_SMOKE\n');
     const failSmoke = (error: unknown) => {
       console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite/Board', error);
       app.exit(1);
@@ -504,6 +506,7 @@ function createWindow(): void {
         const smokeProject = smokeStore.projects()[0]!;
         const smokeSnapshot = smokeStore.snapshot(smokeProject.id);
         const smokeCard = smokeSnapshot.cards.find((item) => item.title === 'Smoke-Karte')!;
+        smokeStore.addCardAttachments(smokeCard.id, [join(smokeDataDirectory!, 'drop.md')]);
         const smokePlan = saveReviewedPlan(smokeStore, { projectId: smokeProject.id, request: 'Synthetischen Review-Plan prüfen', proposal: {
           title: 'Smoke-Review-Plan', explanation: 'Nur ein lokaler UI-Test.',
           cards: [{ title: 'Smoke-Review-Aufgabe', description: 'Synthetisch.' }], columnIds: [smokeSnapshot.columns[0]!.id],
@@ -747,6 +750,24 @@ function createWindow(): void {
               contextPreviewButton.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-context-preview')?.textContent?.includes('BRANCHLOOM_CONTEXT_SMOKE'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-context-preview')?.textContent?.includes('BRANCHLOOM_CONTEXT_SMOKE')) throw new Error('Begrenzte Projektdatei-Vorschau wurde nicht angezeigt.');
+              let dragSource;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                dragSource = document.querySelector('.card-attachment-name[draggable="true"]');
+                if (dragSource) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              const dropTarget = document.querySelector('.card-context');
+              if (!dragSource || !dropTarget) throw new Error('Kartenanhang oder Kontext-Dropziel fehlt.');
+              const transfer = new DataTransfer();
+              dragSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+              dropTarget.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+              dropTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+              for (let attempt = 0; attempt < 100 && contextInput.value !== 'drop.md'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (contextInput.value !== 'drop.md' || !dropTarget.textContent?.includes('Projektdatei „drop.md“ vorbereitet')) throw new Error('Drag-and-drop füllte den geprüften Kontextentwurf nicht.');
+              if ((await window.studio.cardContextReferences(qaCard.id)).length !== 1) throw new Error('Drop speicherte den Kontext ohne Bestätigung.');
+              contextButton.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.cardContextReferences(qaCard.id)).length !== 2; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.cardContextReferences(qaCard.id)).some((item) => item.target === 'drop.md')) throw new Error('Bestätigter Drop wurde nicht als Kartenkontext gespeichert.');
               const outputPanel = document.querySelector('.card-drawer .output-errors');
               for (let attempt = 0; attempt < 100 && !outputPanel?.querySelector('form'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const outputForm = outputPanel?.querySelector('form');

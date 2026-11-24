@@ -21,4 +21,13 @@ describe('card attachment display', () => {
     expect(html).toContain('Öffnen für diesen Dateityp gesperrt');
     expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
+
+  it('offers keyboard preparation and draggable source only for available active attachments', () => {
+    const active = renderToStaticMarkup(createElement(AttachmentList, { items: [base], archived: false, busy: false, onOpen: () => undefined, onRemove: () => undefined, onPrepareContext: () => undefined }));
+    expect(active).toContain('Als Kontext vorbereiten');
+    expect(active).toContain('draggable="true"');
+    const archived = renderToStaticMarkup(createElement(AttachmentList, { items: [base], archived: true, busy: false, onOpen: () => undefined, onRemove: () => undefined, onPrepareContext: () => undefined }));
+    expect(archived).toContain('draggable="false"');
+    expect(archived).toContain('Als Kontext vorbereiten</button>');
+  });
 });

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { addCardContextReference, cardContextReferences, checkedDocumentationUrl, previewCardContextReference, removeCardContextReference } from '../../src/main/card-context';
+import { addCardContextReference, cardContextCandidateFromAttachment, cardContextReferences, checkedDocumentationUrl, previewCardContextReference, removeCardContextReference } from '../../src/main/card-context';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -23,6 +23,32 @@ function fixture() {
 }
 
 describe('explicit card context references', () => {
+  it('prepares a card-owned project attachment without persisting until confirmation', () => {
+    const { store, repo, root, card, other } = fixture();
+    const inside = store.addCardAttachments(card.id, [join(repo, 'docs', 'guide.md')])[0]!;
+    expect(cardContextCandidateFromAttachment(store, { cardId: card.id, attachmentId: inside.id })).toBe('docs/guide.md');
+    expect(cardContextReferences(store, card.id)).toEqual([]);
+    expect(() => cardContextCandidateFromAttachment(store, { cardId: other.id, attachmentId: inside.id })).toThrow('gehört nicht');
+    const outside = join(root, 'outside.md');
+    writeFileSync(outside, 'outside');
+    const outsideAttachment = store.addCardAttachments(card.id, [outside]).find((item) => item.name === 'outside.md')!;
+    expect(() => cardContextCandidateFromAttachment(store, { cardId: card.id, attachmentId: outsideAttachment.id })).toThrow('außerhalb');
+    const saved = addCardContextReference(store, { cardId: card.id, kind: 'file', target: 'docs/guide.md' });
+    expect(saved[0]?.target).toBe('docs/guide.md');
+    store.setCardArchived({ id: card.id, archived: true });
+    expect(() => cardContextCandidateFromAttachment(store, { cardId: card.id, attachmentId: inside.id })).toThrow('Archivierte');
+    store.close();
+  });
+
+  it('rejects a stale attachment before converting it into a context draft', () => {
+    const { store, repo, card } = fixture();
+    const attachment = store.addCardAttachments(card.id, [join(repo, 'docs', 'guide.md')])[0]!;
+    rmSync(join(repo, 'docs', 'guide.md'));
+    expect(() => cardContextCandidateFromAttachment(store, { cardId: card.id, attachmentId: attachment.id })).toThrow('fehlt');
+    expect(cardContextReferences(store, card.id)).toEqual([]);
+    store.close();
+  });
+
   it('saves a project file and public docs URL with scoped preview after restart', () => {
     const { store, file, card, other } = fixture();
     const refs = addCardContextReference(store, { cardId: card.id, kind: 'file', target: 'docs/guide.md' });

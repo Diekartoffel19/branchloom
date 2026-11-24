@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink, Paperclip, Trash2 } from 'lucide-react';
 import type { Card, CardAttachment } from '../../shared/types';
+import { CARD_ATTACHMENT_DRAG_TYPE } from '../attachment-drag';
 import '../card-attachments.css';
 
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
-export function AttachmentList({ items, archived, busy, onOpen, onRemove }: {
+export function AttachmentList({ items, archived, busy, onOpen, onRemove, onPrepareContext }: {
   items: CardAttachment[]; archived: boolean; busy: boolean;
   onOpen: (id: string) => void; onRemove: (id: string) => void;
+  onPrepareContext?: (id: string) => void;
 }) {
   if (!items.length) return <p className="section-copy">Noch keine Dateien verknüpft.</p>;
   return <ul className="card-attachment-list">{items.map((item) => <li key={item.id}>
-    <div className="card-attachment-name"><Paperclip size={15} aria-hidden="true" /><span>{item.name}</span><small>{new Intl.NumberFormat('de-DE').format(item.size)} Bytes</small></div>
+    <div className="card-attachment-name" draggable={Boolean(onPrepareContext) && item.available && !archived && !busy} onDragStart={(event) => {
+      if (!onPrepareContext || !item.available || archived || busy) { event.preventDefault(); return; }
+      event.dataTransfer.setData(CARD_ATTACHMENT_DRAG_TYPE, item.id);
+      event.dataTransfer.effectAllowed = 'copy';
+    }}><Paperclip size={15} aria-hidden="true" /><span>{item.name}</span><small>{new Intl.NumberFormat('de-DE').format(item.size)} Bytes</small></div>
     <div className="card-attachment-actions">
+      {onPrepareContext ? <button type="button" className="secondary-button small" disabled={busy || archived || !item.available} onClick={() => onPrepareContext(item.id)}>Als Kontext vorbereiten</button> : null}
       <button type="button" className="secondary-button small" disabled={busy || !item.available || !item.canOpen} title={!item.available ? 'Verknüpfte Datei fehlt oder wurde verschoben' : !item.canOpen ? 'Dieser Dateityp wird nicht geöffnet' : undefined} onClick={() => onOpen(item.id)}><ExternalLink size={14} /> Öffnen</button>
       <button type="button" className="icon-button" disabled={busy || archived} aria-label={`Verknüpfung „${item.name}“ entfernen`} title="Nur Verknüpfung entfernen; Datei bleibt erhalten" onClick={() => onRemove(item.id)}><Trash2 size={15} /></button>
     </div>
@@ -20,7 +27,7 @@ export function AttachmentList({ items, archived, busy, onOpen, onRemove }: {
   </li>)}</ul>;
 }
 
-export function CardAttachments({ card }: { card: Card }) {
+export function CardAttachments({ card, onPrepareContext }: { card: Card; onPrepareContext: (id: string) => void }) {
   const [items, setItems] = useState<CardAttachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -52,8 +59,8 @@ export function CardAttachments({ card }: { card: Card }) {
 
   return <section className="card-attachments" aria-label="Kartenanhänge">
     <div className="section-heading"><Paperclip size={18} /><h3>Dateien</h3></div>
-    <p className="section-copy">Lokale Dateiverknüpfungen. Dateiinhalte werden nicht kopiert oder automatisch an Agenten übergeben.</p>
-    <AttachmentList items={items} archived={Boolean(card.archivedAt)} busy={busy} onOpen={(id) => void open(id)} onRemove={(id) => void remove(id)} />
+    <p className="section-copy">Lokale Dateiverknüpfungen. Eine Projektdatei kann in „Kontextbezüge“ gezogen oder per Knopf vorbereitet werden; gespeichert wird sie erst nach Bestätigung. Dateiinhalte werden nicht kopiert oder automatisch an Agenten übergeben.</p>
+    <AttachmentList items={items} archived={Boolean(card.archivedAt)} busy={busy} onOpen={(id) => void open(id)} onRemove={(id) => void remove(id)} onPrepareContext={onPrepareContext} />
     {!card.archivedAt ? <button type="button" className="secondary-button" disabled={busy || items.length >= 20} onClick={() => void choose()}><Paperclip size={15} /> Datei verknüpfen</button> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
   </section>;
