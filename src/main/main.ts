@@ -1731,11 +1731,16 @@ function createWindow(): void {
               note.click();
               let choose;
               for (let attempt = 0; attempt < 100; attempt++) {
-                choose = [...document.querySelectorAll('.memory-git-source button')].find((button) => button.textContent?.includes('Commit auswählen'));
+                choose = undefined;
+                const selected = document.querySelector('.memory-item.selected');
+                const preview = document.querySelector('.memory-preview h2');
+                if (selected?.textContent?.includes('Commit-Beleg Smoke') && preview?.textContent === 'Commit-Beleg Smoke') {
+                  choose = [...document.querySelectorAll('.memory-git-source button')].find((button) => button.textContent?.includes('Commit auswählen'));
+                }
                 if (choose && !choose.disabled) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
-              if (!(choose instanceof HTMLButtonElement)) throw new Error('Git-Quellenauswahl fehlt.');
+              if (!(choose instanceof HTMLButtonElement)) throw new Error('Git-Quellenauswahl fehlt: ' + JSON.stringify({ selected: document.querySelector('.memory-item.selected')?.textContent?.slice(0, 100), preview: document.querySelector('.memory-preview h2')?.textContent, source: document.querySelector('.memory-git-source')?.textContent?.slice(0, 160), page: Boolean(document.querySelector('.memory-page')) }));
               if (choose.disabled) throw new Error('Git-Quellenauswahl blieb gesperrt.');
               choose.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.memory-git-source-chooser input[type="radio"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1768,8 +1773,13 @@ function createWindow(): void {
               }
               if (!(note instanceof HTMLButtonElement)) throw new Error('Memory-Notiz fehlt nach Reload.');
               note.click();
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.memory-git-source-record')?.textContent?.includes(${JSON.stringify(memoryHead)}); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!document.querySelector('.memory-git-source-record')?.textContent?.includes('Commit ist in der aktuellen Projekt-Historie')) throw new Error('Git-Quelle wurde nach Reload nicht erneut geprüft.');
+              for (let attempt = 0; attempt < 100; attempt++) {
+                const record = document.querySelector('.memory-git-source-record')?.textContent;
+                if (record?.includes(${JSON.stringify(memoryHead)}) && record.includes('Commit ist in der aktuellen Projekt-Historie')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              const record = document.querySelector('.memory-git-source-record')?.textContent;
+              if (!record?.includes(${JSON.stringify(memoryHead)}) || !record.includes('Commit ist in der aktuellen Projekt-Historie')) throw new Error('Git-Quelle wurde nach Reload nicht erneut geprüft: ' + JSON.stringify({ selected: document.querySelector('.memory-item.selected')?.textContent?.slice(0, 100), preview: document.querySelector('.memory-preview h2')?.textContent, source: document.querySelector('.memory-git-source')?.textContent?.slice(0, 220), page: Boolean(document.querySelector('.memory-page')) }));
               return true;
             })()`);
             const cleanupCard = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Worktree-Aufräumprüfung Smoke' });

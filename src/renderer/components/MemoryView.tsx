@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import type { MemoryNote, MemoryVaultImportPreview, ProjectSnapshot } from '../../shared/types';
 import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../memory-graph';
@@ -35,7 +35,7 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props)
 
   function selectNote(id: string) { setNavigation((old) => openMemoryNote(old, id)); }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setNavigation(emptyNoteNavigation());
     setActiveTag('');
     setQuery('');
