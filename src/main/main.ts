@@ -1439,6 +1439,14 @@ function createWindow(): void {
               if (!(starter instanceof HTMLButtonElement)) throw new Error('Kartenbezogener Entwurfsstart für die ausgewählte Karte fehlt. Auswahl: ' + wireframe?.querySelector('.task-wireframe-source select')?.value + '; sichtbarer Zustand: ' + (wireframe?.textContent?.trim().slice(-320) ?? 'keine Wireframe-Ansicht'));
               if (![...(wireframe?.querySelectorAll('button') ?? [])].some((button) => button.textContent?.includes('Mit Agent vorschlagen'))) throw new Error('Optionaler Agentenvorschlag fehlt.');
               const beforeSessions = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.length;
+              for (let attempt = 0; attempt < 200; attempt++) {
+                wireframe = document.querySelector('.task-wireframe');
+                starter = [...(wireframe?.querySelectorAll('button') ?? [])].find((button) => button.textContent?.includes('Fenstergerüst vorbereiten'));
+                if (starter instanceof HTMLButtonElement && starter.isConnected && !starter.disabled && wireframe?.querySelector('.task-wireframe-source select')?.value === ${JSON.stringify(smokeCard.id)} && wireframe.textContent?.includes(${JSON.stringify(`Für „${smokeCard.title}“ gibt es noch keinen Wireframe.`)})) break;
+                starter = undefined;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(starter instanceof HTMLButtonElement)) throw new Error('Wireframe-Startknopf wurde nach dem Sitzungs-Snapshot ausgetauscht oder die Karte gewechselt.');
               starter.click();
               for (let attempt = 0; attempt < 200; attempt++) {
                 wireframe = document.querySelector('.task-wireframe');
