@@ -4,7 +4,13 @@ import { StudioStore } from './store';
 
 /** Last-line gate: the marker in the initial instruction or an earlier echo is not completion. */
 export function hasCompletionMarker(output: string): boolean {
-  const clean = output.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '').replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
+  const clean = output
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    // PTYs may position the next visible line with CUP/HVP instead of LF.
+    // Only an explicit row and column 1 supplies a line boundary here.
+    .replace(/\x1b\[[1-9][0-9]*;1[Hf]/g, '\n')
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/\r/g, '');
   return clean.trimEnd().split('\n').at(-1)?.trim() === DONE_MARKER;
 }
 

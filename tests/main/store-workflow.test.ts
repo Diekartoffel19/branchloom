@@ -57,6 +57,39 @@ describe('durable store and workflow gate', () => {
     expect(hasCompletionMarker(`Finished\r\n\x1b]0;synthetic title\x07\x1b[?25h${DONE_MARKER}\r\n`)).toBe(true);
   });
 
+  it('recognizes a final marker positioned at column one by a PTY', () => {
+    const output = `\x1b[?25l\x1b[2J\x1b[m\x1b[H\x1b]0;synthetic-cli\x07\x1b[?25h` +
+      `Synthetic step completed.\x1b[4;1H${DONE_MARKER}\r\n\x1b[?25h`;
+    expect(hasCompletionMarker(output)).toBe(true);
+    expect(hasCompletionMarker(`Prompt echo: ${DONE_MARKER}`)).toBe(false);
+    expect(hasCompletionMarker(`Prompt: ${DONE_MARKER}\x1b[4;1HStill working`)).toBe(false);
+    expect(hasCompletionMarker(`Finished\x1b[4;1H${DONE_MARKER}\r\nLater output`)).toBe(false);
+    expect(hasCompletionMarker(`Finished\x1b[4;1H${DONE_MARKER}\x1b[5;1HLater output`)).toBe(false);
+    expect(hasCompletionMarker('Finished\x1b[4;1H\x1b[?25h')).toBe(false);
+  });
+
+  it('persists a completed Antigravity PTY step after SQLite reload', () => {
+    const { store, dbPath, project, columns, card } = fixture();
+    const agent = store.agents().find((row) => row.kind === 'antigravity')!;
+    const { runner, started } = fakeRunner(store);
+    const engine = new WorkflowEngine(store, runner);
+    const flow = store.createWorkflow({ projectId: project.id, name: 'PTY route', cardIds: [card.id], steps: [
+      { id: 'execute', columnId: columns[2]!.id, agentId: agent.id, requireApproval: false },
+    ] });
+    engine.setState({ id: flow.id, state: 'running' });
+    expect(started).toHaveLength(1);
+    store.appendOutput(started[0]!.id, `Synthetic step completed.\x1b[4;1H${DONE_MARKER}\r\n\x1b[?25h`);
+    engine.onSessionFinished(store.finishSession(started[0]!.id, 'exited', 0));
+    expect(store.workflow(flow.id).state).toBe('done');
+    expect(store.workflowProgress(flow.id, 0)[0]?.state).toBe('complete');
+    store.close();
+
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.workflow(flow.id).state).toBe('done');
+    expect(reopened.workflowProgress(flow.id, 0)[0]?.state).toBe('complete');
+    reopened.close();
+  });
+
   it('pauses on a missing gate and retries only after a deliberate resume', () => {
     const { store, project, columns, card, agent } = fixture();
     const { runner, started } = fakeRunner(store);
