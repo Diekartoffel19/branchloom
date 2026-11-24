@@ -8,7 +8,7 @@ Im Fokusmodus zeigen drei Mini-Zeichenflächen Desktop, Tablet und Mobile gleich
 
 ## Ablauf
 
-Die Werkzeugleiste bietet außerdem Ellipsen und diagonale Linien. Beide Formen sind eigene Ebenen ohne Text; die Richtung einer Linie lässt sich im Inspector umstellen. Sie können auf Desktop, Tablet und Mobile bewegt, in der Größe geändert, gespeichert und freigegeben werden.
+Die Werkzeugleiste bietet außerdem Ellipsen und diagonale Linien. Beide Formen sind eigene Ebenen ohne Text; die Richtung einer Linie lässt sich im Inspector umstellen. Beim Ziehen einer Linie greift der Zeiger nahe dem sichtbaren Strich; ihre übrige transparente Fläche verdeckt darunterliegende Elemente nicht. Über die Ebenenliste und mit Tab bleibt die Linie per Tastatur auswählbar. Sie können auf Desktop, Tablet und Mobile bewegt, in der Größe geändert, gespeichert und freigegeben werden.
 
 1. Eine Board-Karte öffnen und **Wireframe in Design öffnen** wählen. Alternativ unter **Design → Wireframe zur Aufgabe** eine Karte auswählen.
 2. **Fenstergerüst vorbereiten** legt eine lokale Vorlage in die noch ungespeicherte Ansicht. **Leere Fläche beginnen** startet ohne Elemente. Die Vorlage ist deterministisch und kein KI-Ergebnis. **Mit Agent vorschlagen** fragt auf ausdrücklichen Klick den unter Workflows gewählten Codex-CLI-Agenten lesend nach einem ersten Entwurf. Der Vorschlag bleibt zunächst ungespeichert und kann bearbeitet oder verworfen werden. Auch bei einem vorhandenen, unveränderten Entwurf kann der Agent einen neuen Vorschlag machen; gespeicherte Daten werden erst mit **Entwurf speichern** ersetzt.

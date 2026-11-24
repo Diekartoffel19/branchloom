@@ -94,9 +94,10 @@
 .task-wireframe-element.tone-accent.kind-button { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .task-wireframe-element.tone-accent:not(.kind-button) { border-color: var(--accent); }
 .task-wireframe-element.kind-ellipse { padding: 0; border-radius: 50%; }
-.task-wireframe-element.kind-line { padding: 0; border-color: transparent; background: transparent; overflow: visible; }
+.task-wireframe-element.kind-line { padding: 0; border-color: transparent; background: transparent; overflow: visible; pointer-events: none; }
 .task-wireframe-line { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.task-wireframe-line line { stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.task-wireframe-line-hit { stroke: transparent; stroke-width: 12; vector-effect: non-scaling-stroke; pointer-events: stroke; }
+.task-wireframe-line-visible { stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 .task-wireframe-inline-text { position: absolute; z-index: 3; box-sizing: border-box; min-width: 0; min-height: 0; padding: 4px 7px; border: 1px solid var(--accent); border-radius: 4px; background: var(--surface); color: var(--text); font: inherit; font-size: clamp(9px, 1.1vw, 13px); line-height: 1.2; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus, var(--accent)); }
 .task-wireframe-inline-text.kind-text { font-weight: 650; }
 .task-wireframe-inline-text.kind-button { text-align: center; font-weight: 600; }

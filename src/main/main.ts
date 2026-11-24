@@ -1664,6 +1664,17 @@ function createWindow(): void {
               lineSelectSetter.call(direction, 'rising'); direction.dispatchEvent(new Event('change', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && line.querySelector('svg line')?.getAttribute('y1') !== '98'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (line.querySelector('svg line')?.getAttribute('y1') !== '98' || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Linienrichtung wurde nicht lokal geändert oder ungefragt gespeichert.');
+              line.scrollIntoView({ block: 'center', inline: 'center' });
+              const lineBounds = line.getBoundingClientRect();
+              const clearPoint = { x: lineBounds.left + lineBounds.width * .1, y: lineBounds.top + lineBounds.height * .5 };
+              const strokePoint = { x: lineBounds.left + lineBounds.width * .5, y: lineBounds.top + lineBounds.height * .5 };
+              const behindLine = document.elementFromPoint(clearPoint.x, clearPoint.y);
+              const onLine = document.elementFromPoint(strokePoint.x, strokePoint.y);
+              if (!(behindLine instanceof Element) || !behindLine.closest('.task-wireframe-element.kind-ellipse') || !(onLine instanceof Element) || !onLine.classList.contains('task-wireframe-line-hit')) throw new Error('Linien-Hitfläche verdeckt die darunterliegende Ellipse oder verfehlt den sichtbaren Strich: ' + JSON.stringify({ behind: behindLine?.outerHTML.slice(0, 100), onLine: onLine?.outerHTML.slice(0, 100), bounds: lineBounds.toJSON() }));
+              ellipse.focus(); ellipse.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true }));
+              line.focus(); line.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true }));
+              line.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+              if (wireframe.querySelector('[data-wireframe-inline-editor]')) throw new Error('Formen öffneten irrtümlich einen Inline-Texteditor.');
               const mobileArtboard = [...wireframe.querySelectorAll('.task-wireframe-artboard-switch button')].find((button) => button.textContent?.includes('Mobile'));
               if (!(mobileArtboard instanceof HTMLButtonElement)) throw new Error('Mobile-Wireframe-Auswahl fehlt.');
               mobileArtboard.click();
