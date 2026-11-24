@@ -1,4 +1,6 @@
 /** Portable Windows package. Forge rebuilds native SQLite and PTY modules. */
+const { join } = require('node:path');
+
 module.exports = {
   // A local diagnostic package can reuse native binaries already proven to
   // load in Electron. Release builds always rebuild them for Electron's ABI.
@@ -7,6 +9,7 @@ module.exports = {
     : {},
   packagerConfig: {
     name: 'Branchloom',
+    icon: join(__dirname, 'assets', 'branchloom'),
     asar: false,
     ignore: [
       /^\/(?:\.git|\.github|\.githooks|\.venv|coverage|out|src|tests)(?:\/|$)/,

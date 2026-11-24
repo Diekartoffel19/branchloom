@@ -440,7 +440,8 @@ function createWindow(): void {
     minHeight: 650,
     show: !smoke,
     title: 'Branchloom',
-    backgroundColor: '#f4f1eb',
+    icon: join(__dirname, '..', '..', 'assets', 'branchloom.ico'),
+    backgroundColor: '#f6f7f5',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,

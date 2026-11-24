@@ -65,7 +65,13 @@
 :root[data-theme] .brand { gap: 10px; padding-bottom: 26px; letter-spacing: -.015em; }
 :root[data-theme] .brand strong { font-size: 17px; font-weight: 650; line-height: 1.2; }
 :root[data-theme] .brand-mark { border-radius: 7px; }
-:root[data-theme] .brand-mark svg { width: 20px; height: 20px; }
+:root[data-theme] .brand-symbol {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  mask: url('./assets/branchloom-mark.svg') center / contain no-repeat;
+}
 :root[data-theme] .side-section-title,
 :root[data-theme] .eyebrow,
 :root[data-theme] .topbar-title small,
