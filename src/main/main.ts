@@ -16,6 +16,7 @@ import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
 import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { previewPrDraft } from './pr-draft';
+import { scanProjectComponents } from './component-catalog';
 import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
@@ -114,6 +115,7 @@ function installIpc(): void {
     });
   };
   bind('projects', () => db.projects());
+  bind('componentCatalog', (projectId: string) => scanProjectComponents(db.project(projectId).path));
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
   bind('exportProjectPackage', async (projectId: string) => {
     if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
@@ -875,7 +877,7 @@ function createWindow(): void {
               const planInboxButton = [...document.querySelectorAll('.decision-review-item')].find((item) => item.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE'))?.querySelector('button.secondary-button');
               if (!planInboxButton) throw new Error('Plan-Kommentar fehlt in der Review-Inbox.');
               planInboxButton.click();
-              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && (document.activeElement?.id !== 'workflow-plan-review' || !document.querySelector('#workflow-plan-review')?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.activeElement?.id !== 'workflow-plan-review' || !document.querySelector('#workflow-plan-review')?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Plan-Navigation setzte den Tastaturfokus nicht auf den gespeicherten Plan: ' + JSON.stringify({ active: document.activeElement?.outerHTML?.slice(0, 250), plan: document.querySelector('#workflow-plan-review')?.textContent?.slice(-300), view: document.querySelector('.topbar-title h1')?.textContent }));
               const decisionsNavAfterPlan = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
               if (!decisionsNavAfterPlan) throw new Error('Rückweg zur Review-Inbox fehlt.');

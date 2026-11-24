@@ -7,6 +7,7 @@ import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, 
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignInspectionState, DesignSelection } from './design-inspection';
+import type { ComponentCatalog } from './component-catalog';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -62,6 +63,7 @@ export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead
 
 export interface StudioAPI {
   projects(): Promise<Project[]>;
+  componentCatalog(projectId: string): Promise<ComponentCatalog>;
   createProject(input: { name: string; path: string }): Promise<Project>;
   exportProjectPackage(projectId: string): Promise<ProjectPackageExportResult | null>;
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;

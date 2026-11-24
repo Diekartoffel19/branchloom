@@ -1,0 +1,16 @@
+.component-catalog { display: grid; gap: 10px; border-top: 1px solid var(--border); padding-top: 18px; }
+.component-catalog-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px; }
+.component-catalog-head h3 { margin: 0 0 4px; font-size: 15px; }
+.component-catalog-head p, .component-catalog-limit, .component-catalog-summary, .component-catalog-empty { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.component-catalog-head p { max-width: 70ch; }
+.component-catalog-head button { min-height: 36px; }
+.component-catalog-search { display: grid; gap: 5px; max-width: 380px; color: var(--soft); font-size: 12px; font-weight: 600; }
+.component-catalog-search input { width: 100%; }
+.component-catalog-notes { margin: 0; color: var(--muted); font-size: 12px; }
+.component-catalog-list { display: grid; gap: 7px; list-style: none; padding: 0; margin: 0; }
+.component-catalog-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; min-width: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); padding: 9px 11px; }
+.component-catalog-list li > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; min-width: 0; }
+.component-catalog-list strong { font-size: 13px; }
+.component-catalog-list small { color: var(--muted); font-size: 11px; }
+.component-catalog-list code { color: var(--soft); font-size: 11px; overflow-wrap: anywhere; }
+.component-catalog-list button { min-height: 32px; font-size: 11px; }

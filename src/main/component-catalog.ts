@@ -29,6 +29,11 @@ function trackedPath(value: string): boolean {
 function readBounded(root: string, path: string, budget: number): string | null {
   const candidate = resolve(root, path);
   if (!within(root, candidate)) return null;
+  let segment = root;
+  for (const part of path.split('/')) {
+    segment = join(segment, part);
+    if (lstatSync(segment).isSymbolicLink()) return null;
+  }
   const before = lstatSync(candidate);
   if (!before.isFile() || before.size > MAX_FILE_BYTES || before.size > budget || !within(root, realpathSync(candidate))) return null;
   const fd = openSync(candidate, 'r');

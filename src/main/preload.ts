@@ -5,6 +5,7 @@ const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipc
 
 const studio: StudioAPI = {
   projects: () => invoke('projects'),
+  componentCatalog: (projectId) => invoke('componentCatalog', projectId),
   createProject: (input) => invoke('createProject', input),
   exportProjectPackage: (projectId) => invoke('exportProjectPackage', projectId),
   previewProjectPackage: () => invoke('previewProjectPackage'),

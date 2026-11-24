@@ -1,0 +1,7 @@
+# Komponenten-Quellen
+
+Unter **Design → Komponenten-Quellen → Komponenten suchen** liest Branchloom versionierte TSX- und JSX-Dateien des gewählten Git-Projekts. Es zeigt mögliche exportierte UI-Funktionen und -Konstanten mit Name, relativem Pfad und Zeile. Die Liste lässt sich filtern; **Pfad kopieren** schreibt den relativen Dateiverweis in die lokale Zwischenablage. Der Scan startet keinen Agenten, importiert keine Projektmodule und führt keinen Projektcode aus.
+
+Die erste Stufe erkennt einfache `export function Name`- und `export const Name`-Zeilen mit großgeschriebenem Namen und einem JSX- oder `React.createElement`-Hinweis in der Nähe. Das ist eine **Kandidatenliste**, keine Aussage, dass die Komponente gerendert werden kann. Re-Exports, lokale Komponenten ohne Export, Framework-Metadaten, Storybook-Zustände und eine visuelle Canvas-Vorschau fehlen noch.
+
+Der Scanner beschränkt sich auf den Git-Wurzelordner und versionierte Pfade. Fehlende, verknüpfte, zu große oder nicht lesbare Dateien werden ausgelassen; die Ansicht markiert den Scan dann als unvollständig. Grenzen: 600 Dateien, 128 KiB je Datei, 4 MiB insgesamt, 200 Kandidaten und 3 Sekunden für die Inhaltsprüfung. Die Git-Pfadliste hat ebenfalls ein Byte- und Zeitlimit. Pfade mit Traversal und übliche Build-/Abhängigkeitsordner sind ausgeschlossen. Vor einem erneuten Blick auf neu committete Dateien **Erneut suchen** wählen.
