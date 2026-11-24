@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MousePointer2 } from 'lucide-react';
 import type { DesignInspectionState, DesignSelection } from '../../shared/design-inspection';
 import { ComponentCatalogPanel } from './ComponentCatalogPanel';
+import { ThemeTokensPanel } from './ThemeTokensPanel';
 import './design-inspection.css';
 
 const emptyState: DesignInspectionState = { projectId: null, sourceUrl: null, ready: false, armed: false };
@@ -100,6 +101,7 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
       </li>)}</ol>}
     </div>
     <ComponentCatalogPanel projectId={projectId} />
+    <ThemeTokensPanel projectId={projectId} />
     <p className="design-inspection-limit">Die Auswahl liest berechnete Werte aus einer lokalen Seite. Sie ändert keine Projektdateien und startet keinen Agenten. Die Seite führt beim Laden weiterhin eigenes JavaScript aus.</p>
   </section>;
 }
