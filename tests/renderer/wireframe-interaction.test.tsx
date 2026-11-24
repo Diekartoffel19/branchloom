@@ -20,6 +20,10 @@ describe('wireframe interaction editor', () => {
     expect(html).toContain('Beim Öffnen auf die Fläche');
     expect(html).toContain('Reduzierte Bewegung: 0 ms');
     expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('aria-expanded="false"');
+    const controlledPanel = html.match(/aria-controls="([^"]+)"/);
+    expect(controlledPanel?.[1]).toBeTruthy();
+    expect(html).toContain(`id="${controlledPanel?.[1]}"`);
     expect(html).toContain('Interaktionsvorschau');
   });
 });

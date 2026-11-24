@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import type { WireframeElement, WireframeInteraction } from '../../shared/card-wireframe';
 import './wireframe-interaction.css';
 
@@ -16,6 +16,7 @@ export function WireframeInteractionEditor({ elements, interaction, disabled, on
   const panels = elements.filter((element) => element.kind === 'panel');
   const [open, setOpen] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const selectedButton = buttons.find((element) => element.id === interaction?.triggerElementId);
@@ -41,9 +42,9 @@ export function WireframeInteractionEditor({ elements, interaction, disabled, on
       <p className="wireframe-interaction-focus">Fokusvorgabe: Beim Öffnen auf die Fläche; beim Schließen und mit Escape zurück auf den Auslöser. Reduzierte Bewegung: 0 ms.</p>
       <label className="wireframe-interaction-reduced"><input type="checkbox" checked={reduced} onChange={(event) => setReduced(event.target.checked)} />Reduzierte Bewegung vorschauen</label>
       <div className="wireframe-interaction-preview" style={style} aria-label="Interaktionsvorschau">
-        <button ref={triggerRef} type="button" className="secondary-button small" onClick={() => open ? close() : setOpen(true)}>{selectedButton?.text || 'Fläche umschalten'}</button>
+        <button ref={triggerRef} type="button" className="secondary-button small" aria-controls={panelId} aria-expanded={open} onClick={() => open ? close() : setOpen(true)}>{selectedButton?.text || 'Fläche umschalten'}</button>
         <div className={`wireframe-interaction-backdrop${open ? ' is-open' : ''}`} aria-hidden="true" />
-        <div ref={panelRef} className={`wireframe-interaction-panel${open ? ' is-open' : ''}`} tabIndex={open ? -1 : undefined} role="region" aria-label={selectedPanel?.text || 'Geöffnete Fläche'} aria-hidden={!open} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); close(); } }}>
+        <div ref={panelRef} id={panelId} className={`wireframe-interaction-panel${open ? ' is-open' : ''}`} tabIndex={open ? -1 : undefined} role="region" aria-label={selectedPanel?.text || 'Geöffnete Fläche'} aria-hidden={!open} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); close(); } }}>
           <strong>{selectedPanel?.text || 'Fläche'}</strong><button type="button" className="secondary-button small" tabIndex={open ? 0 : -1} onClick={close}>Schließen</button>
         </div>
       </div>
