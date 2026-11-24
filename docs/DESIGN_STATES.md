@@ -1,0 +1,9 @@
+# Lokale UI-Zustandsrouten
+
+Unter **Design → UI-Zustände** gibt es vier feste Namen: Normal, Loading, Empty und Error. Für jeden Namen kannst du eine bereits von deiner lokalen App bereitgestellte HTTP(S)-Route speichern, etwa `http://127.0.0.1:5173/?state=empty`. **Route speichern** legt nur die Adresse in der lokalen Branchloom-Datenbank dieses Projekts ab. Erst **Gespeicherte Route öffnen** lädt sie in der isolierten Design-Vorschau. So kannst du die echten App-Zustände gezielt nacheinander ansehen und danach auf Wunsch **Drei Größen prüfen** auslösen.
+
+Branchloom erlaubt ausschließlich vollständige Loopback-Adressen auf `localhost`, `127.0.0.1` oder `[::1]` ohne Zugangsdaten. Die vier Routen eines Projekts müssen dieselbe Origin aus Protokoll, Host und Port haben. Für einen anderen lokalen Server entfernst du die bisherigen Routen und legst sie neu an. Fremde Webseiten und ein stiller Seitenaufruf beim Speichern werden abgewiesen. Beim Öffnen gelten die vorhandenen Design-Vorschau-Grenzen für fremde Origins, Pop-ups, Downloads und Berechtigungen. Eine aktive flüchtige Theme-Vorschau muss vor dem Wechsel zurückgesetzt werden.
+
+Die Übersicht zeigt Pfad und Origin, aber keine Querywerte oder Fragmente. Das Eingabefeld zeigt die vollständige gespeicherte URL, damit du sie bearbeiten kannst. Volle URLs einschließlich Query und Fragment bleiben lokal in SQLite erhalten; verwende hier keine Zugangsschlüssel. Die Routen bleiben nach App-Neustart erhalten und werden beim Löschen des Projekts entfernt. Das Projektpaket V1 exportiert diese Design-Einstellung nicht.
+
+Ein leerer Slot bedeutet **keine Route**. Branchloom injiziert weder Ladebildschirme noch Fehlerdaten und behauptet keine automatisch erzeugten Zustände. Deine App muss die jeweiligen Routen und Zustände selbst bereitstellen. Die Vorschau zeigt jeweils eine Route; die drei Größenaufnahmen sind sequenzielle, flüchtige Bilder und kein interaktiver Vier-Zustände-Vergleich.

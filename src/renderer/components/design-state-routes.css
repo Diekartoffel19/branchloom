@@ -1,0 +1,15 @@
+.design-state-routes { display: grid; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; }
+.design-state-routes-head h3 { margin: 0 0 4px; font-size: 15px; }
+.design-state-routes p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.design-state-routes-head p { max-width: 72ch; }
+.design-state-routes-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.design-state-routes-tabs button { display: grid; gap: 2px; min-width: 112px; min-height: 45px; padding: 6px 10px; text-align: left; }
+.design-state-routes-tabs button[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); }
+.design-state-routes-tabs strong { font-size: 12px; font-weight: 650; }
+.design-state-routes-tabs span { color: var(--muted); font-size: 11px; font-weight: 400; }
+.design-state-routes form { display: grid; gap: 8px; }
+.design-state-routes label { display: grid; gap: 5px; max-width: 740px; color: var(--soft); font-size: 12px; font-weight: 600; }
+.design-state-routes input { width: 100%; min-width: 0; }
+.design-state-routes-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.design-state-routes-actions button { min-height: 36px; }
+.design-state-routes .design-state-routes-meta { overflow-wrap: anywhere; }

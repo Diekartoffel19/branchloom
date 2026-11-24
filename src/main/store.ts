@@ -23,6 +23,7 @@ import { installQaFixCards } from './qa-fix-card';
 import { installCardContext } from './card-context';
 import { installOutputErrors } from './output-errors';
 import { installDesignInspection } from './design-inspection';
+import { installDesignStateRoutes } from './design-state-routes';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -127,6 +128,7 @@ export class StudioStore {
     installCardContext(this.db);
     installOutputErrors(this.db);
     installDesignInspection(this.db);
+    installDesignStateRoutes(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

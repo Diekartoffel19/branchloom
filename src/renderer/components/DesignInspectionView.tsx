@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MousePointer2 } from 'lucide-react';
 import type { DesignInspectionState, DesignSelection } from '../../shared/design-inspection';
+import type { DesignStateRoute } from '../../shared/design-state-routes';
 import { ComponentCatalogPanel } from './ComponentCatalogPanel';
 import { ThemeTokensPanel } from './ThemeTokensPanel';
 import { DesignViewportCanvas } from './DesignViewportCanvas';
+import { DesignStateRoutes } from './DesignStateRoutes';
 import './design-inspection.css';
 
 const emptyState: DesignInspectionState = { projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null };
@@ -18,6 +20,8 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
   const [busy, setBusy] = useState(false);
   const [previewRevision, setPreviewRevision] = useState(0);
   const viewport = useRef<HTMLDivElement>(null);
+  const currentProject = useRef(projectId);
+  currentProject.current = projectId;
 
   const syncBounds = useCallback(() => {
     const rect = viewport.current?.getBoundingClientRect();
@@ -62,6 +66,20 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
     finally { setBusy(false); }
   }
 
+  async function openStateRoute(route: DesignStateRoute) {
+    if (busy || !active) throw new Error('Warte, bis die Design-Vorschau bereit ist.');
+    setBusy(true); setError('');
+    try {
+      const opened = await window.studio.openDesignStateRoute({ projectId, kind: route.kind });
+      if (currentProject.current !== projectId) return;
+      setState(opened); setUrl(opened.sourceUrl ?? route.url); setPreviewRevision((value) => value + 1);
+    } catch (reason) {
+      const current = await window.studio.designInspectionState().catch(() => emptyState);
+      if (currentProject.current === projectId) setState(current);
+      throw reason;
+    } finally { if (currentProject.current === projectId) setBusy(false); }
+  }
+
   async function arm() {
     setError('');
     try {
@@ -93,6 +111,7 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     <p className="design-inspection-state" role="status">{state.armed ? 'Auswahl aktiv: Klicke ein Element in der Vorschau. Der Seitenklick wird abgefangen.' : state.ready ? `Vorschau geladen: ${state.sourceUrl}` : 'Noch keine Vorschau geöffnet.'}</p>
+    <DesignStateRoutes key={projectId} projectId={projectId} active={active} previewBusy={busy} themePreviewActive={Boolean(state.themePreview)} onOpen={openStateRoute} />
     <details className="design-inspection-selector"><summary>Mit Tastatur oder CSS-Selektor auswählen</summary><form onSubmit={(event) => void selectBySelector(event)}><label>CSS-Selektor<input value={selector} maxLength={320} disabled={!state.ready || busy} onChange={(event) => setSelector(event.target.value)} placeholder="#header oder main button" /></label><button className="secondary-button" type="submit" disabled={!state.ready || busy || !selector.trim()}>Element prüfen</button></form></details>
     <div className="design-inspection-viewport" ref={viewport} aria-label="Lokale Design-Vorschau">{!state.ready ? <p>Die laufende Seite erscheint hier nach „Vorschau öffnen“.</p> : null}</div>
     <DesignViewportCanvas projectId={projectId} ready={state.ready && active} themePreviewActive={Boolean(state.themePreview)} revision={previewRevision} />

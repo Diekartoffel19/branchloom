@@ -8,6 +8,7 @@ import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, 
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
+import type { DesignStateRoute, DesignStateRouteInput, DesignStateRouteKey } from './design-state-routes';
 import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
@@ -203,6 +204,10 @@ export interface StudioAPI {
   previewQaFixCard(input: { projectId: string; sourceCardId: string; reportId: string }): Promise<import('./qa-fix-card').QaFixCardPreview>;
   createQaFixCard(input: import('./qa-fix-card').CreateQaFixCard): Promise<Card>;
   designSelections(projectId: string): Promise<DesignSelection[]>;
+  designStateRoutes(projectId: string): Promise<DesignStateRoute[]>;
+  saveDesignStateRoute(input: DesignStateRouteInput): Promise<DesignStateRoute>;
+  removeDesignStateRoute(input: DesignStateRouteKey): Promise<void>;
+  openDesignStateRoute(input: DesignStateRouteKey): Promise<DesignInspectionState>;
   designInspectionState(): Promise<DesignInspectionState>;
   designInspectionApplyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState>;
   designInspectionResetThemePreview(projectId: string): Promise<DesignInspectionState>;

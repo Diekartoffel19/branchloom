@@ -11,6 +11,7 @@ import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections } from './design-inspection';
+import { designStateRoute, designStateRoutes, removeDesignStateRoute, saveDesignStateRoute } from './design-state-routes';
 import { addCardContextReference, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromWhiteboardNode, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
@@ -373,6 +374,15 @@ function installIpc(): void {
   bind('previewQaFixCard', (input: Parameters<StudioAPI['previewQaFixCard']>[0]) => previewQaFixCard(db, input));
   bind('createQaFixCard', (input: Parameters<StudioAPI['createQaFixCard']>[0]) => createQaFixCard(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
+  bind('designStateRoutes', (projectId: string) => designStateRoutes(db, projectId));
+  bind('saveDesignStateRoute', (input: Parameters<StudioAPI['saveDesignStateRoute']>[0]) => saveDesignStateRoute(db, input));
+  bind('removeDesignStateRoute', (input: Parameters<StudioAPI['removeDesignStateRoute']>[0]) => removeDesignStateRoute(db, input));
+  bind('openDesignStateRoute', (input: Parameters<StudioAPI['openDesignStateRoute']>[0]) => {
+    if (!designInspector) throw new Error('Design-Vorschau ist nicht verfügbar.');
+    if (designInspector.state().themePreview) throw new Error('Setze zuerst die flüchtige Theme-Vorschau zurück.');
+    const route = designStateRoute(db, input);
+    return designInspector.start({ projectId: input.projectId, url: route.url });
+  });
   bind('designInspectionState', () => designInspector?.state());
   bind('designInspectionApplyThemePreview', (input: Parameters<StudioAPI['designInspectionApplyThemePreview']>[0]) => designInspector?.applyThemePreview(input));
   bind('designInspectionResetThemePreview', (projectId: string) => designInspector?.resetThemePreview(projectId));
@@ -425,8 +435,10 @@ function createWindow(): void {
       console.error('STUDIO_SMOKE_FAILED: renderer/IPC/SQLite/Board', error);
       app.exit(1);
     };
+    let stateRouteHits = 0;
     const qaServerReady = new Promise<string>((resolve, reject) => {
-      smokeQaServer = createServer((_request, response) => {
+      smokeQaServer = createServer((request, response) => {
+        if (request.url?.startsWith('/?state=empty')) stateRouteHits++;
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         response.end('<!doctype html><title>Branchloom QA Smoke</title><style>:root{--smoke-ink:#243b32}body{min-width:1600px}#design-smoke-target{color:var(--smoke-ink);padding:8px}</style><img id="qa-observation-image"><button id="design-smoke-target">Synthetic design target</button><script>window.__designSmokeClicks=0;document.querySelector("#design-smoke-target").addEventListener("click",()=>window.__designSmokeClicks++);console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
       });
@@ -1197,6 +1209,42 @@ function createWindow(): void {
             })()`);
             const resetTheme = await designInspector!.smokeThemeValue('#design-smoke-target', '--smoke-ink');
             if (resetTheme.inline || resetTheme.computed !== 'rgb(36, 59, 50)') throw new Error('Theme-Vorschau wurde nicht rückgängig gemacht: ' + JSON.stringify(resetTheme));
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const panel = document.querySelector('.design-state-routes');
+              const projectId = ${JSON.stringify(smokeProject.id)};
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!panel || !setter) throw new Error('Design-Zustandsrouten fehlen.');
+              for (let attempt = 0; attempt < 100 && !panel.querySelector('form input'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const field = panel.querySelector('form input');
+              const save = [...panel.querySelectorAll('form button')].find((item) => item.textContent?.includes('Route speichern'));
+              if (!field || !save) throw new Error('Design-Zustandsroute ist nicht editierbar.');
+              setter.call(field, ${JSON.stringify(qaUrl)}); field.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && save.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (save.disabled) throw new Error('Normal-Route blieb unbestätigbar.');
+              save.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.designStateRoutes(projectId)).some((item) => item.kind === 'normal'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.designStateRoutes(projectId)).some((item) => item.kind === 'normal')) throw new Error('Normal-Route wurde nicht gespeichert.');
+              const empty = [...panel.querySelectorAll('.design-state-routes-tabs button')].find((item) => item.textContent?.includes('Empty'));
+              if (!empty) throw new Error('Empty-Auswahl fehlt.');
+              empty.click();
+              for (let attempt = 0; attempt < 100 && !panel.querySelector('form label')?.textContent?.includes('Empty'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const emptyUrl = ${JSON.stringify(qaUrl + '?state=empty')};
+              setter.call(field, emptyUrl); field.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && save.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (save.disabled) throw new Error('Empty-Route blieb unbestätigbar.');
+              save.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.designStateRoutes(projectId)).some((item) => item.kind === 'empty'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const routes = await window.studio.designStateRoutes(projectId);
+              if (routes.length !== 2 || routes.find((item) => item.kind === 'empty')?.url !== emptyUrl) throw new Error('Designzustände wurden nicht getrennt gespeichert.');
+              const open = [...panel.querySelectorAll('form button')].find((item) => item.textContent?.includes('Gespeicherte Route öffnen'));
+              for (let attempt = 0; attempt < 100 && open?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!open || open.disabled) throw new Error('Gespeicherte Empty-Route blieb unöffnbar.');
+              open.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Empty geöffnet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel.textContent?.includes('Empty geöffnet') || document.querySelector('.design-inspection-toolbar input')?.value !== emptyUrl) throw new Error('Gespeicherte Empty-Route wurde nicht sichtbar geöffnet.');
+              return true;
+            })()`);
+            if (stateRouteHits !== 1) throw new Error('Empty-Route wurde nicht genau einmal vom lokalen Server geladen: ' + stateRouteHits);
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const canvas = document.querySelector('.design-viewport-canvas');
               const button = [...(canvas?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Größen aufnehmen'));
