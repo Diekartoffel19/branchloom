@@ -1,0 +1,12 @@
+.agent-handoff { margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.agent-handoff > summary { padding: 11px 14px; cursor: pointer; font-weight: 650; }
+.agent-handoff > summary:focus-visible, .agent-handoff button:focus-visible, .agent-handoff input:focus-visible, .agent-handoff textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.agent-handoff-body { padding: 0 14px 14px; }
+.agent-handoff-body p { max-width: 72ch; line-height: 1.5; }
+.agent-handoff-receipt { padding: 8px 10px; border-left: 2px solid var(--accent); background: var(--surface); overflow-wrap: anywhere; }
+.agent-handoff-preview { margin-top: 14px; border-top: 1px solid var(--border); }
+.agent-handoff-passage { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.agent-handoff-choice { display: flex; align-items: center; gap: 8px; }
+.agent-handoff-choice input { width: auto; margin: 0; }
+.agent-handoff-passage small { display: block; margin: 4px 0 7px 22px; color: var(--muted); }
+.agent-handoff-passage textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; line-height: 1.45; }

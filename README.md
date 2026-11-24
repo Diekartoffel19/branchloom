@@ -23,6 +23,7 @@ Das kleine Branchloom-Zeichen ist als [SVG und Windows-Icon](docs/BRAND_ASSETS.m
 ## Erste Arbeitsschritte
 
 Im Kartendialog lassen sich [Abnahmekriterien mit konkreten QA- oder Review-Verweisen](docs/CARD_ACCEPTANCE.md) speichern. Fehlende Prüfquellen bleiben sichtbar; ein Verweis ist keine automatische Freigabe.
+Nach einem beendeten Kartenlauf lässt sich für einen anderen CLI-Agenten ein [quellmarkiertes Kontextpaket](docs/AGENT_HANDOFF.md) als Vorschau auswählen und bearbeiten. Erst eine ausdrückliche Bestätigung startet den Zielagenten; die Auswahl erhält einen lokalen Übergabebeleg.
 Im selben Dialog lassen sich [zwei bis acht Teilkarten mit Vorgängern](docs/CARD_SPLITS.md) zuerst bearbeiten und prüfen. Ein weiterer Klick legt sie gemeinsam in einer manuellen Spalte an; die Beziehungen bleiben nach Neustart sichtbar. Sie steuern Agenten und Workflows noch nicht automatisch.
 
 Unter **Terminal → Laufbeleg** zeigt eine Karte für jeden neu gestarteten Agentenlauf lokal gespeicherte [Startdaten und bewusst zugeordnete Browser-QA](docs/SESSION_EVIDENCE.md). Modellantworten oder vom Agenten ausgeführte Projekt-Tests werden daraus nicht abgeleitet.

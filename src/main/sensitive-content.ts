@@ -30,3 +30,14 @@ export function assertSafeModelContext(fields: readonly ModelContextField[]): vo
   const places = findings.map(({ field, line, category }) => `${field}, Zeile ${line} (${category})`).join('; ');
   throw new Error(`Modellübergabe gesperrt: ${places}. Inhalt prüfen oder bereinigen und erneut starten.`);
 }
+
+/** A preview may be shown before the stored source is cleaned. Never return the match. */
+export function redactSensitiveText(text: string): { text: string; redacted: boolean } {
+  let safe = text;
+  let redacted = false;
+  for (const { category, pattern } of patterns) {
+    pattern.lastIndex = 0;
+    safe = safe.replace(pattern, () => { redacted = true; return `[ausgeblendet: ${category}]`; });
+  }
+  return { text: safe, redacted };
+}

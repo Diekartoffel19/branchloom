@@ -13,6 +13,7 @@ import { installSessionRecovery } from './session-recovery';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { installSessionEvidence } from './session-evidence';
 import { parseProjectPackage, type ProjectPackage } from './project-package';
+import { installAgentHandoffs } from './agent-handoff';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
@@ -156,6 +157,7 @@ export class StudioStore {
     installSessionRecovery(this.db);
     installAgentCapabilities(this.db);
     installSessionEvidence(this.db);
+    installAgentHandoffs(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [

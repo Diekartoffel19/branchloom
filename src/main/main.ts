@@ -47,6 +47,7 @@ import { SessionRecoveryMonitor } from './session-recovery';
 import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
 import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
+import { agentHandoffReceipt, previewAgentHandoff, startAgentHandoff } from './agent-handoff';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
@@ -303,6 +304,9 @@ function installIpc(): void {
   bind('sessionRunEvidence', (input: Parameters<StudioAPI['sessionRunEvidence']>[0]) => sessionRunEvidence(db, input));
   bind('linkSessionQa', (input: Parameters<StudioAPI['linkSessionQa']>[0]) => linkSessionQa(db, input));
   bind('unlinkSessionQa', (input: Parameters<StudioAPI['unlinkSessionQa']>[0]) => unlinkSessionQa(db, input));
+  bind('previewAgentHandoff', (input: Parameters<StudioAPI['previewAgentHandoff']>[0]) => previewAgentHandoff(db, input));
+  bind('startAgentHandoff', (input: Parameters<StudioAPI['startAgentHandoff']>[0]) => { if (!runner) throw new Error('Agentenlauf ist nicht verfügbar.'); return startAgentHandoff(db, runner, input); });
+  bind('agentHandoffReceipt', (input: Parameters<StudioAPI['agentHandoffReceipt']>[0]) => agentHandoffReceipt(db, input));
   bind('createWorkflow', (input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }) => db.createWorkflow(input));
   bind('updateDraftWorkflow', (input: Parameters<StudioAPI['updateDraftWorkflow']>[0]) => {
     const result = db.updateDraftWorkflow(input);
@@ -990,6 +994,29 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !(await window.studio.sessionRunEvidence({ projectId: boardProject.id, sessionId: runSession.id })).linkedQa.length; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const linkedRunQa = await window.studio.sessionRunEvidence({ projectId: boardProject.id, sessionId: runSession.id });
               if (linkedRunQa.linkedQa[0]?.reportId !== qaReport.id || linkedRunQa.linkedQa[0]?.status !== 'failed' || !runPanel.textContent?.includes('Mit Fehlern')) throw new Error('Fehlgeschlagene QA wurde dem Lauf nicht korrekt und sichtbar zugeordnet.');
+              const handoff = document.querySelector('.card-drawer .agent-handoff');
+              const agentSelect = [...document.querySelectorAll('.card-drawer label')].find((item) => item.textContent?.includes('Agent auswählen'))?.querySelector('select');
+              const targetAgent = (await window.studio.snapshot(boardProject.id)).agents.find((item) => item.enabled && item.id !== runSession.agentId);
+              if (!handoff || !agentSelect || !targetAgent) throw new Error('Agentenwechsel-Einstieg oder anderer Zielagent fehlt.');
+              viewportSetter.call(agentSelect, targetAgent.id); agentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              handoff.querySelector('summary')?.click();
+              let prepareHandoff;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                prepareHandoff = [...handoff.querySelectorAll('button')].find((item) => item.textContent?.includes('Kontextpaket vorbereiten'));
+                if (prepareHandoff && !prepareHandoff.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!prepareHandoff || prepareHandoff.disabled) throw new Error('Kontextpaket ließ sich vor einem Agentenwechsel nicht vorbereiten.');
+              const handoffSessionsBefore = (await window.studio.snapshot(boardProject.id)).sessions.length;
+              prepareHandoff.click();
+              for (let attempt = 0; attempt < 100 && !handoff.querySelector('.agent-handoff-preview'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!handoff.querySelector('.agent-handoff-preview textarea') || !handoff.textContent?.includes('Gespeicherte Sitzung') || !handoff.textContent?.includes('Browser-QA') || (await window.studio.snapshot(boardProject.id)).sessions.length !== handoffSessionsBefore) throw new Error('Quellmarkierte, editierbare Kontextvorschau fehlte oder startete vor Bestätigung einen Agenten.');
+              for (let attempt = 0; attempt < 100 && prepareHandoff.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (prepareHandoff.disabled) throw new Error('Kontextvorschau blieb nach dem Laden gesperrt.');
+              prepareHandoff.click();
+              viewportSetter.call(agentSelect, runSession.agentId); agentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              if (handoff.querySelector('.agent-handoff-preview') || (await window.studio.snapshot(boardProject.id)).sessions.length !== handoffSessionsBefore) throw new Error('Verspätete Kontextvorschau blieb nach Zielagentwechsel sichtbar oder startete einen Lauf.');
               const acceptance = document.querySelector('.card-drawer .card-acceptance');
               const acceptanceForm = acceptance?.querySelector('.card-acceptance-create');
               const acceptanceInput = acceptanceForm?.querySelector('input');

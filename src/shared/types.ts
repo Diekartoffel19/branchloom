@@ -17,6 +17,7 @@ import type { QaGitEvidence } from './qa-git-evidence';
 import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance';
 import type { IdeaMatchKind, IdeaMatchPreview } from './idea-matches';
 import type { SessionRunEvidence } from './session-evidence';
+import type { AgentHandoffPreview, AgentHandoffReceipt, AgentHandoffSelection } from './agent-handoff';
 import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 import type { SessionRecoveryState } from './session-recovery';
@@ -196,6 +197,9 @@ export interface StudioAPI {
   sessionRunEvidence(input: { projectId: string; sessionId: string }): Promise<SessionRunEvidence>;
   linkSessionQa(input: { projectId: string; sessionId: string; reportId: string }): Promise<SessionRunEvidence>;
   unlinkSessionQa(input: { projectId: string; sessionId: string; reportId: string }): Promise<SessionRunEvidence>;
+  previewAgentHandoff(input: { projectId: string; cardId: string; sourceSessionId: string; targetAgentId: string; useWorktree: boolean }): Promise<AgentHandoffPreview>;
+  startAgentHandoff(input: { preview: AgentHandoffPreview; selected: AgentHandoffSelection[] }): Promise<Session>;
+  agentHandoffReceipt(input: { projectId: string; sessionId: string }): Promise<AgentHandoffReceipt | null>;
   createWorkflow(input: { projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   updateDraftWorkflow(input: { id: string; name: string; cardIds: string[]; steps: WorkflowStep[] }): Promise<Workflow>;
   deleteDraftWorkflow(id: string): Promise<string>;
