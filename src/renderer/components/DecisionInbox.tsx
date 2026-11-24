@@ -5,6 +5,7 @@ import type { ReviewInboxItem, ReviewInboxPage } from '../../shared/review-inbox
 import type { GlobalInboxItem } from '../../shared/global-inbox';
 import { decisionItems, filterDecisionItems, type DecisionFilter } from '../decision-inbox';
 import { CrossProjectInbox } from './CrossProjectInbox';
+import { inboxFirstPageChanged, useVisibleInboxRefresh } from '../inbox-refresh';
 import '../decision-inbox.css';
 
 interface Props {
@@ -49,6 +50,8 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
   const [reviewBusy, setReviewBusy] = useState<string | null>(null);
   const [reviewLoadingMore, setReviewLoadingMore] = useState(false);
   const [reviewNotice, setReviewNotice] = useState('');
+  const [reviewUpdateAvailable, setReviewUpdateAvailable] = useState(false);
+  const reviewPolling = useRef(false);
   const activeProject = useRef(snapshot.project.id);
   activeProject.current = snapshot.project.id;
   const reviewKey = `${snapshot.project.id}\0${query.trim()}`;
@@ -61,20 +64,49 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
     if (scope === 'all') return;
     let active = true;
     const revision = ++reviewRevision.current;
-    setReviewResult(null); setReviewError(''); setReviewNotice(''); setReviewBusy(null); setReviewLoadingMore(false);
+    setReviewResult(null); setReviewError(''); setReviewNotice(''); setReviewBusy(null); setReviewLoadingMore(false); setReviewUpdateAvailable(false);
     const timer = setTimeout(() => { void window.studio.reviewInboxItems({ projectId: snapshot.project.id, query: query.trim() }).then((page) => { if (active && reviewRevision.current === revision) setReviewResult({ key: reviewKey, page }); },
       (reason: unknown) => { if (active) setReviewError(reason instanceof Error ? reason.message : String(reason)); });
     }, query.trim() ? 150 : 0);
-    return () => { active = false; clearTimeout(timer); };
+    return () => { active = false; reviewRevision.current++; clearTimeout(timer); };
   }, [snapshot.project.id, query, scope]);
   const items = decisionItems(snapshot);
   const visible = filterDecisionItems(items, category, query);
   const visibleReviews = category === 'all' || category === 'review' ? reviews?.items ?? [] : [];
   const hasItems = items.length > 0 || Boolean(reviews?.items.length);
-  async function loadMore() {
-    if (!reviews?.hasMore || reviewLoadingMore) return;
+  useVisibleInboxRefresh(() => {
+    if (scope !== 'project' || !reviews || reviewBusy || reviewLoadingMore || reviewUpdateAvailable || reviewPolling.current) return;
     const key = reviewKey;
-    const revision = reviewRevision.current;
+    const revision = ++reviewRevision.current;
+    reviewPolling.current = true;
+    void window.studio.reviewInboxItems({ projectId: snapshot.project.id, query: query.trim() }).then((fresh) => {
+      if (activeReviewKey.current !== key || reviewRevision.current !== revision) return;
+      if (reviews.items.length > 100) {
+        if (inboxFirstPageChanged(reviews.items, fresh.items)) setReviewUpdateAvailable(true);
+      } else {
+        setReviewResult({ key, page: fresh });
+        setReviewUpdateAvailable(false);
+      }
+      setReviewError('');
+    }).catch((reason: unknown) => { if (activeReviewKey.current === key && reviewRevision.current === revision) setReviewError(reason instanceof Error ? reason.message : String(reason)); })
+      .finally(() => { reviewPolling.current = false; });
+  });
+  async function reloadReviews() {
+    if (reviewBusy || reviewLoadingMore || reviewPolling.current) return;
+    const key = reviewKey;
+    const revision = ++reviewRevision.current;
+    reviewPolling.current = true;
+    setReviewError('');
+    try {
+      const page = await window.studio.reviewInboxItems({ projectId: snapshot.project.id, query: query.trim() });
+      if (activeReviewKey.current === key && reviewRevision.current === revision) { setReviewResult({ key, page }); setReviewUpdateAvailable(false); }
+    } catch (reason) { if (activeReviewKey.current === key && reviewRevision.current === revision) setReviewError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { reviewPolling.current = false; }
+  }
+  async function loadMore() {
+    if (!reviews?.hasMore || reviewLoadingMore || reviewPolling.current) return;
+    const key = reviewKey;
+    const revision = ++reviewRevision.current;
     setReviewLoadingMore(true); setReviewError('');
     try {
       const next = await window.studio.reviewInboxItems({ projectId: snapshot.project.id, query: query.trim(), offset: reviews.items.length });
@@ -92,7 +124,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
       if (item.kind === 'qa') await window.studio.acknowledgeQaInboxReport({ projectId, reportId: item.id });
       else await window.studio.acknowledgeReviewInboxComment({ projectId, kind: item.kind, commentId: item.id });
       const page = await window.studio.reviewInboxItems({ projectId, query: query.trim() });
-      if (activeProject.current === projectId && activeReviewKey.current === reviewKey && reviewRevision.current === revision) { setReviewResult({ key: reviewKey, page }); setReviewNotice(item.kind === 'qa' ? 'QA-Hinweis als geprüft markiert. Der Kartenbericht bleibt erhalten.' : 'Kommentar als geprüft markiert. Der Originalkommentar bleibt an seiner Quelle.'); }
+      if (activeProject.current === projectId && activeReviewKey.current === reviewKey && reviewRevision.current === revision) { setReviewResult({ key: reviewKey, page }); setReviewUpdateAvailable(false); setReviewNotice(item.kind === 'qa' ? 'QA-Hinweis als geprüft markiert. Der Kartenbericht bleibt erhalten.' : 'Kommentar als geprüft markiert. Der Originalkommentar bleibt an seiner Quelle.'); }
     } catch (reason) { if (activeProject.current === projectId) setReviewError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (activeProject.current === projectId) setReviewBusy(null); }
   }
@@ -104,6 +136,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
     {!reviews && !reviewError ? <p className="section-copy" role="status">Reviews und Browser-QA werden geladen…</p> : null}
     {reviewError ? <p className="inline-error" role="alert">Reviews und Browser-QA konnten nicht geladen werden: {reviewError}</p> : null}
     {reviewNotice ? <p className="inline-note" role="status">{reviewNotice}</p> : null}
+    {reviewUpdateAvailable && scope === 'project' ? <p className="inline-note" role="status">Die ersten Inbox-Einträge haben sich geändert. <button type="button" className="decision-subaction" onClick={() => void reloadReviews()}>Liste aktualisieren</button></p> : null}
     {!hasItems && reviews && !query.trim() ? <div className="decision-empty"><Inbox size={24} aria-hidden="true" /><h3>Keine offenen Entscheidungen</h3><p>Hier erscheinen pausierte Workflows, angehaltene Warteschlangen, unterbrochene Agentenläufe, Review-Kommentare und fehlgeschlagene Browser-QA.</p></div>
       : <>
         {items.length + (reviews?.items.length ?? 0) > 4 || category !== 'all' || query ? <div className="decision-controls">

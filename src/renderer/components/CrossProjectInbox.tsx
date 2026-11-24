@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Inbox } from 'lucide-react';
 import type { GlobalInboxCategory, GlobalInboxItem, GlobalInboxPage } from '../../shared/global-inbox';
+import { inboxFirstPageChanged, useVisibleInboxRefresh } from '../inbox-refresh';
 
 const label: Record<GlobalInboxItem['kind'], string> = {
   workflow: 'Workflow', queue: 'Warteschlange', session: 'Agentenlauf',
@@ -18,14 +19,16 @@ export function CrossProjectInbox({ onOpen }: { onOpen: (item: GlobalInboxItem) 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const generation = useRef(0);
+  const polling = useRef(false);
   const currentKey = `${category}\0${query.trim()}`;
   const [resultKey, setResultKey] = useState('');
   const visiblePage = resultKey === currentKey ? page : null;
 
   useEffect(() => {
     const current = ++generation.current;
-    setPage(null); setError(''); setNotice(''); setBusy(null); setLoadingMore(false);
+    setPage(null); setError(''); setNotice(''); setBusy(null); setLoadingMore(false); setUpdateAvailable(false);
     const timer = setTimeout(() => {
       void window.studio.globalInboxItems({ query: query.trim(), category }).then((result) => {
         if (generation.current === current) { setPage(result); setResultKey(currentKey); }
@@ -34,9 +37,38 @@ export function CrossProjectInbox({ onOpen }: { onOpen: (item: GlobalInboxItem) 
     return () => { clearTimeout(timer); generation.current++; };
   }, [category, query]);
 
-  async function loadMore() {
-    if (!visiblePage?.hasMore || loadingMore || busy) return;
+  useVisibleInboxRefresh(() => {
+    if (!visiblePage || busy || loadingMore || updateAvailable || polling.current) return;
     const current = generation.current;
+    polling.current = true;
+    void window.studio.globalInboxItems({ query: query.trim(), category }).then((fresh) => {
+      if (generation.current !== current) return;
+      if (visiblePage.items.length > 100) {
+        if (inboxFirstPageChanged(visiblePage.items, fresh.items)) setUpdateAvailable(true);
+      } else {
+        setPage(fresh);
+        setUpdateAvailable(false);
+      }
+      setError('');
+    }).catch((reason: unknown) => { if (generation.current === current) setError(errorText(reason)); })
+      .finally(() => { polling.current = false; });
+  });
+
+  async function reload() {
+    if (busy || loadingMore || polling.current) return;
+    const current = ++generation.current;
+    polling.current = true;
+    setError('');
+    try {
+      const fresh = await window.studio.globalInboxItems({ query: query.trim(), category });
+      if (generation.current === current) { setPage(fresh); setResultKey(currentKey); setUpdateAvailable(false); }
+    } catch (reason) { if (generation.current === current) setError(errorText(reason)); }
+    finally { polling.current = false; }
+  }
+
+  async function loadMore() {
+    if (!visiblePage?.hasMore || loadingMore || busy || polling.current) return;
+    const current = ++generation.current;
     setLoadingMore(true); setError('');
     try {
       const next = await window.studio.globalInboxItems({ query: query.trim(), category, offset: visiblePage.items.length });
@@ -55,6 +87,7 @@ export function CrossProjectInbox({ onOpen }: { onOpen: (item: GlobalInboxItem) 
       const next = await window.studio.globalInboxItems({ query: query.trim(), category });
       if (generation.current === current) {
         setPage(next); setResultKey(currentKey);
+        setUpdateAvailable(false);
         setNotice('Eintrag lokal als geprüft markiert. Quelle und Workflow bleiben erhalten.');
       }
     } catch (reason) { if (generation.current === current) setError(errorText(reason)); }
@@ -69,6 +102,7 @@ export function CrossProjectInbox({ onOpen }: { onOpen: (item: GlobalInboxItem) 
     </div>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="inline-note" role="status">{notice}</p> : null}
+    {updateAvailable ? <p className="inline-note" role="status">Die ersten Inbox-Einträge haben sich geändert. <button type="button" className="decision-subaction" onClick={() => void reload()}>Liste aktualisieren</button></p> : null}
     {!visiblePage && !error ? <p className="section-copy" role="status">Projektübergreifende Einträge werden geladen…</p> : null}
     {visiblePage?.items.length === 0 ? <div className="decision-empty"><Inbox size={24} aria-hidden="true" /><h3>Keine offenen Einträge</h3><p>Für diese Auswahl gibt es keine gespeicherten Pausen, Unterbrechungen, Review-Kommentare oder fehlgeschlagenen Browser-QA-Berichte.</p></div> : null}
     {visiblePage?.items.length ? <div className="decision-list" aria-label="Offene Entscheidungen aller Projekte">{visiblePage.items.map((item) => <article className="decision-item" data-global-inbox-id={item.id} key={item.id}>

@@ -957,6 +957,13 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && (await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id) || !(await window.studio.cardQaReports(qaCard.id)).some((item) => item.id === qaReport.id)) throw new Error('QA-Quittierung entfernte nicht nur den Inbox-Eintrag.');
               if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('QA-Inbox startete einen weiteren Agenten.');
+              const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+              const liveProjectComment = await window.studio.createPlanComment({ planId: ${JSON.stringify(smokePlan.id)}, fingerprint: ${JSON.stringify(smokePlan.fingerprint)}, line: 1, body: 'BRANCHLOOM_LIVE_PROJECT_INBOX' });
+              if (document.querySelector('.decision-review-section')?.textContent?.includes('BRANCHLOOM_LIVE_PROJECT_INBOX')) throw new Error('Projekt-Inbox wurde ohne Aktualisierung verändert.');
+              Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+              document.dispatchEvent(new Event('visibilitychange'));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.decision-review-section')?.textContent?.includes('BRANCHLOOM_LIVE_PROJECT_INBOX'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.decision-review-section')?.textContent?.includes('BRANCHLOOM_LIVE_PROJECT_INBOX') || !(await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === liveProjectComment.id)) throw new Error('Projekt-Inbox lud neuen gespeicherten Kommentar nicht sichtbar nach.');
               const globalButton = [...document.querySelectorAll('.decision-scope button')].find((item) => item.textContent?.includes('Alle Projekte'));
               if (!globalButton) throw new Error('Projektübergreifender Inbox-Modus fehlt.');
               globalButton.click();
@@ -968,6 +975,12 @@ function createWindow(): void {
               }
               if (!globalPlan?.textContent?.includes('Projekt: ' + boardProject.name)) throw new Error('Projektzuordnung fehlt in der globalen Inbox.');
               if (document.querySelector('.cross-project-inbox [data-global-inbox-id="qa:' + qaReport.id + '"]')) throw new Error('Quittierte QA steht noch in der globalen Inbox.');
+              const liveGlobalComment = await window.studio.createPlanComment({ planId: ${JSON.stringify(smokePlan.id)}, fingerprint: ${JSON.stringify(smokePlan.fingerprint)}, line: 1, body: 'BRANCHLOOM_LIVE_GLOBAL_INBOX' });
+              if (document.querySelector('.cross-project-inbox')?.textContent?.includes('BRANCHLOOM_LIVE_GLOBAL_INBOX')) throw new Error('Globale Inbox wurde ohne Aktualisierung verändert.');
+              document.dispatchEvent(new Event('visibilitychange'));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.cross-project-inbox')?.textContent?.includes('BRANCHLOOM_LIVE_GLOBAL_INBOX'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.cross-project-inbox')?.textContent?.includes('BRANCHLOOM_LIVE_GLOBAL_INBOX') || !(await window.studio.globalInboxItems()).items.some((item) => item.id === 'plan:' + liveGlobalComment.id)) throw new Error('Globale Inbox lud neuen gespeicherten Kommentar nicht sichtbar nach.');
+              if (originalVisibility) Object.defineProperty(document, 'visibilityState', originalVisibility); else delete document.visibilityState;
               globalPlan.querySelector('button.secondary-button')?.click();
               for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht.');
