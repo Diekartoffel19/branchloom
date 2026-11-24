@@ -1,0 +1,9 @@
+# Lesende Design-Inspektion
+
+Wähle ein Projekt und öffne **Design** in der Seitenleiste. Trage die Adresse eines bereits laufenden lokalen Dev-Servers ein, etwa `http://127.0.0.1:5173/`, und klicke **Vorschau öffnen**. Nur HTTP(S) auf `localhost`, `127.0.0.1` oder `[::1]` ohne Zugangsdaten ist zulässig. Branchloom startet den Server nicht selbst.
+
+Die Seite erscheint in einer eigenen, frischen Electron-Webansicht ohne persistentes Browserprofil. Fremde Origins, Navigation aus der Seite, Pop-ups, Downloads und Browser-Berechtigungen werden blockiert. Normale Seitenklicks werden abgefangen. Nach **Element auswählen** speichert genau der nächste linke Klick einen Beleg. Für Tastaturbedienung kann stattdessen unter **Mit Tastatur oder CSS-Selektor auswählen** ein Selektor eingegeben und mit **Element prüfen** ausgewertet werden. Ein fehlender oder ungültiger Selektor erzeugt keinen Beleg.
+
+Ein Beleg enthält den berechneten Tag, einen begrenzten CSS-Pfad, bis zu 180 Zeichen Elementtext, neun ausgewählte berechnete Stilwerte und höchstens acht gefundene CSS-Variablen mit gekürzten Werten. Die Quelladresse verliert Query und Fragment. Höchstens 20 Belege pro Projekt liegen in der lokalen SQLite-Datenbank und bleiben nach Neustart lesbar. Das Projekt-Repository wird nicht verändert; die Belege gehen nicht automatisch an Agenten oder externe Dienste. Beim Verlassen der Design-Ansicht wird die Webansicht geschlossen und die Sitzung verworfen.
+
+Der Selektor ist ein Hinweis aus dem aktuellen DOM, keine belastbare Bindung an eine Quelldatei oder Komponente. Die CSS-Variablen sind berechnete Werte am Element; Branchloom behauptet keine gesicherte Zuordnung zu einem bestimmten Projekt-Token. Die Seite führt beim Laden eigenes JavaScript aus und kann ihre lokale Origin kontaktieren. Die aktuelle Stufe bietet keine visuelle Bearbeitung, Codeänderung, Zustandsumschaltung, Komponentenbibliothek oder automatische Designbewertung.

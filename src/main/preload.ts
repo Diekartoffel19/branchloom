@@ -131,6 +131,18 @@ const studio: StudioAPI = {
   cardQaReports: (cardId) => invoke('cardQaReports', cardId),
   runCardQa: (input) => invoke('runCardQa', input),
   cardQaScreenshot: (input) => invoke('cardQaScreenshot', input),
+  designSelections: (projectId) => invoke('designSelections', projectId),
+  designInspectionState: () => invoke('designInspectionState'),
+  designInspectionStart: (input) => invoke('designInspectionStart', input),
+  designInspectionArm: (projectId) => invoke('designInspectionArm', projectId),
+  designInspectionSelectSelector: (input) => invoke('designInspectionSelectSelector', input),
+  designInspectionSetBounds: (bounds) => invoke('designInspectionSetBounds', bounds),
+  designInspectionSetVisible: (visible) => invoke('designInspectionSetVisible', visible),
+  onDesignSelection: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, selection: import('../shared/design-inspection').DesignSelection): void => callback(selection);
+    ipcRenderer.on('studio:design-selection', listener);
+    return () => ipcRenderer.removeListener('studio:design-selection', listener);
+  },
   previewOutputErrors: (input) => invoke('previewOutputErrors', input),
   createOutputErrorCard: (input) => invoke('createOutputErrorCard', input),
   onBrowserState: (callback) => {

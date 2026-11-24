@@ -21,6 +21,7 @@ import { installReviewInbox } from './review-inbox';
 import { installCardQa } from './card-qa';
 import { installCardContext } from './card-context';
 import { installOutputErrors } from './output-errors';
+import { installDesignInspection } from './design-inspection';
 
 const now = (): string => new Date().toISOString();
 const asBool = (value: number): boolean => value === 1;
@@ -120,6 +121,7 @@ export class StudioStore {
     installReviewInbox(this.db);
     installCardContext(this.db);
     installOutputErrors(this.db);
+    installDesignInspection(this.db);
     installSessionSearch(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

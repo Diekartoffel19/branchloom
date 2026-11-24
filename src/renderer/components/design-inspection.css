@@ -1,0 +1,32 @@
+.design-inspection { display: grid; gap: 14px; padding: 22px; min-height: 100%; max-width: 1280px; margin-inline: auto; }
+.design-inspection-intro h2 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.02em; }
+.design-inspection-intro p, .design-inspection-limit { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 75ch; }
+.design-inspection-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.design-inspection-toolbar label { display: grid; gap: 5px; flex: 1 1 300px; min-width: 0; color: var(--soft); font-size: 12px; font-weight: 600; }
+.design-inspection-toolbar input { width: 100%; min-width: 0; }
+.design-inspection-toolbar button { min-height: 36px; }
+.design-inspection-state { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.design-inspection-selector { font-size: 12px; }
+.design-inspection-selector summary { cursor: pointer; width: fit-content; }
+.design-inspection-selector summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.design-inspection-selector form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 9px; }
+.design-inspection-selector label { display: grid; gap: 5px; flex: 1 1 260px; color: var(--soft); font-weight: 600; }
+.design-inspection-selector input { min-width: 0; width: 100%; }
+.design-inspection-viewport { min-height: 330px; height: min(48vh, 520px); border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); overflow: hidden; }
+.design-inspection-viewport p { margin: 0; padding: 24px; color: var(--muted); font-size: 13px; }
+.design-inspection-evidence { display: grid; gap: 8px; }
+.design-inspection-evidence h3 { margin: 0; font-size: 15px; }
+.design-inspection-evidence > p { margin: 0; color: var(--muted); font-size: 12px; }
+.design-inspection-evidence ol { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.design-inspection-evidence li { padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); min-width: 0; overflow-wrap: anywhere; }
+.design-inspection-item-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 12px; }
+.design-inspection-item-head time { color: var(--muted); font-size: 11px; }
+.design-inspection-evidence code { font-size: 11px; }
+.design-inspection-evidence li p { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
+.design-inspection-evidence dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 5px 12px; margin: 8px 0 0; font-size: 11px; }
+.design-inspection-evidence dt { color: var(--muted); }
+.design-inspection-evidence dd { margin: 0; overflow-wrap: anywhere; }
+.design-inspection-evidence details { margin-top: 9px; font-size: 11px; }
+.design-inspection-evidence summary { cursor: pointer; }
+.design-inspection-evidence summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 700px) { .design-inspection { padding: 14px; } .design-inspection-toolbar button { flex: 1 1 auto; } }

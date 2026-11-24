@@ -18,6 +18,8 @@ npm run dev
 
 ## Erste Arbeitsschritte
 
+Unter **Design** kann eine laufende lokale Seite in einer [isolierten Vorschau lesend inspiziert](docs/DESIGN_INSPECTION.md) werden. Ein ausdrücklich gewähltes Element liefert einen begrenzten projektlokalen Beleg mit Selektor, Text, berechneten Stilen und CSS-Variablen. Die Auswahl geht per abgefangenem Klick oder CSS-Selektor; Dateien und Agenten bleiben unberührt.
+
 In einer offenen Board-Karte kann eine laufende Dev-Server-Route mit der [lokalen Browser-QA](docs/CARD_QA.md) ausdrücklich einmal in Desktop-, Tablet- oder Mobile-Größe geprüft werden. Der begrenzte Bericht zeigt Konsolen- und Ladefehler sowie die tatsächlich gesetzte Inhaltsgröße; ein lokal gespeicherter Screenshot lässt sich bewusst ansehen, zwei gespeicherte Bilder derselben Karte lassen sich visuell nebeneinander vergleichen. Der Lauf startet keinen Agenten und ersetzt keine Interaktions- oder Layoutprüfung. Unter [Kontextbezüge](docs/CARD_CONTEXT.md) lassen sich vorhandene Projektdateien und öffentliche HTTPS-Doku-Adressen speichern; eine Dateivorschau erfordert einen eigenen Klick, Webseiten werden nicht abgerufen. Aus beendeten Karten-Agentenläufen und Befehlsterminals lassen sich [konkrete gespeicherte Fehlerzeilen](docs/OUTPUT_ERRORS.md) bewusst als neue Board-Karte übernehmen.
 
 1. **Projekt hinzufügen** und einen existierenden absoluten Ordner auswählen. App-Daten liegen unter `%APPDATA%\jarvis-studio` außerhalb des Repositorys. Dieser bestehende Datenordner bleibt beim Namenswechsel erhalten, damit bisherige Projekte weiter sichtbar sind.

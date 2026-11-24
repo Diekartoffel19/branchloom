@@ -8,6 +8,7 @@ import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, Studi
 import { StudioBrowser } from './browser';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa } from './card-qa';
+import { DesignInspector, designSelections } from './design-inspection';
 import { addCardContextReference, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
@@ -41,6 +42,7 @@ let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let browser: StudioBrowser | null = null;
+let designInspector: DesignInspector | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smoke = process.argv.includes('--studio-smoke');
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
@@ -350,6 +352,13 @@ function installIpc(): void {
   bind('cardQaReports', (cardId: string) => cardQaReports(db, cardId));
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
+  bind('designSelections', (projectId: string) => designSelections(db, projectId));
+  bind('designInspectionState', () => designInspector?.state());
+  bind('designInspectionStart', (input: Parameters<StudioAPI['designInspectionStart']>[0]) => designInspector?.start(input));
+  bind('designInspectionArm', (projectId: string) => designInspector?.arm(projectId));
+  bind('designInspectionSelectSelector', (input: Parameters<StudioAPI['designInspectionSelectSelector']>[0]) => designInspector?.selectSelector(input.projectId, input.selector));
+  bind('designInspectionSetBounds', (bounds: Parameters<StudioAPI['designInspectionSetBounds']>[0]) => designInspector?.setBounds(bounds));
+  bind('designInspectionSetVisible', (visible: boolean) => designInspector?.setVisible(visible === true));
   bind('previewOutputErrors', (input: Parameters<StudioAPI['previewOutputErrors']>[0]) => previewOutputErrors(db, input));
   bind('createOutputErrorCard', (input: Parameters<StudioAPI['createOutputErrorCard']>[0]) => createOutputErrorCard(db, input));
 }
@@ -377,6 +386,9 @@ function createWindow(): void {
   }, () => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:browser-search-shortcut');
   }, new BrowserSessionPersistence(app.getPath('userData')));
+  designInspector = new DesignInspector(window, mustStore(), (selection) => {
+    if (window && !window.isDestroyed()) window.webContents.send('studio:design-selection', selection);
+  });
   // `npm start` runs the built renderer from source, while `npm run dev`
   // explicitly opts into Vite. Electron's app.isPackaged is false in both
   // source modes, so it cannot decide this on its own.
@@ -391,7 +403,7 @@ function createWindow(): void {
     const qaServerReady = new Promise<string>((resolve, reject) => {
       smokeQaServer = createServer((_request, response) => {
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        response.end('<!doctype html><title>Branchloom QA Smoke</title><script>console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
+        response.end('<!doctype html><title>Branchloom QA Smoke</title><style>:root{--smoke-ink:#243b32}#design-smoke-target{color:var(--smoke-ink);padding:8px}</style><button id="design-smoke-target">Synthetic design target</button><script>window.__designSmokeClicks=0;document.querySelector("#design-smoke-target").addEventListener("click",()=>window.__designSmokeClicks++);console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
       });
       smokeQaServer.once('error', reject);
       smokeQaServer.listen(0, '127.0.0.1', () => {
@@ -898,7 +910,62 @@ function createWindow(): void {
               return true;
             })()
           `;
-          void smokeWindow.webContents.executeJavaScript(boardScript).then(() => {
+          void smokeWindow.webContents.executeJavaScript(boardScript).then(async () => {
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Design');
+              if (!nav) throw new Error('Design-Navigation fehlt.');
+              nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-toolbar'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const input = document.querySelector('.design-inspection-toolbar input');
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!input || !setter) throw new Error('Design-URL-Eingabe fehlt.');
+              setter.call(input, ${JSON.stringify(qaUrl)});
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              const button = document.querySelector('.design-inspection-toolbar button[type="submit"]');
+              for (let attempt = 0; attempt < 100 && button?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!button || button.disabled) throw new Error('Design-Vorschau-Knopf blieb gesperrt.');
+              button.click();
+              for (let attempt = 0; attempt < 300 && !(await window.studio.designInspectionState()).ready; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.designInspectionState()).ready) throw new Error('Lokale Design-Vorschau wurde nicht geladen: ' + document.querySelector('.design-inspection .inline-error')?.textContent);
+              const pick = [...document.querySelectorAll('.design-inspection-toolbar button')].find((item) => item.textContent?.includes('Element auswählen'));
+              for (let attempt = 0; attempt < 100 && pick?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!pick || pick.disabled) throw new Error('Design-Auswahl blieb gesperrt.');
+              pick.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.designInspectionState()).armed; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.designInspectionState()).armed) throw new Error('Design-Auswahl wurde nicht aktiviert: ' + JSON.stringify({ state: await window.studio.designInspectionState(), rect: document.querySelector('.design-inspection-viewport')?.getBoundingClientRect().toJSON(), error: document.querySelector('.design-inspection .inline-error')?.textContent }));
+              return true;
+            })()`);
+            await designInspector!.smokeClick('#design-smoke-target');
+            let saved = false;
+            for (let attempt = 0; attempt < 100; attempt++) {
+              const items = designSelections(smokeStore, smokeProject.id);
+              if (items[0]?.selector.includes('#design-smoke-target') && items[0]?.styles.color && items[0]?.tokens.some((token) => token.name === '--smoke-ink')) { saved = true; break; }
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+            if (!saved) throw new Error('Design-Klick speicherte Selektor, berechneten Stil oder CSS-Variable nicht.');
+            const visible = await smokeWindow.webContents.executeJavaScript(`(async () => {
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-evidence')?.textContent?.includes('#design-smoke-target'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              return document.querySelector('.design-inspection-evidence')?.textContent?.includes('#design-smoke-target') && document.querySelector('.design-inspection-evidence')?.textContent?.includes('rgb(');
+            })()`);
+            if (!visible) throw new Error('Design-Auswahl erschien nicht sichtbar in der App.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              document.querySelector('.design-inspection-selector summary')?.click();
+              const field = document.querySelector('.design-inspection-selector input');
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!field || !setter) throw new Error('CSS-Selektor-Eingabe fehlt.');
+              setter.call(field, '#design-smoke-target');
+              field.dispatchEvent(new Event('input', { bubbles: true }));
+              const button = document.querySelector('.design-inspection-selector button');
+              for (let attempt = 0; attempt < 100 && button?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!button || button.disabled) throw new Error('Tastatur-Auswahl blieb gesperrt.');
+              button.click();
+              return true;
+            })()`);
+            for (let attempt = 0; attempt < 100 && designSelections(smokeStore, smokeProject.id).length < 2; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+            if (designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('CSS-Selektor-Auswahl speicherte keinen zweiten Beleg.');
+            await smokeWindow.webContents.executeJavaScript(`[...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click()`);
+            for (let attempt = 0; attempt < 100 && designInspector?.state().ready; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+            if (designInspector?.state().ready) throw new Error('Design-Vorschau blieb nach Ansichtswechsel offen.');
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);
@@ -911,7 +978,7 @@ function createWindow(): void {
       app.exit(1);
     });
   }
-  window.on('closed', () => { browser?.dispose(); browser = null; window = null; });
+  window.on('closed', () => { designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
 }
 
 if (ownsSharedProfile) app.whenReady().then(() => {
@@ -932,6 +999,8 @@ app.on('before-quit', () => {
   smokeQaServer = null;
   browser?.dispose();
   browser = null;
+  designInspector?.dispose();
+  designInspector = null;
   runner?.dispose();
   runner = null;
   commandRunner?.dispose();

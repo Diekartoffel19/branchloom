@@ -6,6 +6,7 @@ import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from '
 import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
+import type { DesignInspectionState, DesignSelection } from './design-inspection';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -179,6 +180,14 @@ export interface StudioAPI {
   cardQaReports(cardId: string): Promise<CardQaReport[]>;
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
+  designSelections(projectId: string): Promise<DesignSelection[]>;
+  designInspectionState(): Promise<DesignInspectionState>;
+  designInspectionStart(input: { projectId: string; url: string }): Promise<DesignInspectionState>;
+  designInspectionArm(projectId: string): Promise<DesignInspectionState>;
+  designInspectionSelectSelector(input: { projectId: string; selector: string }): Promise<DesignSelection>;
+  designInspectionSetBounds(bounds: BrowserBounds | null): Promise<DesignInspectionState>;
+  designInspectionSetVisible(visible: boolean): Promise<DesignInspectionState>;
+  onDesignSelection(callback: (selection: DesignSelection) => void): () => void;
   previewOutputErrors(input: { projectId: string; sourceKind: OutputErrorSourceKind; sourceId: string }): Promise<OutputErrorPreview>;
   createOutputErrorCard(input: CreateOutputErrorCard): Promise<Card>;
   onBrowserState(callback: (state: BrowserState) => void): () => void;
