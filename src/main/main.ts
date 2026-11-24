@@ -580,6 +580,8 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (comparisonReports?.length !== 2 || !comparisonReports.every((item) => item.screenshotAvailable)) throw new Error('Zwei gespeicherte QA-Screenshots fehlen.');
+              for (let attempt = 0; attempt < 100 && document.querySelector('.card-qa-screenshot img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.card-qa-screenshot img')) throw new Error('Eingeklappter QA-Bericht hielt den geladenen Screenshot im DOM.');
               let comparisonSelects;
               for (let attempt = 0; attempt < 100; attempt++) {
                 comparisonSelects = [...document.querySelectorAll('.card-qa-comparison select')];
@@ -602,6 +604,12 @@ function createWindow(): void {
               if (comparedImages.length !== 2) throw new Error('Visual-Diff zeigte nicht beide gespeicherten Bilder.');
               await Promise.all(comparedImages.map((image) => image.decode()));
               if (!document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Viewport: 1280 × 800 px') || !document.querySelector('.card-qa-comparison-view')?.textContent?.includes('Keine Pixelbewertung')) throw new Error('Visual-Diff-Quellen oder Grenzen fehlen.');
+              [...document.querySelectorAll('.card-qa-comparison-images button')].find((item) => item.textContent?.includes('Screenshot A vergrößern'))?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-comparison-images figure.expanded'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-qa-comparison-images figure.expanded')) throw new Error('Visual-Diff-Vergrößerung fehlt.');
+              [...document.querySelectorAll('.card-qa-comparison-view button')].find((item) => item.textContent?.includes('Vergleich schließen'))?.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.card-qa-comparison-images img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.card-qa-comparison-images img') || document.activeElement !== compareButton) throw new Error('Geschlossener Visual-Diff hielt Bilder oder Fokus nicht korrekt.');
               const contextForm = document.querySelector('.card-drawer .card-context-form');
               const contextInput = contextForm?.querySelector('input');
               if (!contextForm || !contextInput) throw new Error('Karten-Kontextformular fehlt.');

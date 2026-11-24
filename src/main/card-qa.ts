@@ -11,6 +11,7 @@ const LOAD_TIMEOUT_MS = 15_000;
 const SETTLE_MS = 900;
 const MAX_SCREENSHOT_BYTES = 1_000_000;
 const MAX_SCREENSHOTS = 100;
+const MAX_ACTIVE_QA = 2;
 const VIEWPORT_WIDTH = 1280;
 const VIEWPORT_HEIGHT = 800;
 const SCREENSHOT_WIDTH = 960;
@@ -64,7 +65,7 @@ export function normalizeCardQaUrl(value: string): string {
 
 export function cardQaReports(store: StudioStore, cardId: string): CardQaReport[] {
   store.card(cardId);
-  return (store.db.prepare(`SELECT ${reportColumns} FROM card_qa_reports WHERE card_id = ? ORDER BY ended_at DESC, rowid DESC LIMIT ${MAX_REPORTS}`).all(cardId) as ReportRow[]).map(reportFromRow);
+  return (store.db.prepare(`SELECT ${reportColumns} FROM card_qa_reports WHERE card_id = ? ORDER BY rowid DESC LIMIT ${MAX_REPORTS}`).all(cardId) as ReportRow[]).map(reportFromRow);
 }
 
 export function cardQaScreenshot(store: StudioStore, input: { cardId: string; reportId: string }): string {
@@ -80,11 +81,12 @@ function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | 
     store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, screenshot_png, viewport_width, viewport_height)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.note, screenshot, report.viewportWidth, report.viewportHeight);
     store.db.prepare(`DELETE FROM card_qa_reports WHERE card_id = ? AND id NOT IN (
-      SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY ended_at DESC, rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
+      SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
     store.db.prepare(`UPDATE card_qa_reports SET screenshot_png = NULL WHERE id IN (
-      SELECT id FROM card_qa_reports WHERE screenshot_png IS NOT NULL ORDER BY ended_at DESC, rowid DESC LIMIT -1 OFFSET ${MAX_SCREENSHOTS})`).run();
+      SELECT id FROM card_qa_reports WHERE screenshot_png IS NOT NULL ORDER BY rowid DESC LIMIT -1 OFFSET ${MAX_SCREENSHOTS})`).run();
   })();
-  return report;
+  const saved = store.db.prepare(`SELECT ${reportColumns} FROM card_qa_reports WHERE id = ? AND card_id = ?`).get(report.id, report.cardId) as ReportRow;
+  return reportFromRow(saved);
 }
 
 /** An explicit page-load QA pass in a fresh in-memory browser partition. Branchloom itself does not run an agent or write to the checkout; page JavaScript may call its own local server. */
@@ -93,6 +95,7 @@ export async function runCardQa(store: StudioStore, input: { cardId: string; url
   if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
   const url = normalizeCardQaUrl(input.url);
   if (activeCards.has(card.id)) throw new Error('Für diese Karte läuft bereits eine QA-Prüfung.');
+  if (activeCards.size >= MAX_ACTIVE_QA) throw new Error('Es laufen bereits zwei lokale QA-Prüfungen. Warte auf deren Abschluss.');
   activeCards.add(card.id);
   const startedAt = new Date().toISOString();
   const diagnostics: BrowserDiagnostic[] = [];

@@ -22,7 +22,7 @@ describe('local visual screenshot comparison', () => {
   });
 
   it('shows separate sources, times, viewport evidence and an explicit visual-only limit', () => {
-    const html = renderToStaticMarkup(createElement(QaComparisonView, { comparison: {
+    const html = renderToStaticMarkup(createElement(QaComparisonView, { onClose: () => undefined, comparison: {
       left: base,
       right: { ...base, id: 'two', finalUrl: 'http://127.0.0.1:5173/two', endedAt: '2026-01-01T10:01:01.000Z', viewportWidth: 0, viewportHeight: 0 },
       leftImage: 'data:image/png;base64,AA==', rightImage: 'data:image/png;base64,AQ==',
@@ -35,5 +35,8 @@ describe('local visual screenshot comparison', () => {
     expect(html).toContain('nicht erfasst');
     expect(html).toContain('Routen unterscheiden sich');
     expect(html).toContain('Keine Pixelbewertung');
+    expect(html).toContain('Zwei Screenshots geladen');
+    expect(html).toContain('Screenshot A vergrößern');
+    expect(html).toContain('Vergleich schließen');
   });
 });

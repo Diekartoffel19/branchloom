@@ -8,8 +8,11 @@
 .card-qa-comparison-view { display: grid; gap: 9px; }
 .card-qa-comparison-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .card-qa-comparison-images figure { margin: 0; min-width: 0; border: 1px solid var(--border); border-radius: 7px; padding: 7px; background: var(--surface-2); }
+.card-qa-comparison-images figure.expanded { grid-column: 1 / -1; }
 .card-qa-comparison-images img { display: block; max-width: 100%; height: auto; max-height: 300px; object-fit: contain; }
+.card-qa-comparison-images figure.expanded img { max-height: 450px; }
 .card-qa-comparison-images figcaption { display: grid; gap: 3px; margin-top: 7px; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.card-qa-comparison-images figure button { margin-top: 7px; }
 .card-qa-comparison-images figcaption strong { color: var(--text); font-size: 12px; }
-.card-qa-comparison-warning, .card-qa-comparison-limit { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.card-qa-comparison-warning, .card-qa-comparison-limit, .card-qa-comparison-loaded { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 @media (max-width: 680px) { .card-qa-comparison-images { grid-template-columns: 1fr; } }

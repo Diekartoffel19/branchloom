@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 
-const fake = vi.hoisted(() => ({ windows: [] as Array<{ options: { show: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }; destroyed: boolean; webContents: unknown }>, mode: 'clean' as 'clean' | 'console' | 'remote' | 'load-error' | 'capture-error' | 'capture-large' | 'capture-empty' }));
+const fake = vi.hoisted(() => ({ windows: [] as Array<{ options: { show: boolean; webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } }; destroyed: boolean; webContents: unknown }>, mode: 'clean' as 'clean' | 'console' | 'remote' | 'load-error' | 'capture-error' | 'capture-large' | 'capture-empty' | 'slow', releases: [] as Array<() => void> }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
   class Contents extends EventEmitter {
@@ -22,6 +22,7 @@ vi.mock('electron', async () => {
     getURL() { return this.url; }
     async loadURL(url: string) {
       this.url = url;
+      if (fake.mode === 'slow') return new Promise<void>((resolve) => { fake.releases.push(resolve); });
       if (fake.mode === 'load-error') throw new Error(`ERR_CONNECTION_REFUSED: ${url}`);
       if (fake.mode === 'console') this.emit('console-message', { level: 'error', message: 'Synthetic TypeError', sourceId: `${new URL(url).origin}/app.js?token=private`, lineNumber: 7 });
       if (fake.mode === 'remote') this.requestHandler?.({ url: 'https://example.invalid/asset.js?token=private' }, () => undefined);
@@ -46,7 +47,7 @@ import { StudioStore } from '../../src/main/store';
 import { cardQaReports, cardQaScreenshot, normalizeCardQaUrl, runCardQa } from '../../src/main/card-qa';
 
 const roots: string[] = [];
-afterEach(() => { fake.mode = 'clean'; fake.windows.length = 0; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { for (const release of fake.releases.splice(0)) release(); fake.mode = 'clean'; fake.windows.length = 0; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'branchloom-qa-'));
@@ -137,18 +138,20 @@ describe('explicit local card QA', () => {
   it('caps retained screenshots across cards without dropping the older QA reports', async () => {
     const { store, project, card } = fixture();
     const insert = store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, note, screenshot_png)
-      VALUES (?, ?, ?, 'http://127.0.0.1/', 'http://127.0.0.1/', '2020-01-01', '2020-01-01', 'passed', '[]', NULL, ?)`);
+      VALUES (?, ?, ?, 'http://127.0.0.1/', 'http://127.0.0.1/', '2100-01-01', '2100-01-01', 'passed', '[]', NULL, ?)`);
     let oldestCardId = '';
     for (let index = 0; index < 100; index++) {
       const oldCard = store.createCard({ projectId: project.id, columnId: card.columnId, title: `Old ${index}` });
       if (index === 0) oldestCardId = oldCard.id;
       insert.run(`old-${index}`, oldCard.id, project.id, Buffer.from('synthetic'));
     }
+    insert.run('future-same-card', card.id, project.id, Buffer.from('synthetic'));
     const newest = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
     const retained = store.db.prepare('SELECT COUNT(*) AS count FROM card_qa_reports WHERE screenshot_png IS NOT NULL').get() as { count: number };
     expect(retained.count).toBe(100);
     expect(newest.screenshotAvailable).toBe(true);
-    expect(store.db.prepare('SELECT COUNT(*) AS count FROM card_qa_reports').get()).toMatchObject({ count: 101 });
+    expect(store.db.prepare('SELECT COUNT(*) AS count FROM card_qa_reports').get()).toMatchObject({ count: 102 });
+    expect(cardQaReports(store, card.id)[0]?.id).toBe(newest.id);
     expect(() => cardQaScreenshot(store, { cardId: oldestCardId, reportId: 'old-0' })).toThrow('kein gültiger Screenshot');
     store.close();
   });
@@ -167,5 +170,21 @@ describe('explicit local card QA', () => {
     const report = await runCardQa(reopened, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
     expect(report).toMatchObject({ screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     reopened.close();
+  });
+
+  it('limits concurrent hidden QA windows across different cards', async () => {
+    const { store, project, card } = fixture();
+    const second = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Second' });
+    const third = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Third' });
+    fake.mode = 'slow';
+    const firstRun = runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/' });
+    const secondRun = runCardQa(store, { cardId: second.id, url: 'http://127.0.0.1:5173/' });
+    expect(fake.releases).toHaveLength(2);
+    await expect(runCardQa(store, { cardId: third.id, url: 'http://127.0.0.1:5173/' })).rejects.toThrow('zwei lokale QA-Prüfungen');
+    for (const release of fake.releases.splice(0)) release();
+    expect((await Promise.all([firstRun, secondRun])).map((report) => report.status)).toEqual(['passed', 'passed']);
+    fake.mode = 'clean';
+    expect((await runCardQa(store, { cardId: third.id, url: 'http://127.0.0.1:5173/' })).status).toBe('passed');
+    store.close();
   });
 });

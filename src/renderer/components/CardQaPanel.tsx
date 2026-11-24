@@ -30,6 +30,18 @@ function CardQaScreenshot({ cardId, reportId }: { cardId: string; reportId: stri
   </div>;
 }
 
+function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; report: CardQaReport; initiallyOpen: boolean }) {
+  const [open, setOpen] = useState(initiallyOpen);
+  useEffect(() => { setOpen(initiallyOpen); }, [initiallyOpen]);
+  return <details className="card-qa-report" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary><span className={`card-qa-state ${report.status}`}>{statusOf(report)}</span><time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time></summary>
+    <p className="card-qa-source"><strong>Seite:</strong> {report.requestedUrl}{report.finalUrl && report.finalUrl !== report.requestedUrl ? <> · <strong>Geladen:</strong> {report.finalUrl}</> : null}</p>
+    {report.note ? <p className="inline-note">{report.note}</p> : null}
+    {report.diagnostics.length ? <ol className="card-qa-findings">{report.diagnostics.map((item) => <li key={item.id}><strong>{item.kind === 'console' ? 'Konsole' : 'Laden'}:</strong> {item.message}{item.sourceUrl ? <small>{item.sourceUrl}{item.line ? `:${item.line}` : ''}</small> : null}</li>)}</ol> : null}
+    {open && report.screenshotAvailable ? <CardQaScreenshot cardId={cardId} reportId={report.id} /> : null}
+  </details>;
+}
+
 export function CardQaPanel({ card }: { card: Card }) {
   const [url, setUrl] = useState('');
   const [reports, setReports] = useState<CardQaReport[]>([]);
@@ -68,13 +80,7 @@ export function CardQaPanel({ card }: { card: Card }) {
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {loading ? <p className="section-copy" role="status">Gespeicherte Prüfungen werden geladen…</p> : reports.length === 0 ? <p className="section-copy">Für diese Karte liegt noch kein Browser-QA-Bericht vor.</p> : <div className="card-qa-reports">
-      {reports.map((report) => <details key={report.id} className="card-qa-report" open={report.id === reports[0]?.id}>
-        <summary><span className={`card-qa-state ${report.status}`}>{statusOf(report)}</span><time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time></summary>
-        <p className="card-qa-source"><strong>Seite:</strong> {report.requestedUrl}{report.finalUrl && report.finalUrl !== report.requestedUrl ? <> · <strong>Geladen:</strong> {report.finalUrl}</> : null}</p>
-        {report.note ? <p className="inline-note">{report.note}</p> : null}
-        {report.diagnostics.length ? <ol className="card-qa-findings">{report.diagnostics.map((item) => <li key={item.id}><strong>{item.kind === 'console' ? 'Konsole' : 'Laden'}:</strong> {item.message}{item.sourceUrl ? <small>{item.sourceUrl}{item.line ? `:${item.line}` : ''}</small> : null}</li>)}</ol> : null}
-        {report.screenshotAvailable ? <CardQaScreenshot cardId={card.id} reportId={report.id} /> : null}
-      </details>)}
+      {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === reports[0]?.id} />)}
     </div>}
     {!loading ? <CardQaComparison cardId={card.id} reports={reports} /> : null}
     <p className="card-qa-limit">Der Bericht belegt nur diesen Seitenaufruf und Fehler im kurzen Prüfzeitraum. Layout, Interaktion, andere Routen und Tests bleiben separat zu prüfen.</p>
