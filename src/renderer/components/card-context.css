@@ -1,6 +1,21 @@
 .card-context { display: grid; gap: 10px; }
 .card-context-drop-active { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 7px; }
 .card-context-prepared { margin: 0; color: var(--soft); font-size: 12px; line-height: 1.45; }
+.card-context-whiteboard { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 7px 0; }
+.card-context-whiteboard summary { cursor: pointer; font-size: 12px; font-weight: 650; color: var(--text); }
+.card-context-whiteboard summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.card-context-whiteboard-content { display: grid; gap: 8px; padding: 9px 0 3px; }
+.card-context-whiteboard-content > button { justify-self: start; }
+.card-context-whiteboard-filter { display: grid; gap: 5px; color: var(--soft); font-size: 12px; }
+.card-context-whiteboard-filter input { width: 100%; }
+.card-context-whiteboard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; max-height: 220px; overflow-y: auto; }
+.card-context-whiteboard-list li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
+.card-context-whiteboard-source { min-width: 0; flex: 1; display: grid; gap: 2px; cursor: grab; }
+.card-context-whiteboard-source strong { font-size: 12px; font-weight: 600; }
+.card-context-whiteboard-source small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.card-context-whiteboard-source:active { cursor: grabbing; }
+.card-context-whiteboard-list button { flex: none; }
+@media (max-width: 580px) { .card-context-whiteboard-list li { align-items: stretch; flex-direction: column; } .card-context-whiteboard-list button { align-self: start; } }
 .card-context .section-heading, .card-context .section-copy { margin: 0; }
 .card-context-form { display: grid; gap: 8px; }
 .card-context-form label { display: grid; gap: 5px; color: var(--soft); font-size: 12px; font-weight: 600; }

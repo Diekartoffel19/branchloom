@@ -83,6 +83,27 @@ export function cardContextCandidateFromAttachment(store: StudioStore, input: { 
   return candidate.target;
 }
 
+/** Resolve an opaque saved Whiteboard box to a current project file. */
+export function cardContextCandidateFromWhiteboardNode(store: StudioStore, input: { cardId: string; nodeId: string }): string {
+  if (!input || typeof input.cardId !== 'string' || typeof input.nodeId !== 'string' || !input.nodeId || input.nodeId.length > 200) throw new Error('Whiteboard-Quelle ist ungültig.');
+  const card = store.card(input.cardId);
+  if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+  const row = store.db.prepare('SELECT project_id, reference_kind, folder_path FROM whiteboard_nodes WHERE id = ?').get(input.nodeId) as
+    { project_id: string; reference_kind: string | null; folder_path: string | null } | undefined;
+  if (!row) throw new Error('Whiteboard-Box wurde entfernt. Quelle neu wählen.');
+  if (row.project_id !== card.projectId) throw new Error('Whiteboard-Box gehört zu einem anderen Projekt.');
+  if (row.reference_kind !== 'file' || !row.folder_path) throw new Error('Whiteboard-Box hat keine gespeicherte Dateiverknüpfung.');
+  return checkedFile(store, card.projectId, row.folder_path).target;
+}
+
+/** Confirmation rechecks the box and file; a changed source cannot silently save an old draft. */
+export function addCardContextReferenceFromWhiteboardNode(store: StudioStore, input: { cardId: string; nodeId: string; expectedTarget: string }): CardContextReference[] {
+  if (!input || typeof input.expectedTarget !== 'string' || !input.expectedTarget || input.expectedTarget.length > 300) throw new Error('Whiteboard-Entwurf ist ungültig.');
+  const target = cardContextCandidateFromWhiteboardNode(store, input);
+  if (target !== input.expectedTarget) throw new Error('Whiteboard-Dateiverknüpfung wurde geändert. Quelle erneut vorbereiten.');
+  return addCardContextReference(store, { cardId: input.cardId, kind: 'file', target });
+}
+
 export function addCardContextReference(store: StudioStore, input: { cardId: string; kind: 'file' | 'url'; target: string }): CardContextReference[] {
   const card = store.card(input.cardId);
   if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');

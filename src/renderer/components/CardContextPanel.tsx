@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { FileText, Link2, Trash2 } from 'lucide-react';
 import type { Card, CardContextPreview, CardContextReference } from '../../shared/types';
 import { CARD_ATTACHMENT_DRAG_TYPE } from '../attachment-drag';
+import { WHITEBOARD_CONTEXT_DRAG_TYPE } from '../whiteboard-context-drag';
+import { WhiteboardContextSources } from './WhiteboardContextSources';
 import './card-context.css';
 
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -16,12 +18,14 @@ export function CardContextPanel({ card, attachmentRequest }: { card: Card; atta
   const [loading, setLoading] = useState(true);
   const [preparing, setPreparing] = useState(false);
   const [prepared, setPrepared] = useState('');
+  const [preparedWhiteboard, setPreparedWhiteboard] = useState<{ nodeId: string; target: string } | null>(null);
+  const [whiteboardOpen, setWhiteboardOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const targetInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let live = true;
-    setItems([]); setPreview(null); setTarget(''); setError(''); setPrepared(''); setLoading(true);
+    setItems([]); setPreview(null); setTarget(''); setError(''); setPrepared(''); setPreparedWhiteboard(null); setWhiteboardOpen(false); setLoading(true);
     void window.studio.cardContextReferences(card.id).then((refs) => { if (live) { setItems(refs); setLoading(false); } })
       .catch((reason: unknown) => { if (live) { setError(messageOf(reason)); setLoading(false); } });
     return () => { live = false; };
@@ -33,7 +37,7 @@ export function CardContextPanel({ card, attachmentRequest }: { card: Card; atta
 
   async function prepareAttachment(attachmentId: string) {
     if (preparing || busy || card.archivedAt) return;
-    setPreparing(true); setPrepared(''); setError('');
+    setPreparing(true); setPrepared(''); setPreparedWhiteboard(null); setError('');
     try {
       const path = await window.studio.cardContextCandidateFromAttachment({ cardId: card.id, attachmentId });
       setKind('file'); setTarget(path);
@@ -43,11 +47,30 @@ export function CardContextPanel({ card, attachmentRequest }: { card: Card; atta
     finally { setPreparing(false); }
   }
 
+  async function prepareWhiteboard(nodeId: string) {
+    if (preparing || busy || card.archivedAt) return;
+    setPreparing(true); setPrepared(''); setPreparedWhiteboard(null); setError('');
+    try {
+      const path = await window.studio.cardContextCandidateFromWhiteboardNode({ cardId: card.id, nodeId });
+      setKind('file'); setTarget(path); setPreparedWhiteboard({ nodeId, target: path });
+      setPrepared(`Whiteboard-Datei „${path}“ vorbereitet. Prüfe den Pfad und klicke „Bezug hinzufügen“.`);
+      requestAnimationFrame(() => targetInput.current?.focus());
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setPreparing(false); }
+  }
+
   function onDrop(event: React.DragEvent<HTMLElement>) {
-    if (!event.dataTransfer.types.includes(CARD_ATTACHMENT_DRAG_TYPE) || card.archivedAt) return;
+    if (card.archivedAt) return;
+    const whiteboard = event.dataTransfer.types.includes(WHITEBOARD_CONTEXT_DRAG_TYPE);
+    if (!whiteboard && !event.dataTransfer.types.includes(CARD_ATTACHMENT_DRAG_TYPE)) return;
     event.preventDefault(); setDragActive(false);
-    const attachmentId = event.dataTransfer.getData(CARD_ATTACHMENT_DRAG_TYPE);
-    if (attachmentId) void prepareAttachment(attachmentId);
+    if (whiteboard) {
+      const nodeId = event.dataTransfer.getData(WHITEBOARD_CONTEXT_DRAG_TYPE);
+      if (nodeId) void prepareWhiteboard(nodeId);
+    } else {
+      const attachmentId = event.dataTransfer.getData(CARD_ATTACHMENT_DRAG_TYPE);
+      if (attachmentId) void prepareAttachment(attachmentId);
+    }
   }
 
   async function add(event: React.FormEvent<HTMLFormElement>) {
@@ -55,8 +78,10 @@ export function CardContextPanel({ card, attachmentRequest }: { card: Card; atta
     if (busy || card.archivedAt) return;
     setBusy(true); setError('');
     try {
-      setItems(await window.studio.addCardContextReference({ cardId: card.id, kind, target }));
-      setTarget(''); setPrepared('');
+      setItems(preparedWhiteboard && kind === 'file' && preparedWhiteboard.target === target
+        ? await window.studio.addCardContextReferenceFromWhiteboardNode({ cardId: card.id, nodeId: preparedWhiteboard.nodeId, expectedTarget: target })
+        : await window.studio.addCardContextReference({ cardId: card.id, kind, target }));
+      setTarget(''); setPrepared(''); setPreparedWhiteboard(null);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -80,14 +105,17 @@ export function CardContextPanel({ card, attachmentRequest }: { card: Card; atta
   }
 
   return <section className={dragActive ? 'card-context card-context-drop-active' : 'card-context'} aria-label="Kartenkontext"
-    onDragOver={(event) => { if (event.dataTransfer.types.includes(CARD_ATTACHMENT_DRAG_TYPE) && !card.archivedAt) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDragActive(true); } }}
+    onDragOver={(event) => { if ((event.dataTransfer.types.includes(CARD_ATTACHMENT_DRAG_TYPE) || event.dataTransfer.types.includes(WHITEBOARD_CONTEXT_DRAG_TYPE)) && !card.archivedAt) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDragActive(true); } }}
     onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragActive(false); }}
     onDrop={onDrop}>
     <div className="section-heading"><Link2 size={18} aria-hidden="true" /><h3>Kontextbezüge</h3></div>
     <p className="section-copy">Verknüpft Projektdateien oder öffentliche Doku-Adressen mit dieser Karte. Inhalte werden erst mit „Vorschau“ lokal gelesen; Webseiten werden nicht abgerufen. Agenten erhalten diese Bezüge nicht automatisch.</p>
+    {!card.archivedAt ? <details className="card-context-whiteboard" onToggle={(event) => setWhiteboardOpen(event.currentTarget.open)}><summary>Whiteboard-Dateien auswählen</summary>
+      {whiteboardOpen ? <WhiteboardContextSources projectId={card.projectId} disabled={busy || preparing} onPrepare={(id) => void prepareWhiteboard(id)} /> : null}
+    </details> : null}
     {!card.archivedAt ? <form className="card-context-form" onSubmit={(event) => void add(event)}>
-      <label>Quelltyp<select value={kind} disabled={busy || preparing} onChange={(event) => { setKind(event.target.value as 'file' | 'url'); setTarget(''); setPrepared(''); }}><option value="file">Projektdatei</option><option value="url">Öffentliche Doku-URL</option></select></label>
-      <label>{kind === 'file' ? 'Relativer Projektpfad' : 'HTTPS-Adresse'}<input ref={targetInput} type={kind === 'file' ? 'text' : 'url'} value={target} required maxLength={kind === 'file' ? 300 : 2048} disabled={busy || preparing} onChange={(event) => { setTarget(event.target.value); setPrepared(''); }} placeholder={kind === 'file' ? 'src/components/Button.tsx' : 'https://docs.example.org/guide'} /></label>
+      <label>Quelltyp<select value={kind} disabled={busy || preparing} onChange={(event) => { setKind(event.target.value as 'file' | 'url'); setTarget(''); setPrepared(''); setPreparedWhiteboard(null); }}><option value="file">Projektdatei</option><option value="url">Öffentliche Doku-URL</option></select></label>
+      <label>{kind === 'file' ? 'Relativer Projektpfad' : 'HTTPS-Adresse'}<input ref={targetInput} type={kind === 'file' ? 'text' : 'url'} value={target} required maxLength={kind === 'file' ? 300 : 2048} disabled={busy || preparing} onChange={(event) => { setTarget(event.target.value); setPrepared(''); setPreparedWhiteboard(null); }} placeholder={kind === 'file' ? 'src/components/Button.tsx' : 'https://docs.example.org/guide'} /></label>
       {prepared ? <p className="card-context-prepared" role="status">{prepared}</p> : null}
       <button className="secondary-button" type="submit" disabled={busy || preparing || !target.trim() || items.length >= 20}>Bezug hinzufügen</button>
     </form> : null}
