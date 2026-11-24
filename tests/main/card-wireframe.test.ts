@@ -86,4 +86,71 @@ describe('task-linked wireframes', () => {
     expect((store.db.prepare('SELECT COUNT(*) AS count FROM card_wireframes WHERE card_id = ?').get(key.cardId) as { count: number }).count).toBe(0);
     store.close();
   });
+
+  it('stores separately editable tablet and mobile artboards without changing desktop or approval boundaries', () => {
+    const { dbFile, store, key } = fixture();
+    const tablet = { ...element, x: 700, y: 900, width: 60, height: 42, text: 'Tablet' };
+    const mobile = { ...element, x: 300, y: 790, width: 80, height: 42, text: 'Mobile' };
+    const saved = saveCardWireframe(store, { ...key, title: 'Drei Flächen', expectedRevision: 0, elements: [element], artboards: { tablet: [tablet], mobile: [mobile] } });
+    expect(saved.artboards).toEqual({ tablet: [tablet], mobile: [mobile] });
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    const unchanged = saveCardWireframe(store, { ...key, title: 'Drei Flächen', expectedRevision: 1, elements: [element], artboards: { mobile: [mobile], tablet: [tablet] } });
+    expect(unchanged).toMatchObject({ revision: 1, approvedRevision: 1 });
+    const context = approvedCardWireframeContext(store, key);
+    expect(context).toContain('"tablet":{"canvas"');
+    expect(context).toContain('"mobile":{"canvas"');
+    expect(context).toContain('"width":768');
+    expect(context).toContain('"width":390');
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)?.artboards).toEqual({ tablet: [tablet], mobile: [mobile] });
+    const changed = saveCardWireframe(reopened, { ...key, title: 'Mobile neu', expectedRevision: 1, elements: [element], artboards: { tablet: [tablet], mobile: [{ ...mobile, x: 240 }] } });
+    expect(changed).toMatchObject({ revision: 2, approvedRevision: null });
+    expect(changed.elements).toEqual([element]);
+    expect(approvedCardWireframeContext(reopened, key)).toBe('');
+    const legacyCaller = saveCardWireframe(reopened, { ...key, title: 'Desktop neu', expectedRevision: 2, elements: [{ ...element, x: 30 }] });
+    expect(legacyCaller.artboards.mobile?.[0]?.x).toBe(240);
+    const removed = saveCardWireframe(reopened, { ...key, title: 'Nur Desktop', expectedRevision: 3, elements: [element], artboards: {} });
+    expect(removed.artboards).toEqual({});
+    reopened.close();
+  });
+
+  it('rejects overflow or unknown artboards before mutating a document', () => {
+    const { store, key } = fixture();
+    for (const artboards of [
+      { mobile: [{ ...element, x: 350, width: 100 }] },
+      { tablet: [{ ...element, y: 1000, height: 100 }] },
+      { tv: [element] },
+    ]) expect(() => saveCardWireframe(store, { ...key, title: 'Ungültig', expectedRevision: 0, elements: [element], artboards: artboards as never })).toThrow();
+    expect(cardWireframe(store, key)).toBeNull();
+    store.close();
+  });
+
+  it('allows approval of a mobile-only design but not a completely empty document', () => {
+    const { store, key } = fixture();
+    const mobile = { ...element, x: 0, y: 36, width: 300, height: 42 };
+    const saved = saveCardWireframe(store, { ...key, title: 'Mobile zuerst', expectedRevision: 0, elements: [], artboards: { mobile: [mobile] } });
+    expect(approveCardWireframe(store, { ...key, expectedRevision: saved.revision }).approvedRevision).toBe(1);
+    const empty = saveCardWireframe(store, { ...key, title: 'Leer', expectedRevision: 1, elements: [], artboards: {} });
+    expect(() => approveCardWireframe(store, { ...key, expectedRevision: empty.revision })).toThrow('leerer Entwurf');
+    store.close();
+  });
+
+  it('migrates a saved desktop-only wireframe without losing approval', () => {
+    const { dbFile, store, key } = fixture();
+    store.db.exec(`DROP TABLE card_wireframes;
+      CREATE TABLE card_wireframes (
+        card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL, elements_json TEXT NOT NULL,
+        revision INTEGER NOT NULL, approved_revision INTEGER, updated_at TEXT NOT NULL
+      );`);
+    store.db.prepare('INSERT INTO card_wireframes VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(key.cardId, key.projectId, 'Alter Entwurf', JSON.stringify([element]), 3, 3, new Date().toISOString());
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)).toMatchObject({ title: 'Alter Entwurf', elements: [element], artboards: {}, revision: 3, approvedRevision: 3 });
+    expect(approvedCardWireframeContext(reopened, key)).toContain('Projektübersicht');
+    reopened.close();
+  });
 });

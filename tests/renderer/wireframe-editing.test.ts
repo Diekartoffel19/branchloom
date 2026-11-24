@@ -33,4 +33,12 @@ describe('wireframe editor geometry and layer helpers', () => {
     expect(sameWireframeContent({ ...same, elements: [{ ...same.elements[0]!, x: 101 }, same.elements[1]!] }, saved)).toBe(false);
     expect(sameWireframeContent(same, null)).toBe(false);
   });
+
+  it('includes tablet and mobile content in the unchanged approval check', () => {
+    const mobile = element('mobile', 30, 40, 200, 80);
+    const saved = { title: 'Fenster', elements: [element('desktop')], artboards: { tablet: [] as WireframeElement[], mobile: [mobile] } };
+    expect(sameWireframeContent({ ...saved, artboards: { mobile: [{ ...mobile }], tablet: [] } }, saved)).toBe(true);
+    expect(sameWireframeContent({ ...saved, artboards: { tablet: [], mobile: [{ ...mobile, x: 31 }] } }, saved)).toBe(false);
+    expect(sameWireframeContent({ ...saved, artboards: { tablet: [] } }, saved)).toBe(false);
+  });
 });
