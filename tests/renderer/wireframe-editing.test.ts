@@ -48,4 +48,14 @@ describe('wireframe editor geometry and layer helpers', () => {
     expect(sameWireframeContent({ ...saved, artboards: { tablet: [], mobile: [{ ...mobile, x: 31 }] } }, saved)).toBe(false);
     expect(sameWireframeContent({ ...saved, artboards: { tablet: [] } }, saved)).toBe(false);
   });
+
+  it('treats style edits and undo as content changes on each artboard', () => {
+    const base = element('text');
+    const styled = { ...base, style: { fontSize: 20, fontWeight: 600 as const, fill: '#ffffff' } };
+    const saved = { title: 'Fenster', elements: [styled], artboards: { mobile: [base] } };
+    expect(sameWireframeContent({ ...saved, elements: [{ ...styled, style: { fill: '#ffffff', fontWeight: 600, fontSize: 20 } }] }, saved)).toBe(true);
+    expect(sameWireframeContent({ ...saved, elements: [{ ...styled, style: { ...styled.style, fontSize: 22 } }] }, saved)).toBe(false);
+    expect(sameWireframeContent({ ...saved, artboards: { mobile: [{ ...base, style: { radius: 8 } }] } }, saved)).toBe(false);
+    expect(sameWireframeContent({ ...saved, elements: [{ ...styled, style: { ...styled.style } }] }, saved)).toBe(true);
+  });
 });

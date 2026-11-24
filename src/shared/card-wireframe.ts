@@ -11,6 +11,16 @@ export type WireframeVariant = Exclude<WireframeArtboard, 'desktop'>;
 export type WireframeElementKind = 'panel' | 'text' | 'button' | 'field';
 export type WireframeElementTone = 'plain' | 'muted' | 'accent';
 
+/** Optional overrides keep older drafts and their approvals unchanged. Colors are opaque hex values. */
+export interface WireframeElementStyle {
+  fill?: string;
+  stroke?: string;
+  textColor?: string;
+  radius?: number;
+  fontSize?: number;
+  fontWeight?: 400 | 500 | 600 | 700;
+}
+
 export interface WireframeElement {
   id: string;
   kind: WireframeElementKind;
@@ -20,6 +30,7 @@ export interface WireframeElement {
   height: number;
   text: string;
   tone: WireframeElementTone;
+  style?: WireframeElementStyle;
 }
 
 export interface CardWireframe {

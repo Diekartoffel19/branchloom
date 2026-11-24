@@ -153,4 +153,35 @@ describe('task-linked wireframes', () => {
     expect(approvedCardWireframeContext(reopened, key)).toContain('Projektübersicht');
     reopened.close();
   });
+
+  it('persists optional style overrides across artboards and includes only approved values in agent context', () => {
+    const { dbFile, store, key } = fixture();
+    const styled = { ...element, style: { fontSize: 22, fontWeight: 700, textColor: '#26312B', fill: '#F8F8F5', stroke: '#AABBAA', radius: 8 } } as WireframeElement;
+    const saved = saveCardWireframe(store, { ...key, title: 'Gestaltung', expectedRevision: 0, elements: [styled], artboards: { mobile: [{ ...styled, x: 10, width: 300 }] } });
+    expect(saved.elements[0]?.style).toEqual({ fill: '#f8f8f5', stroke: '#aabbaa', textColor: '#26312b', radius: 8, fontSize: 22, fontWeight: 700 });
+    expect(approvedCardWireframeContext(store, key)).toBe('');
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    expect(approvedCardWireframeContext(store, key)).toContain('"fontSize":22');
+    expect(approvedCardWireframeContext(store, key)).toContain('"textColor":"#26312b"');
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    const current = cardWireframe(reopened, key)!;
+    expect(current.artboards.mobile?.[0]?.style).toEqual(current.elements[0]?.style);
+    expect(saveCardWireframe(reopened, { ...key, title: current.title, expectedRevision: current.revision, elements: current.elements, artboards: current.artboards })).toMatchObject({ revision: 1, approvedRevision: 1 });
+    expect(saveCardWireframe(reopened, { ...key, title: current.title, expectedRevision: 1, elements: [{ ...current.elements[0]!, style: { ...current.elements[0]!.style, fontSize: 24 } }], artboards: current.artboards })).toMatchObject({ revision: 2, approvedRevision: null });
+    expect(approvedCardWireframeContext(reopened, key)).toBe('');
+    reopened.close();
+  });
+
+  it('rejects malformed styles without mutating saved content and keeps a legacy approval unchanged', () => {
+    const { store, key } = fixture();
+    for (const style of [null, [], { fill: 'red' }, { fill: '#12345' }, { stroke: '#123456;url(foo)' }, { radius: -1 }, { radius: 65 }, { fontSize: 7 }, { fontWeight: 900 }, { opacity: 1 }]) {
+      expect(() => saveCardWireframe(store, { ...key, title: 'Ungültig', expectedRevision: 0, elements: [{ ...element, style } as WireframeElement] })).toThrow();
+    }
+    expect(cardWireframe(store, key)).toBeNull();
+    saveCardWireframe(store, { ...key, title: 'Alt', expectedRevision: 0, elements: [element] });
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    expect(saveCardWireframe(store, { ...key, title: 'Alt', expectedRevision: 1, elements: [{ ...element, style: {} }] })).toMatchObject({ revision: 1, approvedRevision: 1 });
+    store.close();
+  });
 });

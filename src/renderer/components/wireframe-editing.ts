@@ -1,4 +1,4 @@
-import type { WireframeElement, WireframeVariant } from '../../shared/card-wireframe';
+import type { WireframeElement, WireframeElementStyle, WireframeVariant } from '../../shared/card-wireframe';
 import { WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
@@ -14,8 +14,13 @@ function sameElements(left: WireframeElement[], right: WireframeElement[]): bool
   return left.every((item, index) => {
     const other = right[index];
     return other !== undefined && item.id === other.id && item.kind === other.kind && item.tone === other.tone &&
-      item.text === other.text && item.x === other.x && item.y === other.y && item.width === other.width && item.height === other.height;
+      item.text === other.text && item.x === other.x && item.y === other.y && item.width === other.width && item.height === other.height &&
+      sameStyle(item.style, other.style);
   });
+}
+
+function sameStyle(left?: WireframeElementStyle, right?: WireframeElementStyle): boolean {
+  return (['fill', 'stroke', 'textColor', 'radius', 'fontSize', 'fontWeight'] as const).every((key) => left?.[key] === right?.[key]);
 }
 
 export function sameWireframeContent(

@@ -1522,6 +1522,22 @@ function createWindow(): void {
               layerForward.click();
               for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-layers li button')[2]?.textContent?.includes('Geprüfter Entwurf') !== true; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (wireframe.querySelectorAll('.task-wireframe-layers li button')[2]?.textContent?.includes('Geprüfter Entwurf') !== true) throw new Error('Ebenenreihenfolge wurde nicht geändert.');
+              const fontSize = wireframe.querySelector('input[aria-label="Schriftgröße in Pixel"]');
+              if (!(fontSize instanceof HTMLInputElement)) throw new Error('Schriftgröße fehlt in der Eigenschaftenleiste.');
+              textSetter.call(fontSize, '20'); fontSize.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && fontSize.value !== '20'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (fontSize.value !== '20' || element.style.fontSize !== '20px') throw new Error('Schriftgröße wurde nicht sichtbar übernommen.');
+              undo.click();
+              for (let attempt = 0; attempt < 100 && element.style.fontSize !== ''; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (element.style.fontSize !== '') throw new Error('Stiländerung ließ sich nicht rückgängig machen.');
+              redo.click();
+              for (let attempt = 0; attempt < 100 && element.style.fontSize !== '20px'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (element.style.fontSize !== '20px') throw new Error('Stiländerung ließ sich nicht wiederholen.');
+              const textColor = [...wireframe.querySelectorAll('.task-wireframe-color-control')].find((control) => control.textContent?.includes('Textfarbe'))?.querySelector('input[type="checkbox"]');
+              if (!(textColor instanceof HTMLInputElement)) throw new Error('Textfarbensteuerung fehlt.');
+              textColor.click();
+              for (let attempt = 0; attempt < 100 && element.style.color !== 'rgb(38, 49, 43)'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (element.style.color !== 'rgb(38, 49, 43)') throw new Error('Textfarbe wurde nicht sichtbar übernommen.');
               const mobileArtboard = [...wireframe.querySelectorAll('.task-wireframe-artboard-switch button')].find((button) => button.textContent?.includes('Mobile'));
               if (!(mobileArtboard instanceof HTMLButtonElement)) throw new Error('Mobile-Wireframe-Auswahl fehlt.');
               mobileArtboard.click();
@@ -1557,7 +1573,7 @@ function createWindow(): void {
               textSetter.call(lockedText, 'Späte Eingabe'); lockedText.dispatchEvent(new Event('input', { bubbles: true }));
               let stored;
               for (let attempt = 0; attempt < 100 && !stored; attempt++) { stored = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }); if (!stored) await new Promise((resolve) => setTimeout(resolve, 50)); }
-              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements[2]?.id !== 'window-title' || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.x !== 70 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, getrennte Mobile-Variante oder Freigabezustand wurden nicht gespeichert.');
+              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.elements.find((item) => item.id === 'window-title')?.style?.textColor !== '#26312b' || stored.elements[2]?.id !== 'window-title' || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.x !== 70 || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, Gestaltung, getrennte Mobile-Variante oder Freigabezustand wurden nicht gespeichert.');
               const approve = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Für Agenten freigeben'));
               for (let attempt = 0; attempt < 100 && approve?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(approve instanceof HTMLButtonElement) || approve.disabled) throw new Error('Gespeicherter Entwurf ist nicht freigebbar.');
@@ -1592,7 +1608,8 @@ function createWindow(): void {
               if (!(await window.studio.designInspectionState()).armed) throw new Error('Design-Auswahl wurde nicht aktiviert: ' + JSON.stringify({ state: await window.studio.designInspectionState(), rect: document.querySelector('.design-inspection-viewport')?.getBoundingClientRect().toJSON(), error: document.querySelector('.design-inspection .inline-error')?.textContent }));
               return true;
             })()`);
-            if (!approvedCardWireframeContext(smokeStore, { projectId: smokeProject.id, cardId: smokeCard.id }).includes('Geprüfter Entwurf')) throw new Error('Freigegebener Wireframe-Kontext fehlt für den nächsten Agentenstart.');
+            const wireframeContext = approvedCardWireframeContext(smokeStore, { projectId: smokeProject.id, cardId: smokeCard.id });
+            if (!wireframeContext.includes('Geprüfter Entwurf') || !wireframeContext.includes('"fontSize":20')) throw new Error('Freigegebener Wireframe-Kontext mit Gestaltung fehlt für den nächsten Agentenstart.');
             await designInspector!.smokeClick('#design-smoke-target');
             let saved = false;
             for (let attempt = 0; attempt < 100; attempt++) {

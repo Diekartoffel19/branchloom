@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeElement, WireframeElementKind, WireframeElementTone, WireframeVariant } from '../shared/card-wireframe';
+import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeElement, WireframeElementKind, WireframeElementStyle, WireframeElementTone, WireframeVariant } from '../shared/card-wireframe';
 import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../shared/card-wireframe';
 import type { StudioStore } from './store';
 
@@ -16,6 +16,30 @@ interface WireframeRow {
 
 const KINDS = new Set<WireframeElementKind>(['panel', 'text', 'button', 'field']);
 const TONES = new Set<WireframeElementTone>(['plain', 'muted', 'accent']);
+const STYLE_KEYS = new Set(['fill', 'stroke', 'textColor', 'radius', 'fontSize', 'fontWeight']);
+
+function checkedStyle(value: unknown): WireframeElementStyle | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Ungültige Elementgestaltung.');
+  const style = value as Record<string, unknown>;
+  if (Object.keys(style).some((key) => !STYLE_KEYS.has(key))) throw new Error('Unbekannte Gestaltungseigenschaft.');
+  const result: WireframeElementStyle = {};
+  for (const key of ['fill', 'stroke', 'textColor'] as const) {
+    if (style[key] === undefined) continue;
+    if (typeof style[key] !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(style[key])) throw new Error('Farben müssen als sechsstelliger Hexwert angegeben werden.');
+    result[key] = style[key].toLowerCase();
+  }
+  for (const [key, min, max] of [['radius', 0, 64], ['fontSize', 8, 64]] as const) {
+    if (style[key] === undefined) continue;
+    if (typeof style[key] !== 'number' || !Number.isInteger(style[key]) || style[key] < min || style[key] > max) throw new Error(`Ungültiger Wert für ${key}.`);
+    result[key] = style[key];
+  }
+  if (style.fontWeight !== undefined) {
+    if (![400, 500, 600, 700].includes(style.fontWeight as number)) throw new Error('Ungültige Schriftstärke.');
+    result.fontWeight = style.fontWeight as WireframeElementStyle['fontWeight'];
+  }
+  return Object.keys(result).length ? result : undefined;
+}
 
 function checkedKey(store: StudioStore, input: CardWireframeKey): CardWireframeKey {
   if (!input || typeof input.projectId !== 'string' || typeof input.cardId !== 'string') throw new Error('Projekt und Karte fehlen.');
@@ -48,7 +72,8 @@ export function checkedWireframeElements(value: unknown, canvasWidth = WIREFRAME
     const height = checkedCoordinate(item.height, 24, canvasHeight, 'Höhe');
     const x = checkedCoordinate(item.x, 0, canvasWidth - width, 'X');
     const y = checkedCoordinate(item.y, 0, canvasHeight - height, 'Y');
-    return { id: item.id, kind: item.kind as WireframeElementKind, tone: item.tone as WireframeElementTone, text: item.text, x, y, width, height };
+    const style = checkedStyle(item.style);
+    return { id: item.id, kind: item.kind as WireframeElementKind, tone: item.tone as WireframeElementTone, text: item.text, x, y, width, height, ...(style ? { style } : {}) };
   });
 }
 
