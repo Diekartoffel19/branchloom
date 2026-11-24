@@ -50,6 +50,8 @@ Auf jeder Workflow-Karte öffnet **Schrittverlauf ansehen** den gespeicherten Fo
 
 Im **Design-Modus** lässt sich zu einem gespeicherten lokalen Element ein Änderungswunsch aufnehmen oder eintippen. Das lokale Transkript bleibt vor dem Speichern bearbeitbar. Erst die Bestätigung legt eine Karte mit geprüftem Elementbeleg an; ein Agent startet dadurch nicht. [Details](docs/DESIGN_INSPECTION.md).
 
+Der Kartendialog im **Board** hält den Tastaturfokus innerhalb der Karte. **Escape** schließt ihn und setzt den Fokus auf den Auslöser oder die Kartensuche zurück. [Details](docs/BOARD_METADATA.md).
+
 ## Prüfen
 
 ```powershell
