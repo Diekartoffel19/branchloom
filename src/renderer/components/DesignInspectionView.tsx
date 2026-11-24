@@ -7,12 +7,14 @@ import { ComponentCatalogPanel } from './ComponentCatalogPanel';
 import { ThemeTokensPanel } from './ThemeTokensPanel';
 import { DesignViewportCanvas } from './DesignViewportCanvas';
 import { DesignStateRoutes } from './DesignStateRoutes';
+import { DesignVoiceTask } from './DesignVoiceTask';
+import type { Column, QueueState } from '../../shared/types';
 import './design-inspection.css';
 
 const emptyState: DesignInspectionState = { projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
-export function DesignInspectionView({ projectId, active }: { projectId: string; active: boolean }) {
+export function DesignInspectionView({ projectId, active, columns, queueState, onOpenCard, onCreated }: { projectId: string; active: boolean; columns: Column[]; queueState: QueueState; onOpenCard: (cardId: string) => void | Promise<void>; onCreated: () => void | Promise<void> }) {
   const [url, setUrl] = useState('');
   const [selector, setSelector] = useState('');
   const [state, setState] = useState<DesignInspectionState>(emptyState);
@@ -23,6 +25,7 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
   const [a11yCheck, setA11yCheck] = useState<DesignA11yCheck | null>(null);
   const [a11yBusyId, setA11yBusyId] = useState<string | null>(null);
   const [a11yError, setA11yError] = useState<{ id: string; message: string } | null>(null);
+  const [voiceSelectionId, setVoiceSelectionId] = useState<string | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const currentProject = useRef(projectId);
   currentProject.current = projectId;
@@ -35,19 +38,20 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
 
   useEffect(() => {
     let mounted = true;
-    setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null);
+    setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null); setVoiceSelectionId(null);
     void window.studio.designSelections(projectId).then((items) => { if (mounted) setSelections(items); }).catch((reason: unknown) => { if (mounted) setError(messageOf(reason)); });
     const unsubscribe = window.studio.onDesignSelection((selection) => {
       if (!mounted || selection.projectId !== projectId) return;
       setSelections((items) => [selection, ...items.filter((item) => item.id !== selection.id)].slice(0, 20));
       setA11yCheck(null); setA11yError(null);
+      setVoiceSelectionId(null);
       setState((old) => ({ ...old, armed: false }));
     });
     return () => { mounted = false; unsubscribe(); void window.studio.designInspectionSetVisible(false).catch(() => undefined); };
   }, [projectId]);
 
   useEffect(() => {
-    if (!active) { setA11yCheck(null); setA11yError(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
+    if (!active) { setA11yCheck(null); setA11yError(null); setVoiceSelectionId(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
     const element = viewport.current;
     if (!element) return;
     let scheduled = 0;
@@ -148,6 +152,8 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
           </div> : null}
         </div>
         {item.tokens.length ? <details><summary>{item.tokens.length} CSS-Variablen am Element</summary><dl>{item.tokens.map((token) => <div key={token.name}><dt>{token.name}</dt><dd>{token.value}</dd></div>)}</dl></details> : <small>Keine berechneten CSS-Variablen erfasst.</small>}
+        <div className="design-voice-entry"><button type="button" className="secondary-button" disabled={!active || busy || Boolean(a11yBusyId)} aria-expanded={voiceSelectionId === item.id} onClick={() => setVoiceSelectionId((current) => current === item.id ? null : item.id)}>{voiceSelectionId === item.id ? 'Wunsch schließen' : 'Wunsch als Karte vorbereiten'}</button></div>
+        {active && voiceSelectionId === item.id ? <DesignVoiceTask key={item.id} projectId={projectId} selection={item} columns={columns} queueState={queueState} onOpenCard={onOpenCard} onCreated={onCreated} onCancel={() => setVoiceSelectionId(null)} /> : null}
       </li>)}</ol>}
     </div>
     <ComponentCatalogPanel projectId={projectId} />

@@ -12,7 +12,7 @@ import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './ca
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections, saveDesignSelection } from './design-inspection';
 import { designStateRoute, designStateRoutes, removeDesignStateRoute, saveDesignStateRoute } from './design-state-routes';
-import { addCardContextReference, addCardContextReferenceFromDesignSelection, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromDesignSelection, cardContextCandidateFromWhiteboardNode, cardContextReferences, previewCardContextReference, removeCardContextReference } from './card-context';
+import { addCardContextReference, addCardContextReferenceFromDesignSelection, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromDesignSelection, cardContextCandidateFromWhiteboardNode, cardContextReferences, createCardFromDesignRequest, designTaskCandidate, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
@@ -196,6 +196,8 @@ function installIpc(): void {
     queueEngine.onBoardChanged(card.projectId);
     return card;
   });
+  bind('designTaskCandidate', (input: Parameters<StudioAPI['designTaskCandidate']>[0]) => designTaskCandidate(db, input));
+  bind('createCardFromDesignRequest', (input: Parameters<StudioAPI['createCardFromDesignRequest']>[0]) => createCardFromDesignRequest(db, input));
   bind('updateCard', (input: Parameters<StudioAPI['updateCard']>[0]) => db.updateCard(input));
   bind('setCardArchived', (input: { id: string; archived: boolean }) => {
     const card = db.setCardArchived(input);
@@ -1340,6 +1342,40 @@ function createWindow(): void {
               return document.querySelector('.design-inspection-evidence')?.textContent?.includes('#design-smoke-target') && document.querySelector('.design-inspection-evidence')?.textContent?.includes('rgb(');
             })()`);
             if (!visible) throw new Error('Design-Auswahl erschien nicht sichtbar in der App.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const evidence = document.querySelector('.design-inspection-evidence li');
+              const entry = evidence?.querySelector('.design-voice-entry button');
+              if (!entry || entry.disabled) throw new Error('Design-Wunsch ist nicht bedienbar.');
+              const before = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).cards.length;
+              entry.click();
+              for (let attempt = 0; attempt < 100 && !evidence?.querySelector('.design-voice-task'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              let form = evidence?.querySelector('.design-voice-task');
+              if (!form?.textContent?.includes('Wunsch aufnehmen') || !form.textContent.includes('Quelle: http://127.0.0.1:')) throw new Error('Design-Entwurf zeigt Aufnahme oder Quelle nicht.');
+              [...form.querySelectorAll('button')].find((item) => item.textContent?.includes('Verwerfen'))?.click();
+              for (let attempt = 0; attempt < 100 && evidence?.querySelector('.design-voice-task'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (evidence?.querySelector('.design-voice-task') || (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).cards.length !== before) throw new Error('Verworfener Design-Entwurf speicherte eine Karte.');
+              entry.click();
+              for (let attempt = 0; attempt < 100 && !evidence?.querySelector('.design-voice-task'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              form = evidence?.querySelector('.design-voice-task');
+              const save = form?.querySelector('button[type="submit"]');
+              if (!save?.disabled || (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).cards.length !== before) throw new Error('Design-Wunsch wurde vor Bestätigung gespeichert.');
+              const textarea = form.querySelector('textarea');
+              const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!textarea || !setter) throw new Error('Design-Transkript ist nicht editierbar.');
+              setter.call(textarea, 'Make the selected button easier to see.');
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && save.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (save.disabled) throw new Error('Design-Wunsch blieb nach editierbarem Text gesperrt.');
+              form.requestSubmit();
+              for (let attempt = 0; attempt < 100 && !form.textContent?.includes('Karte mit diesem Design-Beleg gespeichert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!form.textContent?.includes('Karte mit diesem Design-Beleg gespeichert')) throw new Error('Design-Karte wurde nicht sichtbar bestätigt: ' + form.textContent);
+              const snapshot = await window.studio.snapshot(${JSON.stringify(smokeProject.id)});
+              const card = snapshot.cards.find((item) => item.description === 'Make the selected button easier to see.');
+              if (!card || snapshot.cards.length !== before + 1 || snapshot.sessions.length !== 1) throw new Error('Design-Karte fehlte oder startete einen Agenten.');
+              const refs = await window.studio.cardContextReferences(card.id);
+              if (refs.length !== 1 || refs[0].kind !== 'design' || !refs[0].available) throw new Error('Design-Karte hat keinen überprüften Beleg.');
+              return true;
+            })()`);
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const evidence = document.querySelector('.design-inspection-evidence li');
               const check = [...(evidence?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Kontrast und Zielgröße prüfen'));

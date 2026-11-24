@@ -37,4 +37,14 @@
 .design-a11y-result > p { margin: 0; }
 .design-a11y-result dl { margin-top: 6px; }
 .design-a11y-result .design-a11y-limit { margin-top: 8px; color: var(--muted); }
+.design-voice-entry { margin-top: 10px; }
+.design-voice-task { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.design-voice-task h4 { margin: 0; font-size: 13px; }
+.design-voice-task .design-voice-source { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.design-voice-task label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--soft); }
+.design-voice-task input, .design-voice-task textarea, .design-voice-task select { width: 100%; min-width: 0; }
+.design-voice-task textarea { resize: vertical; }
+.design-voice-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.design-voice-actions span { color: var(--muted); font-size: 11px; }
+.design-voice-task button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 700px) { .design-inspection { padding: 14px; } .design-inspection-toolbar button { flex: 1 1 auto; } }

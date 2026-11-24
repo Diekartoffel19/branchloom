@@ -23,6 +23,8 @@ Der Modellpfad muss absolut und außerhalb des Repositories liegen. Das Skript s
 
 Im Fenster Mikrofonzugriff erlauben, Aufnahme starten, sprechen und Aufnahme beenden. Der erkannte Text erscheint zur Prüfung im Eingabefeld. Ein leerer oder unverständlicher Clip führt zu einem sichtbaren Fehler. Clips über 8 MiB oder 60 Sekunden werden abgelehnt; der Python-Prozess hat ein Zeitlimit von zwei Minuten.
 
+Unter **Design** kannst du nach der Auswahl eines gespeicherten lokalen Elements **Wunsch als Karte vorbereiten** öffnen. Die Aufnahme startet erst mit **Wunsch aufnehmen**. Nach **Aufnahme beenden** erscheint die lokale Transkription in einem bearbeitbaren Feld; alternativ kannst du den Wunsch direkt eintippen. Erst der Klick auf **Karte mit Beleg speichern** speichert eine Board-Karte und den zuvor geprüften Design-Beleg. Mikrofonablehnung, leere Aufnahme und fehlendes Modell zeigen einen Fehler; ein ungespeicherter Entwurf kann verworfen werden. Das Aufnehmen allein startet keinen Agenten.
+
 ## Grenzen
 
 - Diese erste Fassung transkribiert nach Ende der Aufnahme. Fortlaufende Live-Diktation, globales Push-to-talk, Unterbrechen der Wiedergabe und Sprachausgabe sind eigene nächste Schritte.

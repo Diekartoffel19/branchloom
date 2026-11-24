@@ -4,7 +4,7 @@ import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpat
 import { isIP } from 'node:net';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
-import type { CardContextKind, CardContextPreview, CardContextReference, CardDesignContextCandidate } from '../shared/types';
+import type { Card, CardContextKind, CardContextPreview, CardContextReference, CardDesignContextCandidate } from '../shared/types';
 import { attachmentAvailable } from './card-attachments';
 import { diagnosticSource, isLocalDevUrl } from './browser-policy';
 import type { StudioStore } from './store';
@@ -42,6 +42,35 @@ function designFingerprint(row: DesignRow): string {
 }
 
 function designLabel(row: DesignRow): string { return `${row.tag} · ${row.selector}`; }
+
+/** Prepare an opaque saved Design record for a new task without loading its page. */
+export function designTaskCandidate(store: StudioStore, input: { projectId: string; selectionId: string }): CardDesignContextCandidate {
+  if (!input || typeof input.projectId !== 'string') throw new Error('Design-Auftrag ist ungültig.');
+  store.project(input.projectId);
+  const row = checkedDesignSelection(store, input.projectId, input.selectionId);
+  return { selectionId: row.id, fingerprint: designFingerprint(row), label: designLabel(row), sourceUrl: row.source_url };
+}
+
+/** One confirmed SQLite transaction: card and its exact saved Design source. */
+export function createCardFromDesignRequest(store: StudioStore, input: {
+  projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string;
+}): Card {
+  if (!input || typeof input.projectId !== 'string' || typeof input.columnId !== 'string'
+    || typeof input.expectedFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedFingerprint)
+    || typeof input.title !== 'string' || typeof input.description !== 'string'
+    || input.description.trim().length < 3 || input.description.length > 5_000) {
+    throw new Error('Design-Auftrag braucht einen Titel und 3 bis 5000 Zeichen Beschreibung.');
+  }
+  return store.db.transaction(() => {
+    store.project(input.projectId);
+    if (store.projectQueue(input.projectId).state === 'running') throw new Error('Warteschlange vor dem Anlegen einer Design-Karte pausieren.');
+    const row = checkedDesignSelection(store, input.projectId, input.selectionId);
+    if (designFingerprint(row) !== input.expectedFingerprint) throw new Error('Design-Beleg wurde geändert. Quelle erneut vorbereiten.');
+    const card = store.createCard({ projectId: input.projectId, columnId: input.columnId, title: input.title, description: input.description.trim() });
+    addCardContextReferenceFromDesignSelection(store, { cardId: card.id, selectionId: row.id, expectedFingerprint: input.expectedFingerprint, note: '' });
+    return card;
+  })();
+}
 
 function checkedDesignNote(value: unknown): string {
   if (typeof value !== 'string' || value.length > 300 || /[\x00-\x1f\x7f]/.test(value)) throw new Error('Design-Notiz darf höchstens 300 Zeichen ohne Steuerzeichen enthalten.');

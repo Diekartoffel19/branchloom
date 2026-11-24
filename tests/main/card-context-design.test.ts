@@ -8,7 +8,7 @@ vi.mock('electron', () => ({ WebContentsView: class {} }));
 
 import { StudioStore } from '../../src/main/store';
 import { saveDesignSelection } from '../../src/main/design-inspection';
-import { addCardContextReference, addCardContextReferenceFromDesignSelection, cardContextCandidateFromDesignSelection, cardContextReferences, previewCardContextReference } from '../../src/main/card-context';
+import { addCardContextReference, addCardContextReferenceFromDesignSelection, cardContextCandidateFromDesignSelection, cardContextReferences, createCardFromDesignRequest, designTaskCandidate, previewCardContextReference } from '../../src/main/card-context';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -27,6 +27,48 @@ function fixture() {
 }
 
 describe('saved Design Inspector evidence as card context', () => {
+  it('creates a confirmed design request and its exact saved source atomically without a session', () => {
+    const { file, store, project, selection } = fixture();
+    const columns = store.snapshot(project.id).columns;
+    const before = store.snapshot(project.id).cards.length;
+    const candidate = designTaskCandidate(store, { projectId: project.id, selectionId: selection.id });
+    expect(candidate).toMatchObject({ selectionId: selection.id, sourceUrl: 'http://127.0.0.1:5173/page' });
+    expect(store.snapshot(project.id).cards).toHaveLength(before);
+    const created = createCardFromDesignRequest(store, { projectId: project.id, selectionId: selection.id, expectedFingerprint: candidate.fingerprint, columnId: columns[0]!.id, title: 'Improve save action', description: 'Make this button easier to find.' });
+    expect(created.description).toBe('Make this button easier to find.');
+    expect(cardContextReferences(store, created.id)).toMatchObject([{ kind: 'design', target: selection.id, available: true }]);
+    expect(store.snapshot(project.id).sessions).toHaveLength(0);
+    store.close();
+    const reopened = new StudioStore(file);
+    expect(reopened.card(created.id).title).toBe('Improve save action');
+    expect(cardContextReferences(reopened, created.id)).toMatchObject([{ kind: 'design', target: selection.id }]);
+    reopened.close();
+  });
+
+  it('rejects a changed or foreign source and a running queue without leaving an orphan card', () => {
+    const { root, store, project, selection } = fixture();
+    const columnId = store.snapshot(project.id).columns[0]!.id;
+    const candidate = designTaskCandidate(store, { projectId: project.id, selectionId: selection.id });
+    const request = { projectId: project.id, selectionId: selection.id, expectedFingerprint: candidate.fingerprint, columnId, title: 'Fix button', description: 'Improve the save button.' };
+    const count = store.snapshot(project.id).cards.length;
+    const otherRepo = join(root, 'other-design'); mkdirSync(otherRepo);
+    const other = store.createProject({ name: 'Other Design', path: otherRepo });
+    expect(() => designTaskCandidate(store, { projectId: other.id, selectionId: selection.id })).toThrow('anderen Projekt');
+    expect(() => createCardFromDesignRequest(store, { ...request, projectId: other.id, columnId: store.snapshot(other.id).columns[0]!.id })).toThrow('anderen Projekt');
+    store.db.prepare('UPDATE design_selections SET text_snippet = ? WHERE id = ?').run('Changed', selection.id);
+    expect(() => createCardFromDesignRequest(store, request)).toThrow('geändert');
+    expect(store.snapshot(project.id).cards).toHaveLength(count);
+    const fresh = designTaskCandidate(store, { projectId: project.id, selectionId: selection.id });
+    store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
+    expect(() => createCardFromDesignRequest(store, { ...request, expectedFingerprint: fresh.fingerprint })).toThrow('pausieren');
+    expect(store.snapshot(project.id).cards).toHaveLength(count);
+    store.saveProjectQueue({ projectId: project.id, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
+    store.db.prepare('DELETE FROM design_selections WHERE id = ?').run(selection.id);
+    expect(() => createCardFromDesignRequest(store, { ...request, expectedFingerprint: fresh.fingerprint })).toThrow('entfernt');
+    expect(() => createCardFromDesignRequest(store, { ...request, description: 'x' })).toThrow('3 bis 5000');
+    expect(store.snapshot(project.id).cards).toHaveLength(count);
+    store.close();
+  });
   it('prepares without writing, then confirms a bounded note and keeps the reference after restart', () => {
     const { file, store, card, selection } = fixture();
     const candidate = cardContextCandidateFromDesignSelection(store, { cardId: card.id, selectionId: selection.id });

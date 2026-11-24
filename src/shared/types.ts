@@ -113,6 +113,8 @@ export interface StudioAPI {
   reorderColumn(input: { id: string; direction: 'left' | 'right' }): Promise<Column>;
   deleteColumn(id: string): Promise<void>;
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
+  designTaskCandidate(input: { projectId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
+  createCardFromDesignRequest(input: { projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   moveCard(input: { id: string; columnId: string }): Promise<Card>;
   bulkUpdateCards(input: BulkCardAction): Promise<Card[]>;
