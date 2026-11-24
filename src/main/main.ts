@@ -1435,8 +1435,9 @@ function createWindow(): void {
               const beforeSessions = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.length;
               starter.click();
               for (let attempt = 0; attempt < 100 && !wireframe?.querySelector('.task-wireframe-canvas'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche.');
               const premature = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} });
-              if (!wireframe?.querySelector('.task-wireframe-canvas') || premature !== null) throw new Error('Fenstergerüst wurde vor Speichern angelegt.');
+              if (premature !== null) throw new Error('Fenstergerüst wurde vor dem ausdrücklichen Speichern in SQLite angelegt.');
               wireframe.querySelectorAll('.task-wireframe-layers li button')[1]?.click();
               for (let attempt = 0; attempt < 100 && !wireframe.querySelector('input[aria-label="Text des ausgewählten Elements"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const text = wireframe.querySelector('input[aria-label="Text des ausgewählten Elements"]');
