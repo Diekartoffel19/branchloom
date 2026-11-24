@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Inbox } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { ReviewInboxItem, ReviewInboxPage } from '../../shared/review-inbox';
+import type { GlobalInboxItem } from '../../shared/global-inbox';
 import { decisionItems, filterDecisionItems, type DecisionFilter } from '../decision-inbox';
+import { CrossProjectInbox } from './CrossProjectInbox';
 import '../decision-inbox.css';
 
 interface Props {
@@ -15,6 +17,7 @@ interface Props {
   onOpenQaReport: (cardId: string, reportId: string) => void;
   onAcknowledgeSession: (id: string) => void;
   onOpenPlan: (id: string) => void;
+  onOpenGlobalItem?: (item: GlobalInboxItem) => void;
 }
 
 function pauseTime(value: string | null): string | null {
@@ -37,7 +40,8 @@ export function ReviewInboxList({ items, hasMore, busy, loadingMore, onOpenPlan,
   </section>;
 }
 
-export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSession, onOpenCard, onOpenDiffComment, onOpenQaReport, onAcknowledgeSession, onOpenPlan }: Props) {
+export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSession, onOpenCard, onOpenDiffComment, onOpenQaReport, onAcknowledgeSession, onOpenPlan, onOpenGlobalItem }: Props) {
+  const [scope, setScope] = useState<'project' | 'all'>('project');
   const [category, setCategory] = useState<DecisionFilter>('all');
   const [query, setQuery] = useState('');
   const [reviewResult, setReviewResult] = useState<{ key: string; page: ReviewInboxPage } | null>(null);
@@ -54,6 +58,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
   const reviews = reviewResult?.key === reviewKey ? reviewResult.page : null;
   useEffect(() => { setCategory('all'); setQuery(''); }, [snapshot.project.id]);
   useEffect(() => {
+    if (scope === 'all') return;
     let active = true;
     const revision = ++reviewRevision.current;
     setReviewResult(null); setReviewError(''); setReviewNotice(''); setReviewBusy(null); setReviewLoadingMore(false);
@@ -61,7 +66,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
       (reason: unknown) => { if (active) setReviewError(reason instanceof Error ? reason.message : String(reason)); });
     }, query.trim() ? 150 : 0);
     return () => { active = false; clearTimeout(timer); };
-  }, [snapshot.project.id, query]);
+  }, [snapshot.project.id, query, scope]);
   const items = decisionItems(snapshot);
   const visible = filterDecisionItems(items, category, query);
   const visibleReviews = category === 'all' || category === 'review' ? reviews?.items ?? [] : [];
@@ -93,7 +98,9 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
   }
 
   return <div className="standard-page decision-page">
-    <div className="view-header"><div><h2>Offene Entscheidungen</h2><p>Gespeicherte Pausen, unterbrochene Agentenläufe, Reviews und Browser-QA aus dem aktiven Projekt. Öffne die Quelle vor einer Entscheidung.</p></div></div>
+    <div className="view-header"><div><h2>Offene Entscheidungen</h2><p>{scope === 'all' ? 'Gespeicherte offene Hinweise aller lokalen Projekte. Jede Quelle ist einem Projekt zugeordnet.' : 'Gespeicherte Pausen, unterbrochene Agentenläufe, Reviews und Browser-QA aus dem aktiven Projekt. Öffne die Quelle vor einer Entscheidung.'}</p></div></div>
+    {onOpenGlobalItem ? <div className="decision-scope" role="group" aria-label="Projektumfang"><button type="button" className="secondary-button" aria-pressed={scope === 'project'} onClick={() => setScope('project')}>Dieses Projekt</button><button type="button" className="secondary-button" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>Alle Projekte</button></div> : null}
+    {scope === 'all' && onOpenGlobalItem ? <CrossProjectInbox onOpen={onOpenGlobalItem} /> : <>
     {!reviews && !reviewError ? <p className="section-copy" role="status">Reviews und Browser-QA werden geladen…</p> : null}
     {reviewError ? <p className="inline-error" role="alert">Reviews und Browser-QA konnten nicht geladen werden: {reviewError}</p> : null}
     {reviewNotice ? <p className="inline-note" role="status">{reviewNotice}</p> : null}
@@ -122,5 +129,6 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
         {visibleReviews.length ? <ReviewInboxList items={visibleReviews} hasMore={Boolean(reviews?.hasMore)} busy={reviewBusy} loadingMore={reviewLoadingMore}
           onOpenPlan={onOpenPlan} onOpenDiffComment={onOpenDiffComment} onOpenQaReport={onOpenQaReport} onAcknowledge={(item) => void acknowledge(item)} onLoadMore={() => void loadMore()} /> : null}
       </>}
+    </>}
   </div>;
 }

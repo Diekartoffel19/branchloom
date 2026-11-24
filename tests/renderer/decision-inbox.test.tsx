@@ -22,6 +22,17 @@ const snapshot: ProjectSnapshot = {
 };
 
 describe('decision inbox', () => {
+  it('offers a voluntary all-project scope while keeping the current project selected by default', () => {
+    const html = renderToStaticMarkup(createElement(DecisionInbox, {
+      snapshot, onOpenWorkflow: () => undefined, onOpenQueue: () => undefined,
+      onOpenGlobalItem: () => undefined,
+    }));
+    expect(html).toContain('aria-label="Projektumfang"');
+    expect(html).toContain('aria-pressed="true">Dieses Projekt');
+    expect(html).toContain('aria-pressed="false">Alle Projekte');
+    expect(html).toContain('Freigabe prüfen');
+    expect(html).not.toContain('Entscheidungen aller Projekte');
+  });
   it('shows only persisted paused states and excludes skipped workflows', () => {
     const items = decisionItems({
       ...snapshot,

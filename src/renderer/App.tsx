@@ -20,6 +20,7 @@ import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
 import { decisionItems } from './decision-inbox';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
+import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import './theme.css';
@@ -61,6 +62,7 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [openPlan, setOpenPlan] = useState<{ id: string; token: number } | null>(null);
+  const [pendingGlobalItem, setPendingGlobalItem] = useState<GlobalInboxItem | null>(null);
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
@@ -209,6 +211,27 @@ export function App() {
     setQueueNavigationToken((value) => value + 1);
   }
 
+  function openGlobalItem(item: GlobalInboxItem) {
+    if (!projects.some((project) => project.id === item.projectId)) {
+      setError('Das Projekt dieses Inbox-Eintrags ist nicht mehr vorhanden.');
+      return;
+    }
+    setPendingGlobalItem(item);
+    if (projectId !== item.projectId) setProjectId(item.projectId);
+  }
+
+  useEffect(() => {
+    if (!pendingGlobalItem || snapshot?.project.id !== pendingGlobalItem.projectId || projectId !== pendingGlobalItem.projectId) return;
+    const item = pendingGlobalItem;
+    setPendingGlobalItem(null);
+    if (item.kind === 'queue') navigateToQueue();
+    else if (item.kind === 'workflow') navigateToEntity('workflow', item.sourceId);
+    else if (item.kind === 'session') void openSessionFromMemory(item.sourceId);
+    else if (item.kind === 'plan') { setOpenPlan((old) => ({ id: item.sourceId, token: (old?.token ?? 0) + 1 })); setView('workflows'); }
+    else if (item.kind === 'diff') navigateToDiffComment(item.sourceId, item.id.slice(5));
+    else navigateToQaReport(item.sourceId, item.id.slice(3));
+  }, [pendingGlobalItem, projectId, snapshot?.project.id]);
+
   async function saveSessionAsNote(session: Session) {
     if (!snapshot || session.projectId !== snapshot.project.id || session.state === 'running') return;
     const existing = snapshot.notes.find((note) => note.tags.includes('agentenlauf') && note.body.includes(`Sitzung: ${session.id}\n`));
@@ -315,7 +338,7 @@ export function App() {
       <div className="brand"><span className="brand-mark"><GitBranch size={19} strokeWidth={2} /></span><strong>Branchloom</strong></div>
       <div className="side-section-title">Projekte</div>
       <label className="sr-only" htmlFor="project-select">Projekt auswählen</label>
-      <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => setProjectId(event.target.value || null)}>
+      <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
         {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
         {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
       </select>
@@ -336,7 +359,7 @@ export function App() {
       </header>
       <div className="mobile-workspace">
         <label className="sr-only" htmlFor="mobile-project-select">Projekt auswählen</label>
-        <select id="mobile-project-select" value={projectId ?? ''} onChange={(event) => setProjectId(event.target.value || null)}>
+        <select id="mobile-project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
           {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
           {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
@@ -355,7 +378,7 @@ export function App() {
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} /> : null}
-        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenDiffComment={navigateToDiffComment} onOpenQaReport={navigateToQaReport} onOpenPlan={(id) => { setOpenPlan((old) => ({ id, token: (old?.token ?? 0) + 1 })); setView('workflows'); }} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} /> : null}
+        {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenDiffComment={navigateToDiffComment} onOpenQaReport={navigateToQaReport} onOpenPlan={(id) => { setOpenPlan((old) => ({ id, token: (old?.token ?? 0) + 1 })); setView('workflows'); }} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} onOpenGlobalItem={openGlobalItem} /> : null}
         {view === 'whiteboard' ? <Suspense fallback={<div className="content-message">Whiteboard wird geladen…</div>}><WhiteboardView snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /></Suspense> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}

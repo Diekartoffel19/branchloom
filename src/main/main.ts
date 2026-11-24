@@ -20,6 +20,7 @@ import { scanProjectComponents } from './component-catalog';
 import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
+import { globalInboxItems } from './global-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
 import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
@@ -281,6 +282,7 @@ function installIpc(): void {
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
   bind('reviewInboxItems', (input: Parameters<StudioAPI['reviewInboxItems']>[0]) => reviewInboxItems(db, input));
+  bind('globalInboxItems', (input: Parameters<StudioAPI['globalInboxItems']>[0]) => globalInboxItems(db, input));
   bind('acknowledgeReviewInboxComment', (input: Parameters<StudioAPI['acknowledgeReviewInboxComment']>[0]) => acknowledgeReviewInboxComment(db, input));
   bind('acknowledgeQaInboxReport', (input: Parameters<StudioAPI['acknowledgeQaInboxReport']>[0]) => acknowledgeQaInboxReport(db, input));
   bind('reviewRules', (projectId: string) => listReviewRules(db, projectId));
@@ -505,6 +507,8 @@ function createWindow(): void {
         createPlanComment(smokeStore, { planId: smokePlan.id, fingerprint: smokePlan.fingerprint, line: 1, body: 'BRANCHLOOM_PLAN_REVIEW_SMOKE' });
         smokeStore.db.prepare(`INSERT INTO review_comments (id,card_id,fingerprint,file_path,side,line,body,created_at)
           VALUES (?,?,?,?,?,?,?,?)`).run(randomUUID(), smokeCard.id, 'f'.repeat(64), 'src/synthetic.ts', 'new', 14, 'BRANCHLOOM_DIFF_REVIEW_SMOKE', new Date().toISOString());
+        const secondProjectPath = join(smokeProject.path, 'second-project');
+        mkdirSync(secondProjectPath, { recursive: true });
         const smokeWindow = window!;
         smokeWindow.webContents.once('did-finish-load', () => {
           const boardScript = `
@@ -928,6 +932,65 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && (await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id) || !(await window.studio.cardQaReports(qaCard.id)).some((item) => item.id === qaReport.id)) throw new Error('QA-Quittierung entfernte nicht nur den Inbox-Eintrag.');
               if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('QA-Inbox startete einen weiteren Agenten.');
+              const globalButton = [...document.querySelectorAll('.decision-scope button')].find((item) => item.textContent?.includes('Alle Projekte'));
+              if (!globalButton) throw new Error('Projektübergreifender Inbox-Modus fehlt.');
+              globalButton.click();
+              let globalPlan;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                globalPlan = [...document.querySelectorAll('.cross-project-inbox .decision-item')].find((item) => item.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE'));
+                if (globalPlan) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!globalPlan?.textContent?.includes('Projekt: ' + boardProject.name)) throw new Error('Projektzuordnung fehlt in der globalen Inbox.');
+              if (document.querySelector('.cross-project-inbox [data-global-inbox-id="qa:' + qaReport.id + '"]')) throw new Error('Quittierte QA steht noch in der globalen Inbox.');
+              globalPlan.querySelector('button.secondary-button')?.click();
+              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht.');
+              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('Globale Inbox startete einen Agenten.');
+              [...document.querySelectorAll('.sidebar-add')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.modal-backdrop form.dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const form = document.querySelector('.modal-backdrop form.dialog');
+              const inputs = form?.querySelectorAll('input');
+              const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!form || inputs?.length !== 2 || !inputSetter) throw new Error('Zweitprojekt-Dialog fehlt.');
+              inputSetter.call(inputs[0], 'Smoke-Zweitprojekt'); inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+              inputSetter.call(inputs[1], ${JSON.stringify(secondProjectPath)}); inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+              form.requestSubmit();
+              let secondProject;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                secondProject = (await window.studio.projects()).find((project) => project.name === 'Smoke-Zweitprojekt');
+                if (secondProject && document.querySelector('#project-select')?.value === secondProject.id) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!secondProject || document.querySelector('#project-select')?.value !== secondProject.id) throw new Error('Zweitprojekt wurde nicht sichtbar ausgewählt.');
+              const secondSnapshot = await window.studio.snapshot(secondProject.id);
+              const secondCard = await window.studio.createCard({ projectId: secondProject.id, columnId: secondSnapshot.columns[0].id, title: 'Zweitprojekt-Aufgabe' });
+              const secondWorkflow = await window.studio.createWorkflow({ projectId: secondProject.id, name: 'BRANCHLOOM_GLOBAL_OTHER_PROJECT', cardIds: [secondCard.id],
+                steps: [{ id: 'second-approval', columnId: secondSnapshot.columns[0].id, agentId: null, requireApproval: true }] });
+              await window.studio.setWorkflowState({ id: secondWorkflow.id, state: 'paused' });
+              const projectSelect = document.querySelector('#project-select');
+              const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!projectSelect || !selectSetter) throw new Error('Projektwahl fehlt.');
+              selectSetter.call(projectSelect, boardProject.id); projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && document.querySelector('#project-select')?.value !== boardProject.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const decisionsAgain = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
+              decisionsAgain?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.decision-scope'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...document.querySelectorAll('.decision-scope button')].find((item) => item.textContent?.includes('Alle Projekte'))?.click();
+              let otherItem;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                otherItem = [...document.querySelectorAll('.cross-project-inbox .decision-item')].find((item) => item.textContent?.includes('BRANCHLOOM_GLOBAL_OTHER_PROJECT'));
+                if (otherItem) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!otherItem?.textContent?.includes('Projekt: Smoke-Zweitprojekt') || otherItem.getAttribute('data-global-inbox-id') !== 'workflow:' + secondWorkflow.id) throw new Error('Projektübergreifende Quelle ist falsch zugeordnet.');
+              otherItem.querySelector('button.secondary-button')?.click();
+              for (let attempt = 0; attempt < 100 && (document.querySelector('#project-select')?.value !== secondProject.id || !document.querySelector('.workflow-list')?.textContent?.includes('BRANCHLOOM_GLOBAL_OTHER_PROJECT')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('#project-select')?.value !== secondProject.id || !document.querySelector('.workflow-list')?.textContent?.includes('BRANCHLOOM_GLOBAL_OTHER_PROJECT')) throw new Error('Projektwechsel öffnete nicht die exakte Workflow-Quelle.');
+              if ((await window.studio.snapshot(secondProject.id)).sessions.length !== 0) throw new Error('Projektwechsel startete einen Agenten.');
+              selectSetter.call(projectSelect, boardProject.id); projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && document.querySelector('#project-select')?.value !== boardProject.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('#project-select')?.value !== boardProject.id) throw new Error('Smoke-Projekt wurde nicht wiederhergestellt.');
               return true;
             })()
           `;

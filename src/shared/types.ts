@@ -9,6 +9,7 @@ import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind }
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignInspectionState, DesignSelection } from './design-inspection';
 import type { ComponentCatalog } from './component-catalog';
+import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -158,6 +159,7 @@ export interface StudioAPI {
   listReviewComments(cardId: string): Promise<ReviewComment[]>;
   createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
   reviewInboxItems(input: ReviewInboxQuery): Promise<ReviewInboxPage>;
+  globalInboxItems(input: GlobalInboxQuery): Promise<GlobalInboxPage>;
   acknowledgeReviewInboxComment(input: AcknowledgeReviewInboxComment): Promise<void>;
   acknowledgeQaInboxReport(input: AcknowledgeQaInboxReport): Promise<void>;
   reviewRules(projectId: string): Promise<ReviewRule[]>;

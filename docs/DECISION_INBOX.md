@@ -1,10 +1,20 @@
 # Decision Inbox
 
-Die Ansicht **Entscheidungen** zeigt offene Prüfungen aus dem aktiven Projekt. Pausen und Unterbrechungen stammen aus gespeicherten Zuständen im Projekt-Snapshot:
+Die Ansicht **Entscheidungen** startet mit offenen Prüfungen aus dem aktiven Projekt. Über **Alle Projekte** kann man ausdrücklich zur projektübergreifenden Liste wechseln; **Dieses Projekt** zeigt wieder die gewohnte Projektansicht. Pausen und Unterbrechungen der Projektansicht stammen aus gespeicherten Zuständen im Projekt-Snapshot:
 
 - pausierte Workflows mit Grund **Freigabe**, **manueller Schritt**, **Review** oder **vom Nutzer pausiert**;
 - eine pausierte To-Do-Warteschlange mit ihrem gespeicherten Pausengrund und, falls vorhanden, dem aktiven Workflow.
 - beim App-Neustart unterbrochene Karten-Agentensitzungen mit gespeicherter Ausgabe und noch offener Prüfung.
+
+## Alle lokalen Projekte
+
+Der optionale Modus liest offene Quellen aller in dieser lokalen Branchloom-Datenbank registrierten Projekte: pausierte Workflows und Warteschlangen, noch nicht quittierte unterbrochene Agentensitzungen, Kommentare zu offenen Plänen oder aktiven Karten sowie fehlgeschlagene oder abgebrochene Karten-Browser-QA. Jeder Eintrag nennt den Projektnamen. **Quelle öffnen** wechselt zum zugehörigen Projekt und öffnet dort den konkreten Workflow, die Queue, Sitzung, den Plan, Diff-Kommentar oder QA-Bericht. Ein inzwischen gelöschtes Projekt oder eine entfernte Quelle kann nicht geöffnet werden.
+
+Suche und Grundfilter laufen über die gespeicherten Quellen aller Projekte. Die Datenbank liefert höchstens 100 Treffer pro Seite; ältere Treffer werden nur auf Klick geladen. Nach 10.000 Treffern wird die Liste begrenzt und bittet um eine engere Suche. **Als geprüft markieren** quittiert bei Kommentar und QA nur den jeweiligen Inbox-Eintrag unter dessen eigener Projekt-ID. Der Hauptprozess prüft diese Zuordnung erneut. Der Modus genehmigt keinen Schritt, startet keine Queue oder Agentensitzung und sendet keine Projektdaten nach außen. Neue Ereignisse erscheinen nach erneutem Öffnen oder einer neuen Suche; es gibt derzeit keine Live-Aktualisierung in diesem Modus.
+
+Die Einträge sind eine lokal gespeicherte Übersicht, keine vollständige Aufgaben- oder Agentenfrage-Historie. Der aktive Projektmodus bleibt für ausführliche Kontextangaben zu Pausen und Unterbrechungen erhalten.
+
+## Aktives Projekt
 
 Zusätzlich liest die Ansicht gespeicherte Planzeilen- und Diff-Kommentare aus der lokalen Datenbank. Sie zeigt nur Kommentare zu einem **offenen** Plan oder einer **nicht archivierten** Karte des aktiven Projekts, solange sie in der Inbox nicht ausdrücklich als geprüft markiert wurden. Jeder Eintrag nennt Kommentar, Quelle und Zeit. **Plan öffnen** wählt den gespeicherten Plan unter Workflows aus und setzt den Tastaturfokus auf ihn. **Kommentar öffnen** führt zur betroffenen Karte, öffnet den Diff-Review-Bereich und fokussiert den gewählten Kommentar. Gespeicherte Kommentare bleiben auch ohne verfügbaren Worktree in der Review-Historie lesbar. Ein Diff-Kommentar kann sich auf einen älteren Stand beziehen.
 
@@ -12,7 +22,7 @@ Die Inbox lädt jeweils höchstens 100 passende Review- oder QA-Einträge, zeigt
 
 Fehlgeschlagene oder abgebrochene **lokale Karten-Browser-QA-Berichte** erscheinen in derselben begrenzten Liste, solange ihre Karte aktiv und der Bericht vorhanden ist. Ein Eintrag nennt Karte, Abschlusszeit, geprüfte Route, Status sowie Zahl und erste Meldung der gespeicherten Diagnosen oder die Abbruchnotiz. **Bericht öffnen** führt zur konkreten Karte, klappt genau diesen Bericht auf und setzt den Tastaturfokus darauf. Die Suche und **Ältere Einträge laden** umfassen auch diese Berichte. Erfolgreiche Prüfungen erscheinen nicht als offene Entscheidung. Das Löschen eines alten Berichts durch das 20er-Kartenlimit entfernt auch seinen Inbox-Eintrag und eine dazu gespeicherte Quittierung.
 
-**Als geprüft markieren** speichert nur eine lokale Inbox-Quittierung. Originalkommentar und QA-Bericht bleiben erhalten; es wird kein Feedback an einen Agenten gesendet, kein Plan angenommen, kein Workflow freigegeben und keine Karte verschoben. Ein ersetzter oder übernommener Plan sowie eine archivierte Karte verlassen die offene Inbox automatisch. Ein erneutes Öffnen des ursprünglichen Plans, Reviews oder Kartenberichts zeigt die Quelle weiterhin. Noch keine beantworteten Agentenfragen, automatische QA-Ausführung oder projektübergreifende Inbox.
+**Als geprüft markieren** speichert nur eine lokale Inbox-Quittierung. Originalkommentar und QA-Bericht bleiben erhalten; es wird kein Feedback an einen Agenten gesendet, kein Plan angenommen, kein Workflow freigegeben und keine Karte verschoben. Ein ersetzter oder übernommener Plan sowie eine archivierte Karte verlassen die offene Inbox automatisch. Ein erneutes Öffnen des ursprünglichen Plans, Reviews oder Kartenberichts zeigt die Quelle weiterhin. Noch keine beantworteten Agentenfragen oder automatische QA-Ausführung.
 
 Bewusst übersprungene Queue-Workflows erscheinen nicht mehr als offene Freigabe. Laufende, fertige und ungestartete Workflows erzeugen ebenfalls keinen Inbox-Eintrag. Die Anzeige aktualisiert sich mit dem Projekt-Snapshot, auch nach einem Neustart.
 
@@ -22,6 +32,6 @@ Bei einer unterbrochenen Sitzung führen **Verlauf prüfen** und **Karte und Dat
 
 Jeder Eintrag nennt jetzt den gespeicherten Pausgrund, den betroffenen Schritt, die Spalte, den zugewiesenen Agenten und bis zu drei betroffene Karten, soweit diese Daten noch vorhanden sind. Ein Hinweis beschreibt den nächsten Prüfschritt; der Zeitstempel zeigt **die letzte gespeicherte Aktualisierung**, nicht den sicheren Beginn der Pause. Bei einer pausierten Queue mit aktivem Workflow gibt es neben dem Queue-Ziel einen Link zu diesem Workflow. Ab fünf Einträgen erscheinen eine Suche und ein Filter nach Pausart. Suche und Filter verändern keine gespeicherten Entscheidungen; bei weniger Einträgen bleiben sie sichtbar, solange eine Auswahl aktiv ist.
 
-Freigaben und Fragen aus anderen Projekten werden noch nicht aggregiert.
+Agentenfragen ohne gespeicherte Quelle werden weiterhin nicht aggregiert.
 
 Prüfung am 23.11.2026: In einem isolierten Electron-Profil mit fünf synthetisch pausierten Workflows und einer angehaltenen Queue wurden sechs Einträge angezeigt. Der Filter **Prüfung**, eine Kartennamensuche, der Zustand ohne Treffer sowie die Navigation zum korrekten Workflow, zur Queue und von der Queue zum aktiven Workflow wurden sichtbar geprüft. Dabei wurde keine Freigabe und kein Agentenlauf ausgelöst. Der allgemeine View-Wechsel behält derzeit gelegentlich die vorige Scrollposition; die Inbox setzt diese Position noch nicht selbst zurück.
