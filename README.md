@@ -52,6 +52,8 @@ Im **Design-Modus** lässt sich zu einem gespeicherten lokalen Element ein Ände
 
 Der Kartendialog im **Board** hält den Tastaturfokus innerhalb der Karte. **Escape** schließt ihn und setzt den Fokus auf den Auslöser oder die Kartensuche zurück. [Details](docs/BOARD_METADATA.md).
 
+Der gespeicherte Agentenverlauf in **Aktivität** öffnet als Dialog. Tab bleibt darin, Escape schließt ihn und setzt den Fokus zum Auslöser oder zur Aktivitätssuche zurück. [Details](docs/ACTIVITY.md).
+
 ## Prüfen
 
 ```powershell

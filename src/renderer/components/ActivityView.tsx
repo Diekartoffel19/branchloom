@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Bot, BrainCircuit, CircleAlert, CircleStop, Clock3, Columns3, Download, GitBranch, Search, X } from 'lucide-react';
 import type { ProjectSnapshot, Session } from '../../shared/types';
 import { activityItems, formatDuration, sessionDuration, type ActivityKindFilter, type ActivityStatusFilter } from '../activity-data';
@@ -22,10 +22,20 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
   const [sessionError, setSessionError] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const transcriptDialog = useRef<HTMLElement | null>(null);
+  const transcriptOpener = useRef<HTMLElement | null>(null);
+  const activitySearch = useRef<HTMLInputElement | null>(null);
   const selectedInSnapshot = Boolean(selectedSessionId && snapshot.sessions.some((item) => item.id === selectedSessionId));
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
-  useEffect(() => { setSelectedSessionId(null); setExternalSession(null); }, [snapshot.project.id]);
-  useEffect(() => { if (openSession) setSelectedSessionId(openSession.id); }, [openSession?.id, openSession?.token]);
+  useEffect(() => { setSelectedSessionId(null); setExternalSession(null); transcriptOpener.current = null; }, [snapshot.project.id]);
+  useEffect(() => {
+    if (openSession) {
+      // Deep links can arrive after their original view has unmounted. Return
+      // to the activity search rather than focusing the document body.
+      transcriptOpener.current = null;
+      setSelectedSessionId(openSession.id);
+    }
+  }, [openSession?.id, openSession?.token]);
   useEffect(() => {
     if (!selectedSessionId || selectedInSnapshot) { setExternalSession(null); setSessionLoading(false); setSessionError(''); return; }
     let active = true;
@@ -37,7 +47,37 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
       .finally(() => { if (active) setSessionLoading(false); });
     return () => { active = false; };
   }, [selectedSessionId, snapshot.project.id, selectedInSnapshot]);
-  function closeTranscript() { setSelectedSessionId(null); setExternalSession(null); onSessionClosed?.(); }
+  function openTranscript(sessionId: string, opener: HTMLElement) {
+    transcriptOpener.current = opener;
+    setSelectedSessionId(sessionId);
+  }
+  function closeTranscript() {
+    const opener = transcriptOpener.current;
+    transcriptOpener.current = null;
+    setSelectedSessionId(null);
+    setExternalSession(null);
+    onSessionClosed?.();
+    window.setTimeout(() => {
+      if (opener?.isConnected && opener.getClientRects().length > 0) opener.focus();
+      else activitySearch.current?.focus();
+    }, 0);
+  }
+  function keepFocusInTranscript(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Tab' || !transcriptDialog.current) return;
+    const dialog = transcriptDialog.current;
+    const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+    if (!focusable.length) { event.preventDefault(); dialog.focus(); return; }
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    const current = document.activeElement;
+    const focusOnControl = focusable.some((element) => element === current);
+    if (event.shiftKey && (current === first || !focusOnControl)) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && (current === last || !focusOnControl)) {
+      event.preventDefault(); first.focus();
+    }
+  }
   useEffect(() => {
     if (!selectedSessionId) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeTranscript(); };
@@ -82,7 +122,7 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
     <div className="activity-filters">
       <label>Art<select value={kind} onChange={(event) => setKind(event.target.value as ActivityKindFilter)}><option value="all">Alle Aktivitäten</option><option value="session">Agentenläufe</option><option value="workflow">Workflows</option><option value="card">Karten mit letztem Lauf</option></select></label>
       <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as ActivityStatusFilter)}><option value="all">Alle Status</option><option value="running">Läuft</option><option value="attention">Handlungsbedarf</option><option value="finished">Beendet</option><option value="stopped">Gestoppt</option><option value="paused">Pausiert</option><option value="idle">Noch nicht gestartet</option></select></label>
-      <label className="activity-search"><span className="sr-only">Aktivität durchsuchen</span><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titel oder Agent suchen…" aria-label="Aktivität durchsuchen" /></label>
+      <label className="activity-search"><span className="sr-only">Aktivität durchsuchen</span><Search size={16} /><input ref={activitySearch} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titel oder Agent suchen…" aria-label="Aktivität durchsuchen" /></label>
     </div>
     <div className="activity-list" aria-live="polite">{shown.map((item) => {
       const Icon = item.kind === 'session' ? Bot : item.kind === 'workflow' ? GitBranch : Columns3;
@@ -94,14 +134,14 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
           <div className="activity-meta"><span><Clock3 size={13} /> {item.kind === 'card' ? 'Letzter Lauf' : item.kind === 'session' ? 'Gestartet' : 'Aktualisiert'}: {item.kind === 'card' && item.status === 'idle' ? 'nicht erfasst' : dateTime(item.timestamp)}</span><span>Dauer: {formatDuration(item.durationMs)}</span>{item.exitCode !== null ? <span>Exit-Code: {item.exitCode}</span> : null}<span>Token: nicht erfasst</span><span>Kosten: nicht erfasst</span></div>
         </div>
         <div className="activity-row-actions">
-          {item.kind === 'session' ? <button className="secondary-button small" type="button" onClick={() => setSelectedSessionId(item.id)}>Verlauf ansehen</button> : null}
+          {item.kind === 'session' ? <button className="secondary-button small" type="button" onClick={(event) => openTranscript(item.id, event.currentTarget)}>Verlauf ansehen</button> : null}
           <button className="secondary-button small" type="button" onClick={() => item.kind === 'workflow' ? onOpenWorkflow(item.targetId) : onOpenCard(item.targetId)}><ArrowUpRight size={14} /> {item.kind === 'workflow' ? 'Zum Workflow' : 'Zur Karte'}</button>
         </div>
       </article>;
     })}{filtered.length === 0 ? <div className="feature-empty activity-empty"><Clock3 size={28} /><h3>{rows.length === 0 ? 'Noch keine Aktivität' : 'Keine Treffer'}</h3><p>{rows.length === 0 ? 'Starte einen Agenten auf einer Karte oder lege einen Workflow an. Hier erscheinen dann die gespeicherten Zustände.' : 'Ändere Status, Art oder Suchbegriff.'}</p></div> : null}</div>
     {filtered.length > shown.length ? <p className="activity-more">{filtered.length - shown.length} weitere Einträge. Nutze die Filter, um sie einzugrenzen.</p> : null}
     {selectedSessionId ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeTranscript(); }}>
-      <section className="dialog wide activity-transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="activity-transcript-title">
+      <section ref={transcriptDialog} className="dialog wide activity-transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="activity-transcript-title" tabIndex={-1} onKeyDown={keepFocusInTranscript}>
         <div className="dialog-heading"><div><small>GESPEICHERTER AGENTENLAUF</small><h2 id="activity-transcript-title">{selectedSession ? snapshot.cards.find((card) => card.id === selectedSession.cardId)?.title ?? 'Entfernte Karte' : 'Agentenverlauf'}</h2></div><button className="icon-button" type="button" autoFocus aria-label="Verlauf schließen" onClick={closeTranscript}><X size={18} /></button></div>
         {selectedSession ? <div className="activity-transcript-meta"><span>Beginn: {dateTime(selectedSession.startedAt)}</span><span>Ende: {selectedSession.endedAt ? dateTime(selectedSession.endedAt) : 'läuft'}</span><span>Dauer: {formatDuration(sessionDuration(selectedSession, now))}</span><span>Status: {selectedSession.state}</span><span>Exit-Code: {selectedSession.exitCode ?? 'nicht erfasst'}</span></div> : null}
         <pre className="activity-transcript-output" role="log">{selectedSession ? readableSessionOutput(selectedSession.output) || 'Noch keine Ausgabe gespeichert.' : sessionLoading ? 'Verlauf wird geladen…' : sessionError || 'Verlauf nicht gefunden.'}</pre>

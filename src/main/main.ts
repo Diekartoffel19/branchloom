@@ -1147,6 +1147,26 @@ function createWindow(): void {
                 }
                 if (!openTranscript) throw new Error('Agentenlauf fehlt in der Aktivitätsansicht.');
                 openTranscript.click();
+                let transcriptDialog;
+                for (let attempt = 0; attempt < 100; attempt++) {
+                  transcriptDialog = document.querySelector('.activity-transcript-dialog');
+                  if (transcriptDialog) break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                const transcriptClose = transcriptDialog?.querySelector('button[aria-label="Verlauf schließen"]');
+                const transcriptLast = transcriptDialog?.querySelector('.dialog-actions button:last-child');
+                if (!transcriptDialog || transcriptDialog.getAttribute('aria-modal') !== 'true' || !transcriptClose || !transcriptLast || document.activeElement !== transcriptClose) throw new Error('Agentenverlauf hat keinen benannten Dialog mit Anfangsfokus.');
+                transcriptClose.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+                if (document.activeElement !== transcriptLast) throw new Error('Rückwärts-Tab verließ den Agentenverlauf.');
+                transcriptLast.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+                if (document.activeElement !== transcriptClose) throw new Error('Vorwärts-Tab verließ den Agentenverlauf.');
+                transcriptDialog.focus();
+                transcriptDialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+                if (document.activeElement !== transcriptLast) throw new Error('Rückwärts-Tab vom Dialograhmen verließ den Agentenverlauf.');
+                transcriptClose.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                for (let attempt = 0; attempt < 100 && (document.querySelector('.activity-transcript-dialog') || document.activeElement !== openTranscript); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (document.querySelector('.activity-transcript-dialog') || document.activeElement !== openTranscript) throw new Error('Escape gab den Fokus nicht an den Agentenverlauf-Auslöser zurück.');
+                openTranscript.click();
                 let saveNote;
                 for (let attempt = 0; attempt < 300; attempt++) {
                   saveNote = [...document.querySelectorAll('.activity-transcript-dialog button')].find((item) => item.textContent?.includes('In Memory speichern'));
@@ -1179,6 +1199,11 @@ function createWindow(): void {
                   await new Promise((resolve) => setTimeout(resolve, 50));
                 }
                 if (!sourceOpened) throw new Error('Quellverlauf wurde nicht aus Memory geöffnet.');
+                const sourceClose = document.querySelector('.activity-transcript-dialog button[aria-label="Verlauf schließen"]');
+                sourceClose?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                const activitySearch = document.querySelector('input[aria-label="Aktivität durchsuchen"]');
+                for (let attempt = 0; attempt < 100 && (document.querySelector('.activity-transcript-dialog') || document.activeElement !== activitySearch); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (!activitySearch || document.querySelector('.activity-transcript-dialog') || document.activeElement !== activitySearch) throw new Error('Externer Quellverlauf gab den Fokus nicht an die Aktivitätssuche zurück.');
               }
               const decisionsNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
               if (!decisionsNav) throw new Error('Review-Inbox-Navigation fehlt.');
