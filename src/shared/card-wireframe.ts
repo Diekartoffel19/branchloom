@@ -8,8 +8,9 @@ export const WIREFRAME_ARTBOARDS = {
 export type WireframeArtboard = keyof typeof WIREFRAME_ARTBOARDS;
 export type WireframeVariant = Exclude<WireframeArtboard, 'desktop'>;
 
-export type WireframeElementKind = 'panel' | 'text' | 'button' | 'field';
+export type WireframeElementKind = 'panel' | 'text' | 'button' | 'field' | 'ellipse' | 'line';
 export type WireframeElementTone = 'plain' | 'muted' | 'accent';
+export type WireframeLineDirection = 'falling' | 'rising';
 
 /** Semantic preview colors follow the current Branchloom theme and element tone. */
 export const WIREFRAME_THEME_COLORS = { fill: '@fill', stroke: '@stroke', textColor: '@foreground' } as const;
@@ -41,6 +42,8 @@ export interface WireframeElement {
   height: number;
   text: string;
   tone: WireframeElementTone;
+  /** A line runs between opposite corners of its bounded box; omitted means falling. */
+  lineDirection?: WireframeLineDirection;
   style?: WireframeElementStyle;
 }
 

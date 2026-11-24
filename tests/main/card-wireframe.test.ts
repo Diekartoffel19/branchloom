@@ -77,6 +77,33 @@ describe('task-linked wireframes', () => {
     store.close();
   });
 
+  it('persists bounded ellipses and directional lines while rejecting invalid shape data', () => {
+    const { dbFile, store, key } = fixture();
+    const ellipse: WireframeElement = { ...element, id: 'ellipse', kind: 'ellipse', text: '', width: 120, height: 120, style: { fill: '@fill', stroke: '#123456' } };
+    const line: WireframeElement = { ...element, id: 'line', kind: 'line', text: '', width: 180, height: 70, lineDirection: 'rising', style: { stroke: '@stroke' } };
+    for (const invalid of [
+      { ...line, lineDirection: 'sideways' }, { ...ellipse, lineDirection: 'rising' },
+      { ...line, x: 900 }, { ...line, style: { stroke: 'url(https://example.test)' } }, { ...ellipse, text: 'Hidden' },
+    ]) expect(() => saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Formen', elements: [invalid as WireframeElement] })).toThrow();
+    const saved = saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Formen', elements: [ellipse, line], artboards: { mobile: [{ ...line, x: 100, width: 180 }] } });
+    expect(saved.elements).toEqual([ellipse, line]);
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    expect(approvedCardWireframeContext(store, key)).toContain('"lineDirection":"rising"');
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)).toMatchObject({ revision: 1, approvedRevision: 1, elements: [ellipse, line], artboards: { mobile: [{ ...line, x: 100 }] } });
+    reopened.close();
+  });
+
+  it('normalizes the default line direction so returning to it is an unchanged save', () => {
+    const { store, key } = fixture();
+    const line: WireframeElement = { ...element, id: 'line', kind: 'line', text: '' };
+    saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Linie', elements: [line] });
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    expect(saveCardWireframe(store, { ...key, expectedRevision: 1, title: 'Linie', elements: [{ ...line, lineDirection: 'falling' }] })).toMatchObject({ revision: 1, approvedRevision: 1 });
+    store.close();
+  });
+
   it('removes the document with its card and does not create an agent session', () => {
     const { store, key } = fixture();
     saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Entwurf', elements: [element] });

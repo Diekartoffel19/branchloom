@@ -1591,6 +1591,22 @@ function createWindow(): void {
               themeButton.click();
               for (let attempt = 0; attempt < 100 && document.documentElement.dataset.theme !== themeBefore; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.documentElement.dataset.theme !== themeBefore || getComputedStyle(element).color !== computedBefore) throw new Error('Wireframe-Textfarbe wurde nach Theme-Rückkehr nicht wiederhergestellt.');
+              const addEllipse = [...wireframe.querySelectorAll('.task-wireframe-toolbar button')].find((item) => item.textContent?.trim() === 'Ellipse');
+              const addLine = [...wireframe.querySelectorAll('.task-wireframe-toolbar button')].find((item) => item.textContent?.trim() === 'Linie');
+              if (!(addEllipse instanceof HTMLButtonElement) || !(addLine instanceof HTMLButtonElement)) throw new Error('Formenwerkzeuge fehlen.');
+              addEllipse.click();
+              for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-element.kind-ellipse'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const ellipse = wireframe.querySelector('.task-wireframe-element.kind-ellipse');
+              if (!(ellipse instanceof HTMLButtonElement) || getComputedStyle(ellipse).borderRadius !== '50%' || ellipse.textContent !== '') throw new Error('Ellipse erschien nicht als editierbare Form.');
+              addLine.click();
+              for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-element.kind-line svg line'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const line = wireframe.querySelector('.task-wireframe-element.kind-line');
+              const direction = wireframe.querySelector('select[aria-label="Linienrichtung"]');
+              const lineSelectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!(line instanceof HTMLButtonElement) || !(direction instanceof HTMLSelectElement) || !lineSelectSetter || !line.querySelector('svg line')) throw new Error('Linie oder Linienrichtung fehlt.');
+              lineSelectSetter.call(direction, 'rising'); direction.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && line.querySelector('svg line')?.getAttribute('y1') !== '98'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (line.querySelector('svg line')?.getAttribute('y1') !== '98' || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Linienrichtung wurde nicht lokal geändert oder ungefragt gespeichert.');
               const mobileArtboard = [...wireframe.querySelectorAll('.task-wireframe-artboard-switch button')].find((button) => button.textContent?.includes('Mobile'));
               if (!(mobileArtboard instanceof HTMLButtonElement)) throw new Error('Mobile-Wireframe-Auswahl fehlt.');
               mobileArtboard.click();
@@ -1600,7 +1616,7 @@ function createWindow(): void {
               if (!(copyArtboard instanceof HTMLButtonElement)) throw new Error('Startkopie für Mobile fehlt.');
               copyArtboard.click();
               for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-canvas-wrap[data-artboard="mobile"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (wireframe.querySelectorAll('.task-wireframe-element').length !== 6) throw new Error('Mobile-Startkopie hat nicht alle sechs Elemente.');
+              if (wireframe.querySelectorAll('.task-wireframe-element').length !== 8) throw new Error('Mobile-Startkopie hat die Formen nicht übernommen.');
               const mobileStage = wireframe.querySelector('.task-wireframe-canvas');
               const mobileTitle = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Geprüfter Entwurf'));
               if (!(mobileStage instanceof HTMLElement) || !(mobileTitle instanceof HTMLElement) || !scaledFont(mobileTitle, mobileStage, 390)) throw new Error('Mobile-Schriftgröße passt nicht zur eigenen Artboard-Breite.');
@@ -1657,7 +1673,7 @@ function createWindow(): void {
               textSetter.call(lockedText, 'Späte Eingabe'); lockedText.dispatchEvent(new Event('input', { bubbles: true }));
               let stored;
               for (let attempt = 0; attempt < 100 && !stored; attempt++) { stored = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }); if (!stored) await new Promise((resolve) => setTimeout(resolve, 50)); }
-              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.elements.find((item) => item.id === 'window-title')?.style?.textColor !== '@foreground' || stored.elements[2]?.id !== 'window-title' || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.x !== 70 || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, Gestaltung, getrennte Mobile-Variante oder Freigabezustand wurden nicht gespeichert.');
+              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.elements.find((item) => item.id === 'window-title')?.style?.textColor !== '@foreground' || stored.elements[2]?.id !== 'window-title' || !stored.elements.some((item) => item.kind === 'ellipse') || !stored.elements.some((item) => item.kind === 'line' && item.lineDirection === 'rising') || !stored.artboards.mobile?.some((item) => item.kind === 'line' && item.lineDirection === 'rising') || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.x !== 70 || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, Formen, getrennte Mobile-Variante oder Freigabezustand wurden nicht gespeichert.');
               const approve = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Für Agenten freigeben'));
               for (let attempt = 0; attempt < 100 && approve?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(approve instanceof HTMLButtonElement) || approve.disabled) throw new Error('Gespeicherter Entwurf ist nicht freigebbar.');
@@ -1730,7 +1746,7 @@ function createWindow(): void {
               return true;
             })()`);
             const wireframeContext = approvedCardWireframeContext(smokeStore, { projectId: smokeProject.id, cardId: smokeCard.id });
-            if (!wireframeContext.includes('Geprüfter Entwurf') || !wireframeContext.includes('"fontSize":20')) throw new Error('Freigegebener Wireframe-Kontext mit Gestaltung fehlt für den nächsten Agentenstart.');
+            if (!wireframeContext.includes('Geprüfter Entwurf') || !wireframeContext.includes('"fontSize":20') || !wireframeContext.includes('"lineDirection":"rising"') || !wireframeContext.includes('"kind":"ellipse"')) throw new Error('Freigegebener Wireframe-Kontext mit Gestaltung und Formen fehlt für den nächsten Agentenstart.');
             await designInspector!.smokeClick('#design-smoke-target');
             let saved = false;
             for (let attempt = 0; attempt < 100; attempt++) {

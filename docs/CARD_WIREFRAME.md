@@ -6,6 +6,8 @@ Mit **Arbeitsfläche vergrößern** öffnet sich ein Fokusmodus über der normal
 
 ## Ablauf
 
+Die Werkzeugleiste bietet außerdem Ellipsen und diagonale Linien. Beide Formen sind eigene Ebenen ohne Text; die Richtung einer Linie lässt sich im Inspector umstellen. Sie können auf Desktop, Tablet und Mobile bewegt, in der Größe geändert, gespeichert und freigegeben werden.
+
 1. Eine Board-Karte öffnen und **Wireframe in Design öffnen** wählen. Alternativ unter **Design → Wireframe zur Aufgabe** eine Karte auswählen.
 2. **Fenstergerüst vorbereiten** legt eine lokale Vorlage in die noch ungespeicherte Ansicht. **Leere Fläche beginnen** startet ohne Elemente. Die Vorlage ist deterministisch und kein KI-Ergebnis. **Mit Agent vorschlagen** fragt auf ausdrücklichen Klick den unter Workflows gewählten Codex-CLI-Agenten lesend nach einem ersten Entwurf. Der Vorschlag bleibt zunächst ungespeichert und kann bearbeitet oder verworfen werden. Auch bei einem vorhandenen, unveränderten Entwurf kann der Agent einen neuen Vorschlag machen; gespeicherte Daten werden erst mit **Entwurf speichern** ersetzt.
 3. **Desktop**, **Tablet** oder **Mobile** wählen. Desktop ist die vorhandene 960 × 600 Pixel Zeichenfläche. Tablet (768 × 1024) und Mobile (390 × 844) fehlen zunächst bewusst; für jede kann eine leere Fläche oder eine Startkopie des Desktop-Entwurfs angelegt werden. Die Kopie passt Breiten an, erzeugt aber kein responsives Layout. Jedes Artboard hat eigene Elemente und Geometrie; Änderungen an Mobile verändern Desktop nicht. Eine Variante lässt sich im Editor auch wieder entfernen.

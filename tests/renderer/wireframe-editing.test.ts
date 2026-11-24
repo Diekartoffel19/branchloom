@@ -65,6 +65,14 @@ describe('wireframe editor geometry and layer helpers', () => {
     expect(sameWireframeContent({ ...saved, elements: [{ ...styled, style: { ...styled.style } }] }, saved)).toBe(true);
   });
 
+  it('treats line direction as an edit that requires a fresh approval', () => {
+    const line: WireframeElement = { ...element('line'), kind: 'line', lineDirection: 'falling' };
+    const saved = { title: 'Formen', elements: [line] };
+    expect(sameWireframeContent({ ...saved, elements: [{ ...line }] }, saved)).toBe(true);
+    expect(sameWireframeContent({ ...saved, elements: [{ ...line, lineDirection: undefined }] }, saved)).toBe(true);
+    expect(sameWireframeContent({ ...saved, elements: [{ ...line, lineDirection: 'rising' }] }, saved)).toBe(false);
+  });
+
   it('resolves semantic style colors for both regular and accent elements without freezing a theme', () => {
     const panel = { ...element('panel'), style: { fill: WIREFRAME_THEME_COLORS.fill, stroke: WIREFRAME_THEME_COLORS.stroke, textColor: WIREFRAME_THEME_COLORS.textColor } };
     expect(wireframeColorCss(panel, 'fill')).toBe('var(--surface-2)');

@@ -65,6 +65,10 @@
 .task-wireframe-element.tone-muted { background: var(--surface-3); }
 .task-wireframe-element.tone-accent.kind-button { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .task-wireframe-element.tone-accent:not(.kind-button) { border-color: var(--accent); }
+.task-wireframe-element.kind-ellipse { padding: 0; border-radius: 50%; }
+.task-wireframe-element.kind-line { padding: 0; border-color: transparent; background: transparent; overflow: visible; }
+.task-wireframe-line { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.task-wireframe-line line { stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .task-wireframe-resize { position: absolute; z-index: 7; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; transform: translate(-50%, -50%); border: 1px solid var(--text); border-radius: 4px; background: var(--surface); color: var(--text); box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 18%, transparent); cursor: nwse-resize; touch-action: none; }
 .task-wireframe-resize:hover { background: var(--surface-2); }
 .task-wireframe-resize:focus-visible, .task-wireframe-element:focus-visible, .task-wireframe-layers button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }

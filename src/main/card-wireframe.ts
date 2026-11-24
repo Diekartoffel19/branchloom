@@ -14,7 +14,7 @@ interface WireframeRow {
   updated_at: string;
 }
 
-const KINDS = new Set<WireframeElementKind>(['panel', 'text', 'button', 'field']);
+const KINDS = new Set<WireframeElementKind>(['panel', 'text', 'button', 'field', 'ellipse', 'line']);
 const TONES = new Set<WireframeElementTone>(['plain', 'muted', 'accent']);
 const STYLE_KEYS = new Set(['fill', 'stroke', 'textColor', 'radius', 'fontSize', 'fontWeight']);
 
@@ -69,12 +69,14 @@ export function checkedWireframeElements(value: unknown, canvasWidth = WIREFRAME
     seen.add(item.id);
     if (!KINDS.has(item.kind as WireframeElementKind) || !TONES.has(item.tone as WireframeElementTone)) throw new Error('Unbekannter Elementtyp oder Farbton.');
     if (typeof item.text !== 'string' || item.text.length > 120 || /\0/.test(item.text)) throw new Error('Elementtext darf höchstens 120 Zeichen enthalten.');
+    if ((item.kind === 'ellipse' || item.kind === 'line') && item.text) throw new Error('Formen enthalten keinen Elementtext.');
+    if (item.lineDirection !== undefined && (item.kind !== 'line' || (item.lineDirection !== 'falling' && item.lineDirection !== 'rising'))) throw new Error('Ungültige Linienrichtung.');
     const width = checkedCoordinate(item.width, 24, canvasWidth, 'Breite');
     const height = checkedCoordinate(item.height, 24, canvasHeight, 'Höhe');
     const x = checkedCoordinate(item.x, 0, canvasWidth - width, 'X');
     const y = checkedCoordinate(item.y, 0, canvasHeight - height, 'Y');
     const style = checkedStyle(item.style);
-    return { id: item.id, kind: item.kind as WireframeElementKind, tone: item.tone as WireframeElementTone, text: item.text, x, y, width, height, ...(style ? { style } : {}) };
+    return { id: item.id, kind: item.kind as WireframeElementKind, tone: item.tone as WireframeElementTone, text: item.text, x, y, width, height, ...(item.lineDirection === 'rising' ? { lineDirection: 'rising' as const } : {}), ...(style ? { style } : {}) };
   });
 }
 
