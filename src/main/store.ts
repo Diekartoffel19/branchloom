@@ -15,6 +15,7 @@ import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD
 import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
 import { installCardAcceptance } from './card-acceptance';
+import { installCardSplits } from './card-split';
 import { installIdeas } from './ideas';
 import { installIdeaMatches } from './idea-matches';
 import { installPlanReview } from './plan-review';
@@ -137,6 +138,7 @@ export class StudioStore {
     installReviewRules(this.db);
     installCardQa(this.db);
     installCardAcceptance(this.db);
+    installCardSplits(this.db);
     installQaFixCards(this.db);
     installReviewInbox(this.db);
     installCardContext(this.db);

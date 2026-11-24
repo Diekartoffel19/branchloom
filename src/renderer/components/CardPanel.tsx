@@ -8,6 +8,7 @@ import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
 import { CardAcceptancePanel } from './CardAcceptancePanel';
+import { CardSplitPanel } from './CardSplitPanel';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
 import { CardQaPanel } from './CardQaPanel';
 import { PrDraftPanel } from './PrDraftPanel';
@@ -248,6 +249,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <CardContextPanel key={`context-${card.id}`} card={card} attachmentRequest={contextAttachmentRequest?.cardId === card.id ? contextAttachmentRequest : null} />
         <div className="drawer-divider" />
         <CardAcceptancePanel key={`acceptance-${card.id}`} card={card} onOpenEvidence={openAcceptanceEvidence} />
+        <div className="drawer-divider" />
+        <CardSplitPanel key={`split-${card.id}`} card={card} columns={snapshot.columns} queue={snapshot.queue} mutate={mutate} onOpenCard={onOpenCard} />
         <div className="drawer-divider" />
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
         <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>

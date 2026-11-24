@@ -144,6 +144,9 @@ export interface StudioAPI {
   designTaskCandidate(input: { projectId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
   createCardFromDesignRequest(input: { projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean }): Promise<Card>;
+  cardSplitLinks(cardId: string): Promise<import('./card-split').CardSplitLinks>;
+  previewCardSplit(input: import('./card-split').CardSplitInput): Promise<import('./card-split').CardSplitPreview>;
+  createCardSplit(input: import('./card-split').CardSplitInput & { token: string; confirm: boolean }): Promise<import('./card-split').CardSplitResult>;
   cardCriteria(cardId: string): Promise<CardCriterion[]>;
   createCardCriterion(input: { cardId: string; text: string }): Promise<CardCriterion[]>;
   updateCardCriterion(input: { cardId: string; criterionId: string; text: string }): Promise<CardCriterion[]>;
