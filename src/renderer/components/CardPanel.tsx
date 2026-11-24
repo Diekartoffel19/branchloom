@@ -15,9 +15,9 @@ import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; focusReviewComment?: { id: string; token: number } | null }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
 
-export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusReviewComment }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusReviewComment, focusQaReport }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -210,7 +210,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
           {session.state !== 'running' ? <OutputErrorPanel key={session.id} projectId={card.projectId} sourceKind="session" sourceId={session.id} columns={snapshot.columns} onCreated={async (created) => { await mutate(async () => created); onOpenCard(created.id); }} /> : null}
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
-        <CardQaPanel key={`qa-${card.id}`} card={card} />
+        <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={focusQaReport} />
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>

@@ -12,6 +12,7 @@ interface Props {
   onOpenSession: (id: string) => void;
   onOpenCard: (id: string) => void;
   onOpenDiffComment: (cardId: string, commentId: string) => void;
+  onOpenQaReport: (cardId: string, reportId: string) => void;
   onAcknowledgeSession: (id: string) => void;
   onOpenPlan: (id: string) => void;
 }
@@ -21,22 +22,22 @@ function pauseTime(value: string | null): string | null {
   return new Date(value).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export function ReviewInboxList({ items, hasMore, busy, loadingMore, onOpenPlan, onOpenDiffComment, onAcknowledge, onLoadMore }: {
+export function ReviewInboxList({ items, hasMore, busy, loadingMore, onOpenPlan, onOpenDiffComment, onOpenQaReport, onAcknowledge, onLoadMore }: {
   items: ReviewInboxItem[]; hasMore: boolean; busy: string | null; loadingMore: boolean;
-  onOpenPlan: (id: string) => void; onOpenDiffComment: (cardId: string, commentId: string) => void;
+  onOpenPlan: (id: string) => void; onOpenDiffComment: (cardId: string, commentId: string) => void; onOpenQaReport: (cardId: string, reportId: string) => void;
   onAcknowledge: (item: ReviewInboxItem) => void; onLoadMore: () => void;
 }) {
-  return <section className="decision-review-section" aria-label="Review-Kommentare"><h3>Review-Kommentare</h3><p>Gespeicherte Hinweise ohne Bestätigung. Diff-Kommentare können einen älteren Stand betreffen; prüfe die Quelle. „Als geprüft markieren“ räumt nur diesen Inbox-Eintrag weg und gibt keinen Schritt frei.</p>
-    <div className="decision-list">{items.map((item) => <article className="decision-item decision-review-item" key={`${item.kind}:${item.id}`}>
-      <div className="decision-item-body"><div className="decision-meta"><span className="decision-kind">{item.kind === 'plan' ? 'Plan-Review' : 'Code-Review'}</span><time dateTime={item.createdAt}>{pauseTime(item.createdAt)}</time></div>
+  return <section className="decision-review-section" aria-label="Reviews und Browser-QA"><h3>Reviews und Browser-QA</h3><p>Gespeicherte Review-Kommentare und fehlgeschlagene lokale Seitenprüfungen. Prüfe die Quelle; „Als geprüft markieren“ räumt nur den Inbox-Eintrag weg und gibt keinen Schritt frei.</p>
+    <div className="decision-list">{items.map((item) => <article className="decision-item decision-review-item" data-qa-report-id={item.kind === 'qa' ? item.id : undefined} key={`${item.kind}:${item.id}`}>
+      <div className="decision-item-body"><div className="decision-meta"><span className="decision-kind">{item.kind === 'plan' ? 'Plan-Review' : item.kind === 'diff' ? 'Code-Review' : item.qaStatus === 'failed' ? 'Browser-QA · Fehler' : 'Browser-QA · Abbruch'}</span><time dateTime={item.createdAt}>{pauseTime(item.createdAt)}</time></div>
         <h4>{item.sourceTitle}</h4><p className="decision-context">{item.location}</p><p>{item.body}</p></div>
-      <div className="decision-actions"><button className="secondary-button" type="button" onClick={() => item.kind === 'plan' ? onOpenPlan(item.sourceId) : onOpenDiffComment(item.sourceId, item.id)}>{item.kind === 'plan' ? 'Plan öffnen' : 'Kommentar öffnen'} <ArrowRight size={15} aria-hidden="true" /></button>
-        <button className="decision-subaction" type="button" aria-label={`${item.kind === 'plan' ? 'Plan' : 'Diff'}: ${item.location} als geprüft markieren`} disabled={Boolean(busy)} onClick={() => onAcknowledge(item)}>{busy === item.id ? 'Speichert…' : 'Als geprüft markieren'}</button></div>
-    </article>)}</div>{hasMore ? <div className="decision-review-more"><p>Weitere passende Kommentare sind vorhanden.</p><button className="secondary-button" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? 'Lade…' : 'Ältere Kommentare laden'}</button></div> : null}
+      <div className="decision-actions"><button className="secondary-button" type="button" onClick={() => item.kind === 'plan' ? onOpenPlan(item.sourceId) : item.kind === 'diff' ? onOpenDiffComment(item.sourceId, item.id) : onOpenQaReport(item.sourceId, item.id)}>{item.kind === 'plan' ? 'Plan öffnen' : item.kind === 'diff' ? 'Kommentar öffnen' : 'Bericht öffnen'} <ArrowRight size={15} aria-hidden="true" /></button>
+        <button className="decision-subaction" type="button" aria-label={`${item.kind === 'plan' ? 'Plan' : item.kind === 'diff' ? 'Diff' : 'Browser-QA'}: ${item.location} als geprüft markieren`} disabled={Boolean(busy)} onClick={() => onAcknowledge(item)}>{busy === item.id ? 'Speichert…' : 'Als geprüft markieren'}</button></div>
+    </article>)}</div>{hasMore ? <div className="decision-review-more"><p>Weitere passende Einträge sind vorhanden.</p><button className="secondary-button" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? 'Lade…' : 'Ältere Einträge laden'}</button></div> : null}
   </section>;
 }
 
-export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSession, onOpenCard, onOpenDiffComment, onAcknowledgeSession, onOpenPlan }: Props) {
+export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSession, onOpenCard, onOpenDiffComment, onOpenQaReport, onAcknowledgeSession, onOpenPlan }: Props) {
   const [category, setCategory] = useState<DecisionFilter>('all');
   const [query, setQuery] = useState('');
   const [reviewResult, setReviewResult] = useState<{ key: string; page: ReviewInboxPage } | null>(null);
@@ -83,19 +84,20 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
     setReviewLoadingMore(false);
     setReviewBusy(item.id); setReviewError(''); setReviewNotice('');
     try {
-      await window.studio.acknowledgeReviewInboxComment({ projectId, kind: item.kind, commentId: item.id });
+      if (item.kind === 'qa') await window.studio.acknowledgeQaInboxReport({ projectId, reportId: item.id });
+      else await window.studio.acknowledgeReviewInboxComment({ projectId, kind: item.kind, commentId: item.id });
       const page = await window.studio.reviewInboxItems({ projectId, query: query.trim() });
-      if (activeProject.current === projectId && activeReviewKey.current === reviewKey && reviewRevision.current === revision) { setReviewResult({ key: reviewKey, page }); setReviewNotice('Kommentar als geprüft markiert. Der Originalkommentar bleibt an seiner Quelle.'); }
+      if (activeProject.current === projectId && activeReviewKey.current === reviewKey && reviewRevision.current === revision) { setReviewResult({ key: reviewKey, page }); setReviewNotice(item.kind === 'qa' ? 'QA-Hinweis als geprüft markiert. Der Kartenbericht bleibt erhalten.' : 'Kommentar als geprüft markiert. Der Originalkommentar bleibt an seiner Quelle.'); }
     } catch (reason) { if (activeProject.current === projectId) setReviewError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (activeProject.current === projectId) setReviewBusy(null); }
   }
 
   return <div className="standard-page decision-page">
-    <div className="view-header"><div><h2>Offene Entscheidungen</h2><p>Gespeicherte Pausen, unterbrochene Agentenläufe und Review-Kommentare aus dem aktiven Projekt. Öffne die Quelle vor einer Entscheidung.</p></div></div>
-    {!reviews && !reviewError ? <p className="section-copy" role="status">Review-Kommentare werden geladen…</p> : null}
-    {reviewError ? <p className="inline-error" role="alert">Review-Kommentare konnten nicht geladen werden: {reviewError}</p> : null}
+    <div className="view-header"><div><h2>Offene Entscheidungen</h2><p>Gespeicherte Pausen, unterbrochene Agentenläufe, Reviews und Browser-QA aus dem aktiven Projekt. Öffne die Quelle vor einer Entscheidung.</p></div></div>
+    {!reviews && !reviewError ? <p className="section-copy" role="status">Reviews und Browser-QA werden geladen…</p> : null}
+    {reviewError ? <p className="inline-error" role="alert">Reviews und Browser-QA konnten nicht geladen werden: {reviewError}</p> : null}
     {reviewNotice ? <p className="inline-note" role="status">{reviewNotice}</p> : null}
-    {!hasItems && reviews && !query.trim() ? <div className="decision-empty"><Inbox size={24} aria-hidden="true" /><h3>Keine offenen Entscheidungen</h3><p>Hier erscheinen pausierte Workflows, angehaltene Warteschlangen, unterbrochene Agentenläufe und noch nicht geprüfte Kommentare.</p></div>
+    {!hasItems && reviews && !query.trim() ? <div className="decision-empty"><Inbox size={24} aria-hidden="true" /><h3>Keine offenen Entscheidungen</h3><p>Hier erscheinen pausierte Workflows, angehaltene Warteschlangen, unterbrochene Agentenläufe, Review-Kommentare und fehlgeschlagene Browser-QA.</p></div>
       : <>
         {items.length + (reviews?.items.length ?? 0) > 4 || category !== 'all' || query ? <div className="decision-controls">
           <label>Entscheidung suchen<input type="search" maxLength={200} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Workflow, Karte oder Grund" /></label>
@@ -118,7 +120,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
             </div>
           </article>)}</div> : null}
         {visibleReviews.length ? <ReviewInboxList items={visibleReviews} hasMore={Boolean(reviews?.hasMore)} busy={reviewBusy} loadingMore={reviewLoadingMore}
-          onOpenPlan={onOpenPlan} onOpenDiffComment={onOpenDiffComment} onAcknowledge={(item) => void acknowledge(item)} onLoadMore={() => void loadMore()} /> : null}
+          onOpenPlan={onOpenPlan} onOpenDiffComment={onOpenDiffComment} onOpenQaReport={onOpenQaReport} onAcknowledge={(item) => void acknowledge(item)} onLoadMore={() => void loadMore()} /> : null}
       </>}
   </div>;
 }

@@ -68,7 +68,7 @@ describe('decision inbox', () => {
     const quiet = { ...snapshot, queue: { ...snapshot.queue, state: 'running' as const }, workflows: [{ ...approval, state: 'done' as const }] };
     expect(decisionItems(quiet)).toEqual([]);
     const html = renderToStaticMarkup(createElement(DecisionInbox, { snapshot: quiet, onOpenWorkflow: () => undefined, onOpenQueue: () => undefined }));
-    expect(html).toContain('Review-Kommentare werden geladen');
+    expect(html).toContain('Reviews und Browser-QA werden geladen');
     expect(html).not.toContain('Freigabe prüfen');
   });
 
@@ -97,14 +97,30 @@ describe('decision inbox', () => {
         { id: 'plan-comment', kind: 'plan', projectId: 'project', sourceId: 'plan', sourceTitle: 'Plan <script>', location: 'Planzeile 1', body: 'Prüfe <img>', createdAt: date },
         { id: 'diff-comment', kind: 'diff', projectId: 'project', sourceId: 'card', sourceTitle: 'Karte prüfen', location: 'Diff src/test.ts:7', body: 'Fehlerfall prüfen', createdAt: date },
       ], hasMore: true, busy: null, loadingMore: false,
-      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onAcknowledge: () => undefined, onLoadMore: () => undefined,
+      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined, onAcknowledge: () => undefined, onLoadMore: () => undefined,
     }));
     expect(html).toContain('Plan öffnen');
     expect(html).toContain('Kommentar öffnen');
     expect(html).toContain('Als geprüft markieren');
-    expect(html).toContain('Ältere Kommentare laden');
+    expect(html).toContain('Ältere Einträge laden');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<script>');
+    expect(html).not.toContain('Schritt freigeben');
+  });
+
+  it('shows a failed Browser-QA report as a source-linked review without an approval action', () => {
+    const html = renderToStaticMarkup(createElement(ReviewInboxList, {
+      items: [{ id: 'qa-report', kind: 'qa', projectId: 'project', sourceId: 'card', sourceTitle: 'Karte',
+        location: 'Route: http://127.0.0.1:5173/path', body: 'Fehler gefunden: 1. Synthetic <console>', createdAt: date, qaStatus: 'failed' }],
+      hasMore: false, busy: null, loadingMore: false,
+      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined,
+      onAcknowledge: () => undefined, onLoadMore: () => undefined,
+    }));
+    expect(html).toContain('Browser-QA · Fehler');
+    expect(html).toContain('Bericht öffnen');
+    expect(html).toContain('Route: http://127.0.0.1:5173/path');
+    expect(html).toContain('Synthetic &lt;console&gt;');
+    expect(html).not.toContain('<console>');
     expect(html).not.toContain('Schritt freigeben');
   });
 

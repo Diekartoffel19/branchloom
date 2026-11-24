@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import type { Card, CardQaReport, CardQaViewport } from '../../shared/types';
 import { CardQaComparison } from './CardQaComparison';
@@ -35,7 +35,7 @@ function CardQaScreenshot({ cardId, reportId }: { cardId: string; reportId: stri
 function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; report: CardQaReport; initiallyOpen: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
   useEffect(() => { setOpen(initiallyOpen); }, [initiallyOpen]);
-  return <details className="card-qa-report" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+  return <details className="card-qa-report" id={"card-qa-report-" + report.id} tabIndex={-1} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary><span className={`card-qa-state ${report.status}`}>{statusOf(report)}</span><time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time><span className="card-qa-viewport">{viewportOf(report)}</span></summary>
     <p className="card-qa-source"><strong>Seite:</strong> {report.requestedUrl}{report.finalUrl && report.finalUrl !== report.requestedUrl ? <> · <strong>Geladen:</strong> {report.finalUrl}</> : null}</p>
     {report.note ? <p className="inline-note">{report.note}</p> : null}
@@ -44,13 +44,17 @@ function CardQaReportItem({ cardId, report, initiallyOpen }: { cardId: string; r
   </details>;
 }
 
-export function CardQaPanel({ card }: { card: Card }) {
+export function CardQaPanel({ card, focusReport }: { card: Card; focusReport?: { id: string; token: number } | null }) {
   const [url, setUrl] = useState('');
   const [viewport, setViewport] = useState<CardQaViewport>('desktop');
   const [reports, setReports] = useState<CardQaReport[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showLatest, setShowLatest] = useState(false);
+  const focusedToken = useRef<number | null>(null);
+
+  useEffect(() => { setShowLatest(false); focusedToken.current = null; }, [card.id, focusReport?.token]);
 
   useEffect(() => {
     let alive = true;
@@ -63,6 +67,14 @@ export function CardQaPanel({ card }: { card: Card }) {
     return () => { alive = false; };
   }, [card.id]);
 
+  useLayoutEffect(() => {
+    if (loading || !focusReport || showLatest || focusedToken.current === focusReport.token || !reports.some((item) => item.id === focusReport.id)) return;
+    const target = document.getElementById(`card-qa-report-${focusReport.id}`);
+    target?.focus();
+    target?.scrollIntoView({ block: 'center' });
+    focusedToken.current = focusReport.token;
+  }, [loading, reports, showLatest, focusReport?.id, focusReport?.token]);
+
   async function run(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || card.archivedAt) return;
@@ -70,6 +82,7 @@ export function CardQaPanel({ card }: { card: Card }) {
     try {
       const report = await window.studio.runCardQa({ cardId: card.id, url, viewport });
       setReports((items) => [report, ...items.filter((item) => item.id !== report.id)].slice(0, 20));
+      setShowLatest(true);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -83,8 +96,9 @@ export function CardQaPanel({ card }: { card: Card }) {
       <button className="secondary-button" type="submit" disabled={busy || Boolean(card.archivedAt) || !url.trim()}>{busy ? 'Prüft…' : 'Lokale Seite prüfen'}</button>
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
+    {!loading && !showLatest && focusReport && !reports.some((item) => item.id === focusReport.id) ? <p className="inline-note" role="status">Dieser QA-Bericht ist nicht mehr gespeichert.</p> : null}
     {loading ? <p className="section-copy" role="status">Gespeicherte Prüfungen werden geladen…</p> : reports.length === 0 ? <p className="section-copy">Für diese Karte liegt noch kein Browser-QA-Bericht vor.</p> : <div className="card-qa-reports">
-      {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === reports[0]?.id} />)}
+      {reports.map((report) => <CardQaReportItem key={report.id} cardId={card.id} report={report} initiallyOpen={report.id === (showLatest ? reports[0]?.id : focusReport?.id ?? reports[0]?.id)} />)}
     </div>}
     {!loading ? <CardQaComparison cardId={card.id} reports={reports} /> : null}
     <p className="card-qa-limit">Der Bericht belegt nur diesen Seitenaufruf bei der gewählten Prüfgröße und Fehler im kurzen Prüfzeitraum. Layout, Interaktion, andere Routen und Tests bleiben separat zu prüfen.</p>

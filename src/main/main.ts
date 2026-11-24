@@ -17,7 +17,7 @@ import { mergeCardWorktree, reviewCardWorktree } from './git-worktree';
 import { previewPrDraft } from './pr-draft';
 import { checkoutMilestone, compareMilestone, createMilestone, listMilestones } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
-import { acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
+import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
 import { reviewCardConflicts, reviewProjectConflicts } from './conflict-radar';
@@ -275,6 +275,7 @@ function installIpc(): void {
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
   bind('reviewInboxItems', (input: Parameters<StudioAPI['reviewInboxItems']>[0]) => reviewInboxItems(db, input));
   bind('acknowledgeReviewInboxComment', (input: Parameters<StudioAPI['acknowledgeReviewInboxComment']>[0]) => acknowledgeReviewInboxComment(db, input));
+  bind('acknowledgeQaInboxReport', (input: Parameters<StudioAPI['acknowledgeQaInboxReport']>[0]) => acknowledgeQaInboxReport(db, input));
   bind('reviewRules', (projectId: string) => listReviewRules(db, projectId));
   bind('createReviewRuleFromComment', (input: Parameters<StudioAPI['createReviewRuleFromComment']>[0]) => createReviewRuleFromComment(db, input));
   bind('updateReviewRule', (input: Parameters<StudioAPI['updateReviewRule']>[0]) => updateReviewRule(db, input));
@@ -832,6 +833,27 @@ function createWindow(): void {
               diffInboxButton.click();
               for (let attempt = 0; attempt < 100 && !(document.activeElement?.classList.contains('review-diff-comment') && document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.topbar-title h1')?.textContent !== 'Board' || !document.activeElement?.classList.contains('review-diff-comment') || !document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')) throw new Error('Diff-Kommentar wurde ohne Worktree nicht geöffnet und fokussiert: ' + JSON.stringify({ view: document.querySelector('.topbar-title h1')?.textContent, active: document.activeElement?.outerHTML?.slice(0, 250), drawer: document.querySelector('.card-drawer')?.textContent?.slice(-350), review: document.querySelector('.review-diff')?.textContent?.slice(-350) }));
+              const decisionsNavAfterDiff = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
+              if (!decisionsNavAfterDiff) throw new Error('Rückweg zur QA-Inbox fehlt.');
+              decisionsNavAfterDiff.click();
+              let qaInboxItem;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                qaInboxItem = document.querySelector('.decision-review-item[data-qa-report-id="' + qaReport.id + '"]');
+                if (qaInboxItem?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!qaInboxItem?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR') || !qaInboxItem.textContent.includes('Route: http://127.0.0.1:')) throw new Error('Echter fehlgeschlagener Browser-QA-Bericht fehlt mit Route und Diagnose in der Inbox.');
+              qaInboxItem.querySelector('button.secondary-button')?.click();
+              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'card-qa-report-' + qaReport.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.topbar-title h1')?.textContent !== 'Board' || document.activeElement?.id !== 'card-qa-report-' + qaReport.id || !document.activeElement?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('QA-Inbox öffnete und fokussierte den konkreten Kartenbericht nicht.');
+              const decisionsNavAfterQa = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
+              if (!decisionsNavAfterQa) throw new Error('Rückweg zur QA-Quittierung fehlt.');
+              decisionsNavAfterQa.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.decision-review-item[data-qa-report-id="' + qaReport.id + '"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              document.querySelector('.decision-review-item[data-qa-report-id="' + qaReport.id + '"] .decision-subaction')?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.reviewInboxItems({ projectId: boardProject.id })).items.some((item) => item.id === qaReport.id) || !(await window.studio.cardQaReports(qaCard.id)).some((item) => item.id === qaReport.id)) throw new Error('QA-Quittierung entfernte nicht nur den Inbox-Eintrag.');
+              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== 1) throw new Error('QA-Inbox startete einen weiteren Agenten.');
               return true;
             })()
           `;

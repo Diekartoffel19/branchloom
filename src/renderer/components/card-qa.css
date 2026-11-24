@@ -7,6 +7,7 @@
 .card-qa-form button { justify-self: start; }
 .card-qa-reports { display: grid; gap: 6px; max-height: 340px; overflow: auto; }
 .card-qa-report { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; background: var(--surface-2); overflow-wrap: anywhere; }
+.card-qa-report:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
 .card-qa-report summary { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: baseline; cursor: pointer; font-size: 12px; }
 .card-qa-report summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .card-qa-report time, .card-qa-source, .card-qa-limit { color: var(--muted); font-size: 11px; line-height: 1.45; }

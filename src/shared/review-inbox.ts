@@ -1,4 +1,4 @@
-export type ReviewInboxSource = 'plan' | 'diff';
+export type ReviewInboxSource = 'plan' | 'diff' | 'qa';
 
 export interface ReviewInboxItem {
   id: string;
@@ -9,6 +9,7 @@ export interface ReviewInboxItem {
   location: string;
   body: string;
   createdAt: string;
+  qaStatus?: 'failed' | 'error';
 }
 
 export interface ReviewInboxPage {
@@ -24,6 +25,8 @@ export interface ReviewInboxQuery {
 
 export interface AcknowledgeReviewInboxComment {
   projectId: string;
-  kind: ReviewInboxSource;
+  kind: 'plan' | 'diff';
   commentId: string;
 }
+
+export interface AcknowledgeQaInboxReport { projectId: string; reportId: string }

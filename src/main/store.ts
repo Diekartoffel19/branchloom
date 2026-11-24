@@ -116,8 +116,8 @@ export class StudioStore {
     installPlanReview(this.db);
     installMilestones(this.db);
     installReviewRules(this.db);
-    installReviewInbox(this.db);
     installCardQa(this.db);
+    installReviewInbox(this.db);
     installCardContext(this.db);
     installOutputErrors(this.db);
     installSessionSearch(this.db);

@@ -95,6 +95,7 @@ const studio: StudioAPI = {
   createReviewComment: (input) => invoke('createReviewComment', input),
   reviewInboxItems: (projectId) => invoke('reviewInboxItems', projectId),
   acknowledgeReviewInboxComment: (input) => invoke('acknowledgeReviewInboxComment', input),
+  acknowledgeQaInboxReport: (input) => invoke('acknowledgeQaInboxReport', input),
   reviewRules: (projectId) => invoke('reviewRules', projectId),
   createReviewRuleFromComment: (input) => invoke('createReviewRuleFromComment', input),
   updateReviewRule: (input) => invoke('updateReviewRule', input),
