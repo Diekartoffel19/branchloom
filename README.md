@@ -46,6 +46,8 @@ Unter **Design** öffnet die [Inspektion](docs/DESIGN_INSPECTION.md) ausdrückli
 
 Workflows und Karten werden in SQLite gespeichert. Wenn die App während eines laufenden Agenten endet, werden dessen Sitzung und der Workflow beim nächsten Start zur Prüfung markiert; Aktionen werden nicht blind erneut ausgeführt. Nur ein sicher erkannter synchroner PTY-Startfehler kann in der aktiven Queue denselben Schritt nach fünf und zwanzig Sekunden erneut versuchen; die Workflow-Seite zeigt den nächsten Versuch. Nach Neustart oder einem bereits gestarteten Prozess gibt es keinen automatischen Replay. Bei Codex-Workflow-Läufen mit belegter Gesprächs-ID lässt sich [genau dieses Gespräch ausdrücklich fortsetzen](docs/SESSION_RESUME.md); für interaktive und ältere Läufe bleibt der CLI-Picker. Automatische Wiederverbindung und die sichere Fortsetzung einer unterbrochenen Workflow-Aktion gehören noch zur [Zuverlässigkeitsstufe](docs/PARITY.md).
 
+Auf jeder Workflow-Karte öffnet **Schrittverlauf ansehen** den gespeicherten Fortschritt je Karte und eine verknüpfte Agentensitzung mit getrenntem Status und Exit-Code. Die Ansicht ist lesend und auf 200 Einträge begrenzt; Karte und Sitzung lassen sich gezielt öffnen. [Details](docs/WORKFLOW_STEPS.md).
+
 ## Prüfen
 
 ```powershell
