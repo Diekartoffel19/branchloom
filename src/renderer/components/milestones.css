@@ -37,4 +37,19 @@
 .milestones-files li span { min-width: 18px; color: var(--accent); font-weight: 700; }
 .milestones-files code, .milestones-checkout code { overflow-wrap: anywhere; }
 .milestones-checkout { padding: 12px 14px; background: var(--positive-bg); color: var(--positive); border-radius: 7px; font-size: 12px; line-height: 1.5; }
+.milestones-image-compare { margin-top: 18px; padding: 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.milestones-image-compare h3 { font-size: 19px; margin: 0 0 7px; }
+.milestones-image-compare > p { color: var(--muted); font-size: 13px; line-height: 1.5; max-width: 78ch; }
+.milestones-image-compare .milestones-empty { padding: 8px 0 0; }
+.milestones-image-compare-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 18px; }
+.milestones-image-compare-controls label { display: grid; min-width: 0; gap: 7px; color: var(--soft); font-size: 12px; font-weight: 700; }
+.milestones-image-compare-controls select { width: 100%; min-width: 0; min-height: 38px; }
+.milestones-image-compare-controls button { min-height: 38px; white-space: nowrap; }
+.milestones-image-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.milestones-image-compare-grid figure { min-width: 0; margin: 0; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--surface-2); }
+.milestones-image-compare-grid figcaption { display: grid; gap: 4px; padding: 12px 14px; font-size: 13px; overflow-wrap: anywhere; }
+.milestones-image-compare-grid figcaption span { color: var(--muted); font-size: 12px; }
+.milestones-image-compare-grid img { display: block; width: 100%; height: auto; }
+@media (max-width: 850px) { .milestones-image-compare-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .milestones-image-compare-controls button { grid-column: 1 / -1; justify-self: start; } }
+@media (max-width: 600px) { .milestones-image-compare-controls, .milestones-image-compare-grid { grid-template-columns: minmax(0, 1fr); } .milestones-image-compare-controls button { grid-column: 1; } }
 @media (max-width: 700px) { .milestones-page { padding: 18px 14px 32px; } .milestones-comparison-head { flex-direction: column; } .milestones-item-action { display: none; } }

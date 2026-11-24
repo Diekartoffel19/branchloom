@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { GitCommitHorizontal, Milestone, Plus } from 'lucide-react';
 import type { MilestoneCheckout, MilestoneComparison, ProjectMilestone } from '../../shared/milestones';
+import { MilestoneImageCompare } from './milestone-image-compare';
 import './milestones.css';
 
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -89,6 +90,7 @@ export function MilestonesView({ projectId }: { projectId: string }) {
           <span className="milestones-item-action">Vergleichen</span>
         </button>)}
     </div>
+    <MilestoneImageCompare key={projectId} projectId={projectId} milestones={items} />
     {comparison ? <section className="milestones-comparison" aria-label="Git-Vergleich">
       <div className="milestones-comparison-head"><div><h3>{comparison.milestone.label}</h3><p><GitCommitHorizontal size={15} aria-hidden="true" /> {comparison.milestone.commit.slice(0, 12)} → {comparison.currentCommit.slice(0, 12)}</p></div><button type="button" className="secondary-button" disabled={busy} onClick={() => void openIsolated()}>Isoliertes Checkout anlegen</button></div>
       <p className="milestones-condition">{comparison.isAncestor ? 'Der markierte Commit liegt in der aktuellen Historie.' : 'Die Git-Historie hat sich verzweigt oder wurde umgeschrieben.'} {comparison.workingTreeClean ? 'Arbeitsbaum sauber.' : 'Der aktuelle Arbeitsbaum enthält zusätzliche, hier nicht verglichene Änderungen.'}</p>
