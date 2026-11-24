@@ -48,4 +48,24 @@ describe('bounded component source inventory', () => {
     expect(result.notes.join(' ')).toContain('fehlten');
     await expect(scanProjectComponents(join(root, 'src'))).rejects.toThrow('Git-Wurzelordner');
   });
+
+  it('skips an oversized tracked source while keeping valid candidates', async () => {
+    const root = fixture();
+    add(root, 'src/Huge.tsx', 'export function Huge() { return <div />; }\n' + 'x'.repeat(128 * 1024));
+    add(root, 'src/Small.tsx', 'export function Small() { return <span />; }');
+    const result = await scanProjectComponents(root);
+    expect(result).toMatchObject({ scannedFiles: 1, partial: true, candidates: [{ name: 'Small', path: 'src/Small.tsx', line: 1, kind: 'function' }] });
+    expect(result.notes.join(' ')).toContain('zu groß');
+  });
+
+  it('honors cancellation before and during the asynchronous Git preflight', async () => {
+    const root = fixture();
+    const before = new AbortController();
+    before.abort();
+    await expect(scanProjectComponents(root, before.signal)).rejects.toThrow('abgebrochen');
+    const during = new AbortController();
+    const pending = scanProjectComponents(root, during.signal);
+    during.abort();
+    await expect(pending).rejects.toThrow('abgebrochen');
+  });
 });
