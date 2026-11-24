@@ -1241,7 +1241,7 @@ function createWindow(): void {
               if (!open || open.disabled) throw new Error('Gespeicherte Empty-Route blieb unöffnbar.');
               open.click();
               for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Empty geöffnet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!panel.textContent?.includes('Empty geöffnet') || document.querySelector('.design-inspection-toolbar input')?.value !== emptyUrl) throw new Error('Gespeicherte Empty-Route wurde nicht sichtbar geöffnet.');
+              if (!panel.textContent?.includes('Empty geöffnet') || document.querySelector('.design-inspection-toolbar input')?.value !== emptyUrl) throw new Error('Gespeicherte Empty-Route wurde nicht sichtbar geöffnet: ' + JSON.stringify({ notice: panel.textContent?.slice(-500), toolbarUrl: document.querySelector('.design-inspection-toolbar input')?.value, expected: emptyUrl, preview: document.querySelector('.design-inspection-state')?.textContent }));
               return true;
             })()`);
             if (stateRouteHits !== 1) throw new Error('Empty-Route wurde nicht genau einmal vom lokalen Server geladen: ' + stateRouteHits);

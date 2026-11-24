@@ -72,7 +72,7 @@ export function DesignInspectionView({ projectId, active }: { projectId: string;
     try {
       const opened = await window.studio.openDesignStateRoute({ projectId, kind: route.kind });
       if (currentProject.current !== projectId) return;
-      setState(opened); setUrl(opened.sourceUrl ?? route.url); setPreviewRevision((value) => value + 1);
+      setState(opened); setUrl(route.url); setPreviewRevision((value) => value + 1);
     } catch (reason) {
       const current = await window.studio.designInspectionState().catch(() => emptyState);
       if (currentProject.current === projectId) setState(current);

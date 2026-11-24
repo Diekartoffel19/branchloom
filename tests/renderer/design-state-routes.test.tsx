@@ -20,4 +20,8 @@ describe('design state route controls', () => {
     expect(route).toContain('Parameter oder Fragment vorhanden');
     expect(route).not.toContain('state=synthetic');
   });
+
+  it('keeps a damaged stored route readable instead of crashing the view', () => {
+    expect(stateRouteSummary('not a url')).toContain('Gespeicherte Route ungültig');
+  });
 });

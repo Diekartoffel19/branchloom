@@ -13,8 +13,14 @@ const messageOf = (reason: unknown): string => reason instanceof Error ? reason.
 
 /** Keep query values out of the overview; the edit field still shows the user's exact saved URL. */
 export function stateRouteSummary(url: string): string {
-  const parsed = new URL(url);
-  return `${parsed.origin}${parsed.pathname}${parsed.search || parsed.hash ? ' · Parameter oder Fragment vorhanden' : ''}`;
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}${parsed.search || parsed.hash ? ' · Parameter oder Fragment vorhanden' : ''}`;
+  } catch { return 'Gespeicherte Route ungültig. Entferne sie und speichere eine neue lokale URL.'; }
+}
+
+function routeOrigin(url: string): string | null {
+  try { return new URL(url).origin; } catch { return null; }
 }
 
 export function DesignStateRoutes({ projectId, active, previewBusy, themePreviewActive, onOpen }: {
@@ -46,7 +52,7 @@ export function DesignStateRoutes({ projectId, active, previewBusy, themePreview
   const saved = routes.find((item) => item.kind === selected);
   const draft = drafts[selected] ?? saved?.url ?? '';
   const changed = draft !== (saved?.url ?? '');
-  const origin = routes.length ? new URL(routes[0]!.url).origin : null;
+  const origin = routes.length ? routeOrigin(routes[0]!.url) : null;
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
