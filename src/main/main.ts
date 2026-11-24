@@ -1542,8 +1542,18 @@ function createWindow(): void {
               const textColor = [...wireframe.querySelectorAll('.task-wireframe-color-control')].find((control) => control.textContent?.includes('Textfarbe'))?.querySelector('input[type="checkbox"]');
               if (!(textColor instanceof HTMLInputElement)) throw new Error('Textfarbensteuerung fehlt.');
               textColor.click();
-              for (let attempt = 0; attempt < 100 && element.style.color !== 'rgb(38, 49, 43)'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (element.style.color !== 'rgb(38, 49, 43)') throw new Error('Textfarbe wurde nicht sichtbar übernommen.');
+              for (let attempt = 0; attempt < 100 && element.style.color !== 'var(--text)'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (element.style.color !== 'var(--text)') throw new Error('Semantische Textfarbe wurde nicht sichtbar übernommen.');
+              const themeBefore = document.documentElement.dataset.theme;
+              const computedBefore = getComputedStyle(element).color;
+              const themeButton = document.querySelector('.theme-toggle');
+              if (!(themeButton instanceof HTMLButtonElement)) throw new Error('Theme-Schalter fehlt.');
+              themeButton.click();
+              for (let attempt = 0; attempt < 100 && document.documentElement.dataset.theme === themeBefore; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.documentElement.dataset.theme === themeBefore || getComputedStyle(element).color === computedBefore || element.style.color !== 'var(--text)') throw new Error('Wireframe-Textfarbe folgt dem Themewechsel nicht.');
+              themeButton.click();
+              for (let attempt = 0; attempt < 100 && document.documentElement.dataset.theme !== themeBefore; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.documentElement.dataset.theme !== themeBefore || getComputedStyle(element).color !== computedBefore) throw new Error('Wireframe-Textfarbe wurde nach Theme-Rückkehr nicht wiederhergestellt.');
               const mobileArtboard = [...wireframe.querySelectorAll('.task-wireframe-artboard-switch button')].find((button) => button.textContent?.includes('Mobile'));
               if (!(mobileArtboard instanceof HTMLButtonElement)) throw new Error('Mobile-Wireframe-Auswahl fehlt.');
               mobileArtboard.click();
@@ -1579,7 +1589,7 @@ function createWindow(): void {
               textSetter.call(lockedText, 'Späte Eingabe'); lockedText.dispatchEvent(new Event('input', { bubbles: true }));
               let stored;
               for (let attempt = 0; attempt < 100 && !stored; attempt++) { stored = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }); if (!stored) await new Promise((resolve) => setTimeout(resolve, 50)); }
-              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.elements.find((item) => item.id === 'window-title')?.style?.textColor !== '#26312b' || stored.elements[2]?.id !== 'window-title' || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.x !== 70 || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, Gestaltung, getrennte Mobile-Variante oder Freigabezustand wurden nicht gespeichert.');
+              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.elements.find((item) => item.id === 'window-title')?.width !== 630 || stored.elements.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.elements.find((item) => item.id === 'window-title')?.style?.textColor !== '@foreground' || stored.elements[2]?.id !== 'window-title' || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.x !== 70 || stored.artboards.mobile?.find((item) => item.id === 'window-title')?.style?.fontSize !== 20 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Geometrie, Gestaltung, getrennte Mobile-Variante oder Freigabezustand wurden nicht gespeichert.');
               const approve = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Für Agenten freigeben'));
               for (let attempt = 0; attempt < 100 && approve?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(approve instanceof HTMLButtonElement) || approve.disabled) throw new Error('Gespeicherter Entwurf ist nicht freigebbar.');

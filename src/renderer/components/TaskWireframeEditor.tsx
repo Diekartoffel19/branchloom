@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, CornerDownRight, MousePointer2, Plus, Redo2, RotateCcw, Undo2 } from 'lucide-react';
 import type { Card } from '../../shared/types';
 import type { CardWireframe, WireframeArtboard, WireframeElement, WireframeElementKind, WireframeElementStyle, WireframeElementTone, WireframeVariant } from '../../shared/card-wireframe';
-import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
+import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_THEME_COLORS, WIREFRAME_WIDTH, wireframeColorCss } from '../../shared/card-wireframe';
 import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition } from './wireframe-editing';
 import { copyDesktopToArtboard } from './wireframe-artboards';
 import { alignWireframeSelection, moveWireframeSelection, type WireframeAlignment } from './wireframe-selection';
@@ -17,16 +17,25 @@ const draftKey = (projectId: string, cardId: string): string => JSON.stringify([
 const labelForKind: Record<WireframeElementKind, string> = { panel: 'Fläche', text: 'Text', button: 'Knopf', field: 'Eingabe' };
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
-type StyleColorKey = 'fill' | 'stroke' | 'textColor';
-const styleColorDefaults: Record<StyleColorKey, string> = { fill: '#ffffff', stroke: '#c9cec9', textColor: '#26312b' };
+type StyleColorKey = keyof typeof WIREFRAME_THEME_COLORS;
 
-function StyleColorControl({ label, styleKey, value, disabled, onChange }: {
-  label: string; styleKey: StyleColorKey; value?: string; disabled: boolean; onChange: (value?: string) => void;
+function StyleColorControl({ label, styleKey, item, disabled, onChange }: {
+  label: string; styleKey: StyleColorKey; item: WireframeElement; disabled: boolean; onChange: (value?: string) => void;
 }) {
+  const [, refreshTheme] = useState(0);
+  useEffect(() => {
+    const observer = new MutationObserver(() => refreshTheme((value) => value + 1));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  const value = item.style?.[styleKey];
+  const cssColor = wireframeColorCss({ ...item, style: { ...item.style, [styleKey]: value ?? WIREFRAME_THEME_COLORS[styleKey] } }, styleKey)!;
+  const themeHex = cssColor.startsWith('var(') ? getComputedStyle(document.documentElement).getPropertyValue(cssColor.slice(4, -1)).trim() : cssColor;
+  const pickerValue = /^#[0-9a-fA-F]{6}$/.test(themeHex) ? themeHex : '#000000';
   return <div className="task-wireframe-color-control">
-    <label><input type="checkbox" checked={value !== undefined} disabled={disabled} onChange={(event) => onChange(event.target.checked ? styleColorDefaults[styleKey] : undefined)} />{label}</label>
-    <input type="color" aria-label={`${label} auswählen`} value={value ?? styleColorDefaults[styleKey]} disabled={disabled || value === undefined} onChange={(event) => onChange(event.target.value)} />
-    <span>{value ?? 'Standard'}</span>
+    <label><input type="checkbox" checked={value !== undefined} disabled={disabled} onChange={(event) => onChange(event.target.checked ? WIREFRAME_THEME_COLORS[styleKey] : undefined)} />{label}</label>
+    <input type="color" aria-label={`${label} auswählen`} value={pickerValue} disabled={disabled || value === undefined} onChange={(event) => onChange(event.target.value)} />
+    <span>{value?.startsWith('@') ? `Theme · ${pickerValue}` : value ?? 'Standard'}</span>
   </div>;
 }
 
@@ -286,7 +295,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
         <div className="task-wireframe-canvas-wrap" data-artboard={artboard}>
           <div className="task-wireframe-canvas-head"><span>{canvas.width} × {canvas.height} · {canvas.label}</span><div className="task-wireframe-view-controls" role="group" aria-label="Zeichenflächenansicht"><button type="button" className="secondary-button small" aria-label="Ansicht verkleinern" disabled={zoom <= 50} onClick={() => setZoom((value) => value - 25)}>−</button><output aria-label="Zoomstufe">{zoom} %</output><button type="button" className="secondary-button small" aria-label="Ansicht vergrößern" disabled={zoom >= 150} onClick={() => setZoom((value) => value + 25)}>+</button><button type="button" className="secondary-button small" aria-pressed={snapToGrid} onClick={() => setSnapToGrid((value) => !value)}>8 px Raster</button></div></div>
           <div className="task-wireframe-canvas-viewport" role="region" tabIndex={0} aria-label="Verschiebbare Zeichenflächenansicht"><div className="task-wireframe-canvas-scale" style={{ width: `${zoom}%`, aspectRatio: `${canvas.width} / ${canvas.height}` }}><div className={`task-wireframe-canvas${snapToGrid ? ' has-grid' : ''}`} style={{ aspectRatio: `${canvas.width} / ${canvas.height}`, width: `${10000 / zoom}%`, transform: `scale(${zoom / 100})`, backgroundSize: snapToGrid ? `${800 / canvas.width}% ${800 / canvas.height}%` : undefined }} ref={stage} role="group" aria-label={`Editierbares ${canvas.label}-Wireframe`} onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedId(null); }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); setSelectedIds(elements.map((item) => item.id)); } else if (event.key === 'Escape') { event.preventDefault(); setSelectedId(null); } }}>
-          {elements.map((item) => <button key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedIds.includes(item.id) ? ' selected' : ''}`} style={{ left: `${item.x / canvas.width * 100}%`, top: `${item.y / canvas.height * 100}%`, width: `${item.width / canvas.width * 100}%`, height: `${item.height / canvas.height * 100}%`, backgroundColor: item.style?.fill, borderColor: item.style?.stroke, color: item.style?.textColor, borderRadius: item.style?.radius, fontSize: item.style?.fontSize, fontWeight: item.style?.fontWeight }} aria-label={`${labelForKind[item.kind]}: ${item.text || 'ohne Text'}`} aria-pressed={selectedIds.includes(item.id)}
+          {elements.map((item) => <button key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedIds.includes(item.id) ? ' selected' : ''}`} style={{ left: `${item.x / canvas.width * 100}%`, top: `${item.y / canvas.height * 100}%`, width: `${item.width / canvas.width * 100}%`, height: `${item.height / canvas.height * 100}%`, backgroundColor: wireframeColorCss(item, 'fill'), borderColor: wireframeColorCss(item, 'stroke'), color: wireframeColorCss(item, 'textColor'), borderRadius: item.style?.radius, fontSize: item.style?.fontSize, fontWeight: item.style?.fontWeight }} aria-label={`${labelForKind[item.kind]}: ${item.text || 'ohne Text'}`} aria-pressed={selectedIds.includes(item.id)}
             onFocus={() => { if (!interactionLocked.current && !pointerSelection.current) setSelectedId(item.id); }}
             onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0) return; if (event.shiftKey || event.ctrlKey || event.metaKey) { event.preventDefault(); toggleSelected(item.id); return; } pointerSelection.current = true; const ids = selectedIds.includes(item.id) ? selectedIds : [item.id]; if (ids !== selectedIds) setSelectedIds(ids); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, ids, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, before: draft, origin: elements, recorded: false }; }}
             onPointerMove={(event) => { const current = drag.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== item.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const rawDx = (event.clientX - current.clientX) * canvas.width / rect.width; const rawDy = (event.clientY - current.clientY) * canvas.height / rect.height; const origin = current.origin.find((candidate) => candidate.id === item.id)!; const dx = snapToGrid ? snapWireframePosition(origin.x + rawDx, origin.width, canvas.width) - origin.x : rawDx; const dy = snapToGrid ? snapWireframePosition(origin.y + rawDy, origin.height, canvas.height) - origin.y : rawDy; const next = moveWireframeSelection(current.origin, current.ids, dx, dy, canvas.width, canvas.height); if (next.some((candidate, index) => candidate.x !== elements[index]!.x || candidate.y !== elements[index]!.y)) { if (!current.recorded) { recordHistory(current.before); current.recorded = true; } editElements(next, false); } }}
@@ -309,9 +318,9 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
           <label>Ton<select value={selected.tone} disabled={busy} onChange={(event) => editElement(selected.id, { tone: event.target.value as WireframeElementTone })}><option value="plain">Neutral</option><option value="muted">Zurückhaltend</option><option value="accent">Akzent</option></select></label>
           <fieldset className="task-wireframe-style"><legend>Gestaltung</legend>
             <div className="task-wireframe-style-pair"><label>Schriftgröße<input aria-label="Schriftgröße in Pixel" type="number" min={8} max={64} step={1} placeholder="Standard" value={styleNumberDraft?.id === selected.id && styleNumberDraft.key === 'fontSize' ? styleNumberDraft.raw : selected.style?.fontSize ?? ''} disabled={busy} onChange={(event) => setStyleNumber(selected, 'fontSize', event.target.value)} onBlur={() => setStyleNumberDraft(null)} /></label><label>Schriftstärke<select aria-label="Schriftstärke" value={selected.style?.fontWeight ?? ''} disabled={busy} onChange={(event) => setStyle('fontWeight', event.target.value ? Number(event.target.value) : undefined)}><option value="">Standard</option><option value="400">Normal</option><option value="500">Mittel</option><option value="600">Halbfett</option><option value="700">Fett</option></select></label></div>
-            <StyleColorControl label="Textfarbe" styleKey="textColor" value={selected.style?.textColor} disabled={busy} onChange={(value) => setStyle('textColor', value)} />
-            <StyleColorControl label="Füllung" styleKey="fill" value={selected.style?.fill} disabled={busy} onChange={(value) => setStyle('fill', value)} />
-            <StyleColorControl label="Kontur" styleKey="stroke" value={selected.style?.stroke} disabled={busy} onChange={(value) => setStyle('stroke', value)} />
+            <StyleColorControl label="Textfarbe" styleKey="textColor" item={selected} disabled={busy} onChange={(value) => setStyle('textColor', value)} />
+            <StyleColorControl label="Füllung" styleKey="fill" item={selected} disabled={busy} onChange={(value) => setStyle('fill', value)} />
+            <StyleColorControl label="Kontur" styleKey="stroke" item={selected} disabled={busy} onChange={(value) => setStyle('stroke', value)} />
             <label>Eckenradius<input aria-label="Eckenradius in Pixel" type="number" min={0} max={64} step={1} placeholder="Standard" value={styleNumberDraft?.id === selected.id && styleNumberDraft.key === 'radius' ? styleNumberDraft.raw : selected.style?.radius ?? ''} disabled={busy} onChange={(event) => setStyleNumber(selected, 'radius', event.target.value)} onBlur={() => setStyleNumberDraft(null)} /></label>
           </fieldset>
           <div className="task-wireframe-layer-order" role="group" aria-label="Ebenenreihenfolge"><button type="button" className="secondary-button small" disabled={busy || elements[0]?.id === selected.id} onClick={() => changeLayer(selected.id, -1)}>Eine Ebene zurück</button><button type="button" className="secondary-button small" disabled={busy || elements[elements.length - 1]?.id === selected.id} onClick={() => changeLayer(selected.id, 1)}>Eine Ebene vor</button></div>

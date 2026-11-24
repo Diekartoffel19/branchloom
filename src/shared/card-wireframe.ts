@@ -11,6 +11,9 @@ export type WireframeVariant = Exclude<WireframeArtboard, 'desktop'>;
 export type WireframeElementKind = 'panel' | 'text' | 'button' | 'field';
 export type WireframeElementTone = 'plain' | 'muted' | 'accent';
 
+/** Semantic preview colors follow the current Branchloom theme and element tone. */
+export const WIREFRAME_THEME_COLORS = { fill: '@fill', stroke: '@stroke', textColor: '@foreground' } as const;
+
 /** Optional overrides keep older drafts and their approvals unchanged. Colors are opaque hex values. */
 export interface WireframeElementStyle {
   fill?: string;
@@ -19,6 +22,14 @@ export interface WireframeElementStyle {
   radius?: number;
   fontSize?: number;
   fontWeight?: 400 | 500 | 600 | 700;
+}
+
+export function wireframeColorCss(item: WireframeElement, key: keyof typeof WIREFRAME_THEME_COLORS): string | undefined {
+  const value = item.style?.[key];
+  if (value !== WIREFRAME_THEME_COLORS[key]) return value;
+  const accentButton = item.kind === 'button' && item.tone === 'accent';
+  if (key === 'stroke') return accentButton ? 'var(--bg)' : 'var(--accent)';
+  return key === 'fill' ? accentButton ? 'var(--accent)' : 'var(--surface-2)' : accentButton ? 'var(--bg)' : 'var(--text)';
 }
 
 export interface WireframeElement {

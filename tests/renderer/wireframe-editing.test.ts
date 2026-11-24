@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WireframeElement } from '../../src/shared/card-wireframe';
+import { WIREFRAME_THEME_COLORS, wireframeColorCss, type WireframeElement } from '../../src/shared/card-wireframe';
 import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition } from '../../src/renderer/components/wireframe-editing';
 
 const element = (id: string, x = 100, y = 100, width = 200, height = 80): WireframeElement => ({ id, kind: 'panel', text: '', tone: 'plain', x, y, width, height });
@@ -57,5 +57,18 @@ describe('wireframe editor geometry and layer helpers', () => {
     expect(sameWireframeContent({ ...saved, elements: [{ ...styled, style: { ...styled.style, fontSize: 22 } }] }, saved)).toBe(false);
     expect(sameWireframeContent({ ...saved, artboards: { mobile: [{ ...base, style: { radius: 8 } }] } }, saved)).toBe(false);
     expect(sameWireframeContent({ ...saved, elements: [{ ...styled, style: { ...styled.style } }] }, saved)).toBe(true);
+  });
+
+  it('resolves semantic style colors for both regular and accent elements without freezing a theme', () => {
+    const panel = { ...element('panel'), style: { fill: WIREFRAME_THEME_COLORS.fill, stroke: WIREFRAME_THEME_COLORS.stroke, textColor: WIREFRAME_THEME_COLORS.textColor } };
+    expect(wireframeColorCss(panel, 'fill')).toBe('var(--surface-2)');
+    expect(wireframeColorCss(panel, 'stroke')).toBe('var(--accent)');
+    expect(wireframeColorCss(panel, 'textColor')).toBe('var(--text)');
+    const button: WireframeElement = { ...panel, kind: 'button', tone: 'accent' };
+    expect(wireframeColorCss(button, 'fill')).toBe('var(--accent)');
+    expect(wireframeColorCss(button, 'stroke')).toBe('var(--bg)');
+    expect(wireframeColorCss(button, 'textColor')).toBe('var(--bg)');
+    expect(wireframeColorCss({ ...button, tone: 'plain' }, 'textColor')).toBe('var(--text)');
+    expect(wireframeColorCss({ ...button, style: { textColor: '#112233' } }, 'textColor')).toBe('#112233');
   });
 });

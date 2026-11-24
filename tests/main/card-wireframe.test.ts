@@ -184,4 +184,22 @@ describe('task-linked wireframes', () => {
     expect(saveCardWireframe(store, { ...key, title: 'Alt', expectedRevision: 1, elements: [{ ...element, style: {} }] })).toMatchObject({ revision: 1, approvedRevision: 1 });
     store.close();
   });
+
+  it('round-trips only whitelisted semantic theme colors without changing an existing hex style', () => {
+    const { dbFile, store, key } = fixture();
+    const saved = saveCardWireframe(store, { ...key, title: 'Theme', expectedRevision: 0, elements: [
+      { ...element, style: { fill: '@fill', stroke: '@stroke', textColor: '@foreground' } },
+    ], artboards: { mobile: [{ ...element, x: 10, width: 300, style: { textColor: '#334455' } }] } });
+    expect(saved.elements[0]?.style).toEqual({ fill: '@fill', stroke: '@stroke', textColor: '@foreground' });
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    expect(approvedCardWireframeContext(store, key)).toContain('"textColor":"@foreground"');
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)?.artboards.mobile?.[0]?.style?.textColor).toBe('#334455');
+    expect(saveCardWireframe(reopened, { ...key, title: 'Theme', expectedRevision: 1, elements: saved.elements, artboards: saved.artboards })).toMatchObject({ revision: 1, approvedRevision: 1 });
+    for (const style of [{ fill: '@foreground' }, { textColor: '@fill' }, { stroke: '@unknown' }, { fill: 'var(--surface-2)' }]) {
+      expect(() => saveCardWireframe(reopened, { ...key, title: 'Theme', expectedRevision: 1, elements: [{ ...element, style }] as WireframeElement[] })).toThrow('Farben');
+    }
+    reopened.close();
+  });
 });
