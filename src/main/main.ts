@@ -379,6 +379,8 @@ function installIpc(): void {
   bind('designInspectionSelectSelector', (input: Parameters<StudioAPI['designInspectionSelectSelector']>[0]) => designInspector?.selectSelector(input.projectId, input.selector));
   bind('designInspectionSetBounds', (bounds: Parameters<StudioAPI['designInspectionSetBounds']>[0]) => designInspector?.setBounds(bounds));
   bind('designInspectionSetVisible', (visible: boolean) => designInspector?.setVisible(visible === true));
+  bind('designViewportCapture', (projectId: string) => designInspector?.captureViewports(projectId));
+  bind('designViewportCancel', (projectId: string) => designInspector?.cancelViewportCapture(projectId));
   bind('previewOutputErrors', (input: Parameters<StudioAPI['previewOutputErrors']>[0]) => previewOutputErrors(db, input));
   bind('createOutputErrorCard', (input: Parameters<StudioAPI['createOutputErrorCard']>[0]) => createOutputErrorCard(db, input));
 }
@@ -1164,6 +1166,21 @@ function createWindow(): void {
             })()`);
             const resetTheme = await designInspector!.smokeThemeValue('#design-smoke-target', '--smoke-ink');
             if (resetTheme.inline || resetTheme.computed !== 'rgb(36, 59, 50)') throw new Error('Theme-Vorschau wurde nicht rückgängig gemacht: ' + JSON.stringify(resetTheme));
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const canvas = document.querySelector('.design-viewport-canvas');
+              const button = [...(canvas?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Größen aufnehmen'));
+              if (!canvas || !button || button.disabled || canvas.querySelector('img')) throw new Error('Design-Größenaufnahme ist nicht ausdrücklich startbar.');
+              button.click();
+              for (let attempt = 0; attempt < 800 && canvas.querySelectorAll('img').length !== 3 && !canvas.querySelector('.inline-error'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const images = [...canvas.querySelectorAll('img')];
+              if (images.length !== 3 || !canvas.textContent?.includes('1280 × 800 px') || !canvas.textContent?.includes('768 × 1024 px') || !canvas.textContent?.includes('390 × 844 px') || !canvas.textContent?.includes(${JSON.stringify(qaUrl)})) throw new Error('Drei Design-Größen fehlen: ' + canvas.textContent?.slice(0, 800));
+              await Promise.all(images.map((image) => image.decode()));
+              if (!images.every((image) => image.naturalWidth > 0)) throw new Error('Design-Aufnahmen sind keine lesbaren Bilder.');
+              [...canvas.querySelectorAll('button')].find((item) => item.textContent?.includes('Aufnahmen schließen'))?.click();
+              for (let attempt = 0; attempt < 100 && canvas.querySelector('img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (canvas.querySelector('img') || document.activeElement !== button) throw new Error('Design-Aufnahmen blieben nach Schließen sichtbar oder der Fokus ging verloren.');
+              return true;
+            })()`);
             if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n' || designSelections(smokeStore, smokeProject.id).length !== 2) throw new Error('Theme-Vorschau änderte Quelldatei oder gespeicherte Auswahl.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               document.querySelector('.theme-tokens-preview button[type="submit"]')?.click();

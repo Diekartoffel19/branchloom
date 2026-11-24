@@ -4,6 +4,7 @@ import type Database from 'better-sqlite3';
 import type { BrowserBounds } from '../shared/types';
 import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from '../shared/design-inspection';
 import { normalizeThemeTokenValue } from '../shared/theme-token-value';
+import type { DesignViewportResult } from '../shared/design-viewports';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import type { StudioStore } from './store';
 import { scanThemeTokens } from './theme-tokens';

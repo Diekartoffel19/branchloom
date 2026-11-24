@@ -8,6 +8,7 @@ import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, 
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
+import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 
@@ -207,6 +208,8 @@ export interface StudioAPI {
   designInspectionSelectSelector(input: { projectId: string; selector: string }): Promise<DesignSelection>;
   designInspectionSetBounds(bounds: BrowserBounds | null): Promise<DesignInspectionState>;
   designInspectionSetVisible(visible: boolean): Promise<DesignInspectionState>;
+  designViewportCapture(projectId: string): Promise<DesignViewportResult>;
+  designViewportCancel(projectId: string): Promise<void>;
   onDesignSelection(callback: (selection: DesignSelection) => void): () => void;
   previewOutputErrors(input: { projectId: string; sourceKind: OutputErrorSourceKind; sourceId: string }): Promise<OutputErrorPreview>;
   createOutputErrorCard(input: CreateOutputErrorCard): Promise<Card>;

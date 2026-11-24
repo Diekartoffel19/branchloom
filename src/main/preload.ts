@@ -149,6 +149,8 @@ const studio: StudioAPI = {
   designInspectionSelectSelector: (input) => invoke('designInspectionSelectSelector', input),
   designInspectionSetBounds: (bounds) => invoke('designInspectionSetBounds', bounds),
   designInspectionSetVisible: (visible) => invoke('designInspectionSetVisible', visible),
+  designViewportCapture: (projectId) => invoke('designViewportCapture', projectId),
+  designViewportCancel: (projectId) => invoke('designViewportCancel', projectId),
   onDesignSelection: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, selection: import('../shared/design-inspection').DesignSelection): void => callback(selection);
     ipcRenderer.on('studio:design-selection', listener);
