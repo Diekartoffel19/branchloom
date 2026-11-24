@@ -45,6 +45,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
   const [confirmBulkPriority, setConfirmBulkPriority] = useState<{ cardIds: string[]; priority: CardPriority; changeCount: number } | null>(null);
   const [focusMoved, setFocusMoved] = useState<{ cardId: string; columnId: string } | null>(null);
+  const focusBeforeDrawer = useRef<HTMLElement | null>(null);
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const visibleCards = useMemo(() => filterBoardCards(snapshot.cards, { query, columnId: filterColumnId, visibility, priority: filterPriority, label: filterLabel }), [snapshot.cards, query, filterColumnId, visibility, filterPriority, filterLabel]);
   const labels = useMemo(() => {
@@ -72,7 +73,7 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   useEffect(() => { if (!columns.some((column) => column.id === bulkDestinationId)) setBulkDestinationId(columns[0]?.id ?? ''); }, [columns, bulkDestinationId]);
   // A cross-view navigation can arrive before the refreshed snapshot contains
   // a newly created card. Open it when that card becomes available as well.
-  useEffect(() => { if (openCard && requestedCardAvailable) setSelectedId(openCard.id); }, [openCard?.id, openCard?.token, snapshot.project.id, requestedCardAvailable]);
+  useEffect(() => { if (openCard && requestedCardAvailable) openBoardCard(openCard.id); }, [openCard?.id, openCard?.token, snapshot.project.id, requestedCardAvailable]);
   useEffect(() => {
     if (!focusMoved || snapshot.cards.find((card) => card.id === focusMoved.cardId)?.columnId !== focusMoved.columnId) return;
     const button = document.getElementById(`board-card-${focusMoved.cardId}`);
@@ -82,7 +83,26 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
   async function addCard(event: React.FormEvent<HTMLFormElement>, columnId: string) {
     event.preventDefault();
     const created = await mutate(() => window.studio.createCard({ projectId: snapshot.project.id, columnId, title: title.trim() }));
-    if (created) { setCreatingIn(null); setTitle(''); setSelectedId(created.id); }
+    if (created) { setCreatingIn(null); setTitle(''); openBoardCard(created.id); }
+  }
+
+  function openBoardCard(cardId: string) {
+    if (!selectedId) focusBeforeDrawer.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSelectedId(cardId);
+  }
+
+  function closeBoardCard() {
+    const cardId = selectedId;
+    const previous = focusBeforeDrawer.current;
+    focusBeforeDrawer.current = null;
+    setSelectedId(null);
+    requestAnimationFrame(() => {
+      if (previous?.isConnected) previous.focus();
+      else {
+        const cardButton = cardId ? document.getElementById(`board-card-${cardId}`) : null;
+        (cardButton ?? document.querySelector<HTMLElement>('.board-search input'))?.focus();
+      }
+    });
   }
 
   async function addColumn(event: React.FormEvent<HTMLFormElement>) {
@@ -212,13 +232,13 @@ export function BoardView({ snapshot, mutate, openCard }: Props) {
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={setSelectedId} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={openBoardCard} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
-    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={() => setSelectedId(null)} onOpenCard={setSelectedId} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
-    {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); setSelectedId(card.id); }} /> : null}
+    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
+    {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); openBoardCard(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
   </div>;
 }

@@ -47,8 +47,11 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   const conflictSessionKey = useRef('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { closeButtonRef.current?.focus(); }, [card.id]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
   useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
@@ -203,7 +206,16 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   }
 
   return <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside className="card-drawer" aria-label={`Karte ${card.title}`}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2>{card.title}</h2></div><button className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
+    <aside ref={drawerRef} className="card-drawer" role="dialog" aria-modal="true" aria-labelledby={`card-dialog-title-${card.id}`} onKeyDown={(event) => {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); return; }
+      if (event.key !== 'Tab') return;
+      const controls = [...(drawerRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], summary, [tabindex]:not([tabindex="-1"])') ?? [])].filter((item) => item.getClientRects().length > 0);
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2 id={`card-dialog-title-${card.id}`}>{card.title}</h2></div><button ref={closeButtonRef} className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
       <div className="drawer-content">
         <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}>
           <label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label>
