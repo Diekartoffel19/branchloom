@@ -29,6 +29,7 @@ import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateR
 import { reviewCardWorktreeConflicts, reviewProjectConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
+import { attachMemoryGitSource, memoryGitCandidates, memoryGitSource, removeMemoryGitSource } from './memory-git-source';
 import { StudioStore } from './store';
 import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
 import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './whiteboard-impact';
@@ -310,6 +311,10 @@ function installIpc(): void {
   bind('reviewProjectConflicts', (projectId: string) => reviewProjectConflicts(db, projectId));
   bind('mergeCardWorktree', (input: { cardId: string; previewToken: string; confirm: boolean }) => mergeCardWorktree(db, input));
   bind('saveNote', (input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }) => db.saveNote(input));
+  bind('memoryGitCandidates', (projectId: string) => memoryGitCandidates(db, projectId));
+  bind('memoryGitSource', (input: Parameters<StudioAPI['memoryGitSource']>[0]) => memoryGitSource(db, input));
+  bind('attachMemoryGitSource', (input: Parameters<StudioAPI['attachMemoryGitSource']>[0]) => attachMemoryGitSource(db, input));
+  bind('removeMemoryGitSource', (input: Parameters<StudioAPI['removeMemoryGitSource']>[0]) => removeMemoryGitSource(db, input));
   bind('deleteNote', (id: string) => db.deleteNote(id));
   bind('exportMemoryVault', async (projectId: string) => {
     const snapshot = db.snapshot(projectId);
@@ -1484,6 +1489,68 @@ function createWindow(): void {
               const comparedImages = [...document.querySelectorAll('.milestones-image-compare-grid img')];
               if (comparedImages.length !== 2 || !comparedImages.every((image) => image.getAttribute('src')?.startsWith('data:image/png;base64,') && image.getAttribute('alt'))) throw new Error('Vorher/Nachher-Bilder oder Bildbeschreibungen fehlen.');
               await Promise.all(comparedImages.map((image) => image.decode()));
+              return true;
+            })()`);
+            const memoryNote = smokeStore.saveNote({ projectId: milestoneProjectId, title: 'Commit-Beleg Smoke', body: 'Synthetische Git-Quelle', tags: [], links: [] });
+            const memoryHead = execFileSync('git', ['-C', milestonePath, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim();
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const select = document.querySelector('#project-select');
+              if (!(select instanceof HTMLSelectElement)) throw new Error('Projektauswahl fehlt bei Memory-Git-Quelle.');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!setter) throw new Error('Projektauswahl ist nicht bedienbar.');
+              setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Memory')?.click();
+              let note;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                note = [...document.querySelectorAll('.memory-item')].find((item) => item.textContent?.includes('Commit-Beleg Smoke'));
+                if (note) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(note instanceof HTMLButtonElement)) throw new Error('Synthetische Memory-Notiz fehlt.');
+              note.click();
+              let choose;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                choose = [...document.querySelectorAll('.memory-git-source button')].find((button) => button.textContent?.includes('Commit auswählen'));
+                if (choose && !choose.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(choose instanceof HTMLButtonElement)) throw new Error('Git-Quellenauswahl fehlt.');
+              if (choose.disabled) throw new Error('Git-Quellenauswahl blieb gesperrt.');
+              choose.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.memory-git-source-chooser input[type="radio"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const candidate = document.querySelector('.memory-git-source-chooser input[type="radio"]');
+              if (!(candidate instanceof HTMLInputElement)) throw new Error('Geprüfter Git-Commit fehlt in der Auswahl.');
+              candidate.click();
+              const attach = [...document.querySelectorAll('.memory-git-source-chooser button')].find((button) => button.textContent?.includes('Quelle verknüpfen'));
+              if (!(attach instanceof HTMLButtonElement)) throw new Error('Bestätigung der Git-Quelle fehlt.');
+              for (let attempt = 0; attempt < 100 && attach.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              attach.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.memory-git-source-record')?.textContent?.includes(${JSON.stringify(memoryHead)}); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.memory-git-source-record')?.textContent?.includes('Commit ist in der aktuellen Projekt-Historie')) throw new Error('Git-Quelle wurde nicht sichtbar bestätigt: ' + document.querySelector('.memory-git-source')?.textContent?.slice(0, 500));
+              const saved = await window.studio.memoryGitSource({ projectId: ${JSON.stringify(milestoneProjectId)}, noteId: ${JSON.stringify(memoryNote.id)} });
+              if (saved?.hash !== ${JSON.stringify(memoryHead)} || saved.state !== 'in-history') throw new Error('Git-Quelle wurde nicht in SQLite gespeichert.');
+              return true;
+            })()`);
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const select = document.querySelector('#project-select');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('Projektauswahl fehlt nach Memory-Neustart.');
+              setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Memory')?.click();
+              let note;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                note = [...document.querySelectorAll('.memory-item')].find((item) => item.textContent?.includes('Commit-Beleg Smoke'));
+                if (note) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(note instanceof HTMLButtonElement)) throw new Error('Memory-Notiz fehlt nach Reload.');
+              note.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.memory-git-source-record')?.textContent?.includes(${JSON.stringify(memoryHead)}); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.memory-git-source-record')?.textContent?.includes('Commit ist in der aktuellen Projekt-Historie')) throw new Error('Git-Quelle wurde nach Reload nicht erneut geprüft.');
               return true;
             })()`);
             const cleanupCard = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Worktree-Aufräumprüfung Smoke' });

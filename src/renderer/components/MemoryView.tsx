@@ -7,6 +7,7 @@ import { emptyNoteNavigation, filterMemoryNotes, nextMemoryNote, openMemoryNote,
 import { sourceSessionIdFromNote } from '../activity-transcript';
 import type { Mutate } from './shared';
 import { MemoryVaultImportDialog } from './MemoryVaultImportDialog';
+import { MemoryGitSourcePanel } from './MemoryGitSourcePanel';
 import '../memory.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null; onOpenSession?: (id: string) => void }
@@ -196,6 +197,7 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props)
             <h2>{selected.title}</h2>
             <MemoryMarkdown body={draft.body} notes={notes} onOpenNote={selectNote} />
             {selected.tags.length ? <div className="memory-preview-tags">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}
+            <MemoryGitSourcePanel projectId={snapshot.project.id} noteId={selected.id} />
           </div> : <form className="memory-editor" onSubmit={(event) => void save(event)}>
             <input className="memory-title" value={draft.title} onChange={(event) => setDraft((old) => ({ ...old, title: event.target.value }))} placeholder="Titel der Notiz" aria-label="Titel der Notiz" required maxLength={120} />
             <label className="field-label">Text<textarea className="memory-body" value={draft.body} onChange={(event) => setDraft((old) => ({ ...old, body: event.target.value }))} placeholder="Gedanken, Entscheidungen, Kontext… Verknüpfe mit [[Notiztitel]]." rows={10} /></label>

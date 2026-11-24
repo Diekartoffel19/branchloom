@@ -186,6 +186,10 @@ export interface StudioAPI {
   reviewProjectConflicts(projectId: string): Promise<ProjectConflictRadarResult>;
   mergeCardWorktree(input: { cardId: string; previewToken: string; confirm: boolean }): Promise<WorktreeReview>;
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
+  memoryGitCandidates(projectId: string): Promise<import('./memory-git-source').MemoryGitCommit[]>;
+  memoryGitSource(input: { projectId: string; noteId: string }): Promise<import('./memory-git-source').MemoryGitSource | null>;
+  attachMemoryGitSource(input: { projectId: string; noteId: string; commit: string }): Promise<import('./memory-git-source').MemoryGitSource>;
+  removeMemoryGitSource(input: { projectId: string; noteId: string }): Promise<void>;
   deleteNote(id: string): Promise<void>;
   exportMemoryVault(projectId: string): Promise<MemoryVaultExportResult | null>;
   previewMemoryVaultImport(projectId: string): Promise<MemoryVaultImportPreview | null>;

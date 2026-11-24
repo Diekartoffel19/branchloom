@@ -35,3 +35,24 @@
 .memory-vault-file span { min-width: 0; display: grid; gap: 2px; }
 .memory-vault-file small { overflow-wrap: anywhere; color: var(--muted); }
 .memory-vault-file .memory-vault-reason { color: var(--danger); }
+.memory-git-source { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text); }
+.memory-git-source-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.memory-git-source-head h3 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.memory-git-source-head>div, .memory-git-source-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.memory-git-source p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.memory-git-source-record { display: grid; gap: 5px; margin-top: 12px; min-width: 0; }
+.memory-git-source-record strong { font-size: 13px; }
+.memory-git-source-record code { width: fit-content; max-width: 100%; overflow-wrap: anywhere; color: var(--accent); font-size: 11px; }
+.memory-git-source-record small { color: var(--muted); font-size: 11px; }
+.memory-git-source-chooser { margin-top: 16px; padding: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
+.memory-git-source-chooser fieldset { display: grid; gap: 0; max-height: 260px; overflow: auto; margin: 12px 0; padding: 0; border: 1px solid var(--border); border-radius: 6px; }
+.memory-git-source-chooser legend { padding: 0 6px; font-size: 11px; color: var(--muted); }
+.memory-git-source-chooser label { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.memory-git-source-chooser label:last-child { border-bottom: 0; }
+.memory-git-source-chooser label:has(input:checked) { background: var(--surface-3); }
+.memory-git-source-chooser label input { margin-top: 3px; accent-color: var(--accent); }
+.memory-git-source-chooser label span { min-width: 0; display: grid; gap: 3px; }
+.memory-git-source-chooser label strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.memory-git-source-chooser label small { color: var(--muted); font-size: 11px; }
+.memory-git-source-actions { justify-content: flex-end; }
+@media(max-width:600px) { .memory-git-source-head>div { width: 100%; } .memory-git-source-head>div button { min-height: 44px; } }

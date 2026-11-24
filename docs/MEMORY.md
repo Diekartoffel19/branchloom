@@ -9,6 +9,12 @@ Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. De
 3. **Bearbeiten** und **Vorschau** wechseln zwischen Editor und Ansicht. Die Vorschau unterstützt Überschriften, Listen, Zitate, Codeblöcke, Inline-Code, Fettdruck und Wiki-Links. Rohes HTML wird nur als Text angezeigt.
 4. Die Pfeile über einer Notiz springen durch den zuletzt besuchten Notizverlauf. Tags über der Liste filtern Notizen; die Suche berücksichtigt Titel, Text und Tags.
 
+## Git-Commit als Notizquelle
+
+Bei einer gespeicherten Notiz kannst du unter **Git-Quelle → Commit auswählen** einen der letzten 20 Commits aus der aktuellen HEAD-Historie des registrierten Projekt-Repositories wählen. Erst **Quelle verknüpfen** speichert den vollständigen Commit-Hash, Betreff und Commit-Zeitpunkt in der lokalen SQLite-Datenbank. Die App prüft vor dem Speichern erneut, ob der Commit noch zu dieser Historie gehört. Pro Notiz ist eine Git-Quelle möglich; ein Ersatz und das Entfernen verlangen eine gesonderte Bestätigung.
+
+Beim erneuten Öffnen oder über **Erneut prüfen** fragt Branchloom Git nochmals ab. Die Anzeige unterscheidet einen Commit in der aktuellen Historie, einen noch vorhandenen Commit außerhalb der aktuellen HEAD-Historie, einen fehlenden Commit, ein anderes Repository und einen gerade nicht prüfbaren Git-Zustand. Der gespeicherte Betreff und Hash bleiben auch bei einer fehlenden Quelle sichtbar. Das Verknüpfen liest keine Dateiinhalte, startet keinen Agenten und verändert weder Repository noch Notiztext. Die Quellenbeziehung wird derzeit nicht automatisch an Agenten weitergereicht. Markdown-/Vault- und Projektpaket-Exporte enthalten die Git-Quelle noch nicht.
+
 ## Markdown austauschen
 
 - **Markdown importieren** öffnet eine einzelne `.md`-Datei bis 500 KB als neuen, noch ungespeicherten Entwurf. Titel und Tags aus einem von Branchloom erzeugten Export werden erkannt. Der Import überschreibt keine vorhandene Notiz; erst **Notiz speichern** schreibt in die Datenbank.
