@@ -11,6 +11,7 @@ import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from '
 import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
+import type { QaGitEvidence } from './qa-git-evidence';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -61,7 +62,7 @@ export type CardQaPageObservation =
   | { kind: 'missing-image-alt'; count: number; scanned: number }
   | { kind: 'horizontal-overflow'; pixels: number; clientWidth: number };
 export type CardQaPageCheck = 'not-run' | 'complete' | 'partial' | 'unavailable';
-export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; pageCheck: CardQaPageCheck; pageObservations: CardQaPageObservation[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number }
+export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; pageCheck: CardQaPageCheck; pageObservations: CardQaPageObservation[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number; gitEvidence: QaGitEvidence | null }
 export type CardQaViewport = 'desktop' | 'tablet' | 'mobile';
 export interface CardQaBatchResult { requested: number; reports: CardQaReport[]; error: string | null }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null }

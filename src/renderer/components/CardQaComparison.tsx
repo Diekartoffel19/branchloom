@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CardQaReport } from '../../shared/types';
+import { qaGitComparisonNote, qaGitLabel } from './qa-git-label';
 import './card-qa-comparison.css';
 
 interface Comparison { left: CardQaReport; right: CardQaReport; leftImage: string; rightImage: string }
@@ -17,9 +18,10 @@ export function QaComparisonView({ comparison, onClose }: { comparison: Comparis
   return <div className="card-qa-comparison-view" role="group" aria-label="Visueller Vergleich zweier QA-Screenshots">
     <p className="card-qa-comparison-loaded" role="status">Zwei Screenshots geladen. Quelle und Viewport stehen unter den Bildern.</p>
     {comparison.left.finalUrl !== comparison.right.finalUrl ? <p className="card-qa-comparison-warning">Die geladenen Routen unterscheiden sich. Vergleiche die Ansichten mit diesem Kontext.</p> : null}
+    <p className="card-qa-comparison-warning">{qaGitComparisonNote(comparison.left, comparison.right)} Der lokale Dev-Server ist dadurch keinem Commit nachweislich zugeordnet.</p>
     <div className="card-qa-comparison-images">{images.map(({ label, report, src }) => <figure key={report.id} className={expanded === label ? 'expanded' : undefined}>
       <img src={src} alt={`Gespeicherter QA-Screenshot ${label}`} />
-      <figcaption><strong>Screenshot {label}</strong><time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time><span>Quelle: {report.finalUrl ?? report.requestedUrl}</span><span>Viewport: {viewport(report)}</span></figcaption>
+      <figcaption><strong>Screenshot {label}</strong><time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time><span>Quelle: {report.finalUrl ?? report.requestedUrl}</span><span>Viewport: {viewport(report)}</span><span>{qaGitLabel(report)}</span></figcaption>
       <button className="secondary-button small" type="button" onClick={() => setExpanded(expanded === label ? null : label)}>{expanded === label ? `Screenshot ${label} verkleinern` : `Screenshot ${label} vergrößern`}</button>
     </figure>)}</div>
     <p className="card-qa-comparison-limit">Zwei lokale Momentaufnahmen zur visuellen Prüfung. Keine Pixelbewertung, Layoutfreigabe oder automatische QA-Entscheidung.</p>

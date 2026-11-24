@@ -7,7 +7,7 @@ import type { CardQaReport } from '../../src/shared/types';
 const base: CardQaReport = {
   id: 'tablet-old', cardId: 'card', projectId: 'project', requestedUrl: 'http://127.0.0.1:5173/', finalUrl: 'http://127.0.0.1:5173/',
   startedAt: '2026-01-01T10:00:00.000Z', endedAt: '2026-01-01T10:00:01.000Z', status: 'passed', diagnostics: [], pageCheck: 'not-run', pageObservations: [], note: null,
-  screenshotAvailable: true, viewportWidth: 768, viewportHeight: 1024,
+  screenshotAvailable: true, viewportWidth: 768, viewportHeight: 1024, gitEvidence: null,
 };
 
 describe('saved QA viewport matrix', () => {

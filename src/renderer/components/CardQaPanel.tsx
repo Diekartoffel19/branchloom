@@ -4,6 +4,7 @@ import type { Card, CardQaBatchResult, CardQaPageObservation, CardQaReport, Card
 import { CardQaComparison } from './CardQaComparison';
 import { CardQaViewportMatrix } from './CardQaViewportMatrix';
 import { CardQaFixCard } from './CardQaFixCard';
+import { qaGitLabel } from './qa-git-label';
 import './card-qa.css';
 
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -45,6 +46,7 @@ function CardQaReportItem({ card, report, initiallyOpen }: { card: Card; report:
   return <details className="card-qa-report" id={"card-qa-report-" + report.id} tabIndex={-1} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary><span className={`card-qa-state ${report.status}`}>{statusOf(report)}</span>{report.pageObservations.length ? <span className="card-qa-observation-count">{report.pageObservations.length} Seitenhinweise</span> : null}<time dateTime={report.endedAt}>{new Date(report.endedAt).toLocaleString('de-DE')}</time><span className="card-qa-viewport">{viewportOf(report)}</span></summary>
     <p className="card-qa-source"><strong>Seite:</strong> {report.requestedUrl}{report.finalUrl && report.finalUrl !== report.requestedUrl ? <> · <strong>Geladen:</strong> {report.finalUrl}</> : null}</p>
+    <p className="card-qa-source">{qaGitLabel(report)}. Dies ist nur der zugeordnete Checkout; welche Dateien der lokale Server ausgeliefert hat, ist nicht belegt.</p>
     {report.note ? <p className="inline-note">{report.note}</p> : null}
     {report.diagnostics.length ? <ol className="card-qa-findings">{report.diagnostics.map((item) => <li key={item.id}><strong>{item.kind === 'console' ? 'Konsole' : 'Laden'}:</strong> {item.message}{item.sourceUrl ? <small>{item.sourceUrl}{item.line ? `:${item.line}` : ''}</small> : null}</li>)}</ol> : null}
     <div className="card-qa-page-check"><strong>Seitenstruktur</strong>

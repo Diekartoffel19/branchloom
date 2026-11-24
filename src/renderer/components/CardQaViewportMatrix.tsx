@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CardQaReport } from '../../shared/types';
+import { qaGitLabel } from './qa-git-label';
 import './card-qa-viewport-matrix.css';
 
 const sizes = [
@@ -84,10 +85,10 @@ export function CardQaViewportMatrix({ cardId, reports }: { cardId: string; repo
           <figcaption><strong>{slot.label}</strong><span>{slot.width} × {slot.height} px</span></figcaption>
           {slot.image && slot.report ? <>
             <img src={slot.image} alt={`Gespeicherter QA-Screenshot für ${slot.label}`} />
-            <p><time dateTime={slot.report.endedAt}>{new Date(slot.report.endedAt).toLocaleString('de-DE')}</time><span>Quelle: {slot.report.finalUrl ?? slot.report.requestedUrl}</span></p>
+            <p><time dateTime={slot.report.endedAt}>{new Date(slot.report.endedAt).toLocaleString('de-DE')}</time><span>Quelle: {slot.report.finalUrl ?? slot.report.requestedUrl}</span><span>{qaGitLabel(slot.report)}</span></p>
           </> : <p className={slot.error ? 'inline-error' : 'card-qa-viewport-matrix-empty'}>{slot.error ? `Screenshot nicht ladbar: ${slot.error}` : 'Kein Screenshot dieser Größe für die Route gespeichert.'}</p>}
         </figure>)}</div>
-        <p className="card-qa-viewport-matrix-limit">Gespeicherte Momentaufnahmen zur manuellen Prüfung. Keine gleichzeitige Live-Vorschau, Pixelbewertung oder automatische Layoutfreigabe.</p>
+        <p className="card-qa-viewport-matrix-limit">Gespeicherte Momentaufnahmen zur manuellen Prüfung. Der Git-Stand belegt nicht die vom Dev-Server ausgelieferte Seite. Keine gleichzeitige Live-Vorschau, Pixelbewertung oder automatische Layoutfreigabe.</p>
         <button className="secondary-button small" type="button" onClick={close}>Größenansicht schließen</button>
       </div> : null}
     </>}

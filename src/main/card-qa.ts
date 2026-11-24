@@ -4,6 +4,8 @@ import type Database from 'better-sqlite3';
 import type { BrowserDiagnostic, Card, CardQaBatchResult, CardQaPageCheck, CardQaPageObservation, CardQaReport, CardQaViewport } from '../shared/types';
 import { diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import { inspectCardQaPage } from './card-qa-page';
+import { qaGitEvidence, qaGitPoint } from './qa-git-evidence';
+import type { QaGitEvidence } from '../shared/qa-git-evidence';
 import type { StudioStore } from './store';
 
 const MAX_FINDINGS = 20;
@@ -23,9 +25,9 @@ const SCREENSHOT_HEIGHT = 600;
 const SCREENSHOT_TIMEOUT_MS = 3_000;
 const activeCards = new Set<string>();
 
-type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; page_check: CardQaPageCheck; page_observations_json: string; note: string | null; screenshot_available: number; viewport_width: number; viewport_height: number };
-const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], pageCheck: row.page_check, pageObservations: JSON.parse(row.page_observations_json) as CardQaPageObservation[], note: row.note, screenshotAvailable: row.screenshot_available === 1, viewportWidth: row.viewport_width, viewportHeight: row.viewport_height });
-const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, viewport_width, viewport_height, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
+type ReportRow = { id: string; card_id: string; project_id: string; requested_url: string; final_url: string | null; started_at: string; ended_at: string; status: CardQaReport['status']; diagnostics_json: string; page_check: CardQaPageCheck; page_observations_json: string; note: string | null; screenshot_available: number; viewport_width: number; viewport_height: number; git_evidence_json: string };
+const reportFromRow = (row: ReportRow): CardQaReport => ({ id: row.id, cardId: row.card_id, projectId: row.project_id, requestedUrl: row.requested_url, finalUrl: row.final_url, startedAt: row.started_at, endedAt: row.ended_at, status: row.status, diagnostics: JSON.parse(row.diagnostics_json) as BrowserDiagnostic[], pageCheck: row.page_check, pageObservations: JSON.parse(row.page_observations_json) as CardQaPageObservation[], note: row.note, screenshotAvailable: row.screenshot_available === 1, viewportWidth: row.viewport_width, viewportHeight: row.viewport_height, gitEvidence: JSON.parse(row.git_evidence_json) as QaGitEvidence | null });
+const reportColumns = 'id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, viewport_width, viewport_height, git_evidence_json, CASE WHEN screenshot_png IS NOT NULL THEN 1 ELSE 0 END AS screenshot_available';
 
 async function captureBounded(contents: Electron.WebContents): Promise<Buffer> {
   let timeout: NodeJS.Timeout | null = null;
@@ -53,7 +55,8 @@ export function installCardQa(db: Database.Database): void {
     requested_url TEXT NOT NULL, final_url TEXT, started_at TEXT NOT NULL,
     ended_at TEXT NOT NULL, status TEXT NOT NULL, diagnostics_json TEXT NOT NULL, note TEXT,
     screenshot_png BLOB, viewport_width INTEGER NOT NULL DEFAULT 0, viewport_height INTEGER NOT NULL DEFAULT 0,
-    page_check TEXT NOT NULL DEFAULT 'not-run', page_observations_json TEXT NOT NULL DEFAULT '[]'
+    page_check TEXT NOT NULL DEFAULT 'not-run', page_observations_json TEXT NOT NULL DEFAULT '[]',
+    git_evidence_json TEXT NOT NULL DEFAULT 'null'
   ); CREATE INDEX IF NOT EXISTS card_qa_reports_card ON card_qa_reports(card_id, ended_at DESC);`);
   const columns = db.pragma('table_info(card_qa_reports)') as Array<{ name: string }>;
   if (!columns.some((item) => item.name === 'screenshot_png')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN screenshot_png BLOB');
@@ -61,6 +64,7 @@ export function installCardQa(db: Database.Database): void {
   if (!columns.some((item) => item.name === 'viewport_height')) db.exec('ALTER TABLE card_qa_reports ADD COLUMN viewport_height INTEGER NOT NULL DEFAULT 0');
   if (!columns.some((item) => item.name === 'page_check')) db.exec("ALTER TABLE card_qa_reports ADD COLUMN page_check TEXT NOT NULL DEFAULT 'not-run'");
   if (!columns.some((item) => item.name === 'page_observations_json')) db.exec("ALTER TABLE card_qa_reports ADD COLUMN page_observations_json TEXT NOT NULL DEFAULT '[]'");
+  if (!columns.some((item) => item.name === 'git_evidence_json')) db.exec("ALTER TABLE card_qa_reports ADD COLUMN git_evidence_json TEXT NOT NULL DEFAULT 'null'");
 }
 
 export function normalizeCardQaUrl(value: string): string {
@@ -85,8 +89,8 @@ export function cardQaScreenshot(store: StudioStore, input: { cardId: string; re
 
 function persist(store: StudioStore, report: CardQaReport, screenshot: Buffer | null): CardQaReport {
   store.db.transaction(() => {
-    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, screenshot_png, viewport_width, viewport_height)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.pageCheck, JSON.stringify(report.pageObservations), report.note, screenshot, report.viewportWidth, report.viewportHeight);
+    store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, note, screenshot_png, viewport_width, viewport_height, git_evidence_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(report.id, report.cardId, report.projectId, report.requestedUrl, report.finalUrl, report.startedAt, report.endedAt, report.status, JSON.stringify(report.diagnostics), report.pageCheck, JSON.stringify(report.pageObservations), report.note, screenshot, report.viewportWidth, report.viewportHeight, JSON.stringify(report.gitEvidence));
     store.db.prepare(`DELETE FROM card_qa_reports WHERE card_id = ? AND id NOT IN (
       SELECT id FROM card_qa_reports WHERE card_id = ? ORDER BY rowid DESC LIMIT ${MAX_REPORTS})`).run(report.cardId, report.cardId);
     store.db.prepare(`UPDATE card_qa_reports SET screenshot_png = NULL WHERE id IN (
@@ -105,6 +109,7 @@ function reserveCard(cardId: string): void {
 /** An explicit page-load QA pass in a fresh in-memory browser partition. The caller holds one per-card/global reservation. */
 async function runReservedCardQa(store: StudioStore, card: Card, url: string, requestedViewport: { width: number; height: number }): Promise<CardQaReport> {
   const startedAt = new Date().toISOString();
+  const gitStart = await qaGitPoint(store, card);
   const diagnostics: BrowserDiagnostic[] = [];
   const origin = new URL(url).origin;
   const pushFinding = (kind: BrowserDiagnostic['kind'], rawMessage: string, rawSource: string, line: number | null): void => {
@@ -198,7 +203,8 @@ async function runReservedCardQa(store: StudioStore, card: Card, url: string, re
     if (timeout) clearTimeout(timeout);
     if (qaWindow && !qaWindow.isDestroyed()) qaWindow.destroy();
   }
-  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, pageCheck, pageObservations, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height }, screenshot);
+  const gitEnd = await qaGitPoint(store, card);
+  return persist(store, { id: randomUUID(), cardId: card.id, projectId: card.projectId, requestedUrl: diagnosticSource(url)!, finalUrl, startedAt, endedAt: new Date().toISOString(), status, diagnostics, pageCheck, pageObservations, note, screenshotAvailable: screenshot !== null, viewportWidth: contentViewport.width, viewportHeight: contentViewport.height, gitEvidence: qaGitEvidence(gitStart, gitEnd) }, screenshot);
 }
 
 /** One explicit route. The reservation is retained until its report has been stored. */

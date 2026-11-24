@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -68,6 +69,40 @@ function fixture() {
 }
 
 describe('explicit local card QA', () => {
+  it('persists actual checkout HEAD evidence beside a QA screenshot without claiming the page came from Git', async () => {
+    const { store, file, project, card } = fixture();
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', args, { cwd: project.path, encoding: 'utf8', windowsHide: true, timeout: 10_000 });
+      if (result.status !== 0) throw new Error(result.stderr || String(result.error));
+      return result.stdout.trim();
+    };
+    git('init', '-q');
+    writeFileSync(join(project.path, 'tracked.txt'), 'synthetic\n');
+    git('add', 'tracked.txt');
+    git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'synthetic');
+    const head = git('rev-parse', 'HEAD');
+    const clean = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/', viewport: 'desktop' });
+    expect(clean).toMatchObject({ screenshotAvailable: true, gitEvidence: { scope: 'project', state: 'clean', startHead: head, endHead: head } });
+    writeFileSync(join(project.path, 'tracked.txt'), 'changed after commit\n');
+    const dirty = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/', viewport: 'mobile' });
+    expect(dirty.gitEvidence).toMatchObject({ state: 'dirty', dirtyAtStart: true, dirtyAtEnd: true });
+    git('add', 'tracked.txt');
+    git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'second');
+    fake.mode = 'slow';
+    const changing = runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/', viewport: 'tablet' });
+    await vi.waitFor(() => expect(fake.releases).toHaveLength(1));
+    writeFileSync(join(project.path, 'tracked.txt'), 'third\n');
+    git('add', 'tracked.txt');
+    git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'third');
+    fake.mode = 'clean';
+    fake.releases.shift()?.();
+    expect((await changing).gitEvidence).toMatchObject({ state: 'changed', startHead: git('rev-parse', 'HEAD~1'), endHead: git('rev-parse', 'HEAD') });
+    store.close();
+    const reopened = new StudioStore(file);
+    expect(cardQaReports(reopened, card.id).map((item) => item.gitEvidence?.state)).toEqual(['changed', 'dirty', 'clean']);
+    reopened.close();
+  });
+
   it('stores bounded page observations independently from console/load status and survives restart', async () => {
     const { store, file, card } = fixture();
     fake.mode = 'page-issues';
@@ -125,10 +160,10 @@ describe('explicit local card QA', () => {
     expect(cardQaReports(store, card.id)).toEqual([]);
     fake.mode = 'slow';
     const batch = runCardQaBatch(store, { cardId: card.id, urls: [`${base}one`, `${base}two`], viewport: 'desktop' });
-    expect(fake.releases).toHaveLength(1);
+    await vi.waitFor(() => expect(fake.releases).toHaveLength(1));
     await expect(runCardQa(store, { cardId: card.id, url: base, viewport: 'desktop' })).rejects.toThrow('bereits eine QA-Prüfung');
     const otherRun = runCardQa(store, { cardId: other.id, url: base, viewport: 'desktop' });
-    expect(fake.releases).toHaveLength(2);
+    await vi.waitFor(() => expect(fake.releases).toHaveLength(2));
     await expect(runCardQaBatch(store, { cardId: third.id, urls: [base], viewport: 'desktop' })).rejects.toThrow('zwei lokale QA-Prüfungen');
     fake.mode = 'clean';
     for (const release of fake.releases.splice(0)) release();
@@ -142,7 +177,7 @@ describe('explicit local card QA', () => {
     const { store, card } = fixture();
     fake.mode = 'slow';
     const batch = runCardQaBatch(store, { cardId: card.id, urls: ['http://127.0.0.1:5173/first', 'http://127.0.0.1:5173/second'], viewport: 'desktop' });
-    expect(fake.releases).toHaveLength(1);
+    await vi.waitFor(() => expect(fake.releases).toHaveLength(1));
     store.setCardArchived({ id: card.id, archived: true });
     fake.mode = 'clean';
     fake.releases.shift()?.();
@@ -285,9 +320,10 @@ describe('explicit local card QA', () => {
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN viewport_height');
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN page_check');
     legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN page_observations_json');
+    legacy.exec('ALTER TABLE card_qa_reports DROP COLUMN git_evidence_json');
     legacy.close();
     const reopened = new StudioStore(file);
-    expect(cardQaReports(reopened, card.id).find((item) => item.id === old.id)).toMatchObject({ viewportWidth: 0, viewportHeight: 0, screenshotAvailable: false, pageCheck: 'not-run', pageObservations: [] });
+    expect(cardQaReports(reopened, card.id).find((item) => item.id === old.id)).toMatchObject({ viewportWidth: 0, viewportHeight: 0, screenshotAvailable: false, pageCheck: 'not-run', pageObservations: [], gitEvidence: null });
     const report = await runCardQa(reopened, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
     expect(report).toMatchObject({ screenshotAvailable: true, viewportWidth: 1280, viewportHeight: 800 });
     reopened.close();
@@ -300,7 +336,7 @@ describe('explicit local card QA', () => {
     fake.mode = 'slow';
     const firstRun = runCardQa(store, { viewport: 'desktop', cardId: card.id, url: 'http://127.0.0.1:5173/' });
     const secondRun = runCardQa(store, { viewport: 'desktop', cardId: second.id, url: 'http://127.0.0.1:5173/' });
-    expect(fake.releases).toHaveLength(2);
+    await vi.waitFor(() => expect(fake.releases).toHaveLength(2));
     await expect(runCardQa(store, { viewport: 'desktop', cardId: third.id, url: 'http://127.0.0.1:5173/' })).rejects.toThrow('zwei lokale QA-Prüfungen');
     for (const release of fake.releases.splice(0)) release();
     expect((await Promise.all([firstRun, secondRun])).map((report) => report.status)).toEqual(['passed', 'passed']);
