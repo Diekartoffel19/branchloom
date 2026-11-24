@@ -5,6 +5,14 @@ export type WireframeAlignment = 'left' | 'center-x' | 'right' | 'top' | 'center
 export interface WireframeDuplication { elements: WireframeElement[]; selectedIds: string[] }
 export interface WireframePoint { x: number; y: number }
 
+/** A group is flat and local to one artboard: selecting any member selects every member. */
+export function expandWireframeGroupSelection(elements: WireframeElement[], ids: readonly string[]): string[] {
+  const chosen = new Set(ids);
+  const groups = new Set(elements.filter((item) => chosen.has(item.id) && item.groupId).map((item) => item.groupId));
+  for (const item of elements) if (item.groupId && groups.has(item.groupId)) chosen.add(item.id);
+  return elements.filter((item) => chosen.has(item.id)).map((item) => item.id);
+}
+
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
 /** Return layers intersecting a non-empty drag rectangle in artboard coordinates. */
@@ -20,7 +28,7 @@ export function selectWireframeMarquee(
   for (const item of elements) {
     if (item.x < right && item.x + item.width > left && item.y < bottom && item.y + item.height > top) chosen.add(item.id);
   }
-  return elements.filter((item) => chosen.has(item.id)).map((item) => item.id);
+  return expandWireframeGroupSelection(elements, [...chosen]);
 }
 
 /** Duplicate the current artboard selection in front of existing layers. The entire group shifts together. */
@@ -28,7 +36,7 @@ export function duplicateWireframeSelection(
   elements: WireframeElement[], ids: readonly string[], canvasWidth: number, canvasHeight: number,
   makeId: () => string,
 ): WireframeDuplication | null {
-  const chosen = new Set(ids);
+  const chosen = new Set(expandWireframeGroupSelection(elements, ids));
   const selected = elements.filter((item) => chosen.has(item.id));
   if (!selected.length || elements.length + selected.length > 40) return null;
   const used = new Set(elements.map((item) => item.id));
@@ -48,6 +56,16 @@ export function duplicateWireframeSelection(
     used.add(id);
     return { ...item, id, x: item.x + dx, y: item.y + dy, ...(item.style ? { style: { ...item.style } } : {}) };
   });
+  const groupMap = new Map<string, string>();
+  const usedGroups = new Set(elements.map((item) => item.groupId).filter(Boolean));
+  for (const item of copies) if (item.groupId && !groupMap.has(item.groupId)) {
+    const base = `group-${item.id.slice(0, 48)}`;
+    let next = base;
+    for (let suffix = 1; usedGroups.has(next); suffix++) next = `${base}-${suffix}`;
+    usedGroups.add(next);
+    groupMap.set(item.groupId, next);
+  }
+  for (const item of copies) if (item.groupId) item.groupId = groupMap.get(item.groupId)!;
   return { elements: [...elements, ...copies], selectedIds: copies.map((item) => item.id) };
 }
 
@@ -56,12 +74,13 @@ export function moveWireframeSelection(
   elements: WireframeElement[], ids: readonly string[], deltaX: number, deltaY: number,
   canvasWidth: number, canvasHeight: number,
 ): WireframeElement[] {
-  const selected = elements.filter((item) => ids.includes(item.id));
+  const expanded = expandWireframeGroupSelection(elements, ids);
+  const selected = elements.filter((item) => expanded.includes(item.id));
   if (!selected.length) return elements;
   const dx = clamp(Math.round(deltaX), -Math.min(...selected.map((item) => item.x)), Math.min(...selected.map((item) => canvasWidth - item.x - item.width)));
   const dy = clamp(Math.round(deltaY), -Math.min(...selected.map((item) => item.y)), Math.min(...selected.map((item) => canvasHeight - item.y - item.height)));
   if (dx === 0 && dy === 0) return elements;
-  const chosen = new Set(ids);
+  const chosen = new Set(expanded);
   return elements.map((item) => chosen.has(item.id) ? { ...item, x: item.x + dx, y: item.y + dy } : item);
 }
 

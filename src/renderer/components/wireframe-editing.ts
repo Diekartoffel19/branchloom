@@ -18,7 +18,7 @@ function sameElements(left: WireframeElement[], right: WireframeElement[]): bool
   if (left.length !== right.length) return false;
   return left.every((item, index) => {
     const other = right[index];
-    return other !== undefined && item.id === other.id && item.kind === other.kind && item.tone === other.tone && (item.lineDirection ?? 'falling') === (other.lineDirection ?? 'falling') &&
+    return other !== undefined && item.id === other.id && item.kind === other.kind && item.tone === other.tone && (item.lineDirection ?? 'falling') === (other.lineDirection ?? 'falling') && (item.groupId ?? '') === (other.groupId ?? '') &&
       item.text === other.text && item.x === other.x && item.y === other.y && item.width === other.width && item.height === other.height &&
       sameStyle(item.style, other.style);
   });

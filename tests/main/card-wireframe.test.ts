@@ -95,6 +95,26 @@ describe('task-linked wireframes', () => {
     reopened.close();
   });
 
+  it('persists group membership, shares it only after approval and revokes approval when regrouped', () => {
+    const { dbFile, store, key } = fixture();
+    const second = { ...element, id: 'subtitle', text: 'Untertitel', y: 90 };
+    for (const invalid of ['', '../bad', 'a'.repeat(65), 17]) {
+      expect(() => saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Gruppen', elements: [{ ...element, groupId: invalid } as WireframeElement, second] })).toThrow('Gruppen-ID');
+    }
+    saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Gruppen', elements: [element, second] });
+    approveCardWireframe(store, { ...key, expectedRevision: 1 });
+    const grouped = [{ ...element, groupId: 'group-one' }, { ...second, groupId: 'group-one' }];
+    const changed = saveCardWireframe(store, { ...key, expectedRevision: 1, title: 'Gruppen', elements: grouped });
+    expect(changed).toMatchObject({ revision: 2, approvedRevision: null });
+    expect(approvedCardWireframeContext(store, key)).toBe('');
+    approveCardWireframe(store, { ...key, expectedRevision: 2 });
+    expect(approvedCardWireframeContext(store, key)).toContain('"groupId":"group-one"');
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)).toMatchObject({ revision: 2, approvedRevision: 2, elements: grouped });
+    reopened.close();
+  });
+
   it('normalizes the default line direction so returning to it is an unchanged save', () => {
     const { store, key } = fixture();
     const line: WireframeElement = { ...element, id: 'line', kind: 'line', text: '' };

@@ -44,6 +44,8 @@ export interface WireframeElement {
   tone: WireframeElementTone;
   /** A line runs between opposite corners of its bounded box; omitted means falling. */
   lineDirection?: WireframeLineDirection;
+  /** Members with the same ID on one artboard form one flat editable group. */
+  groupId?: string;
   style?: WireframeElementStyle;
 }
 

@@ -1,12 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { WireframeElement } from '../../src/shared/card-wireframe';
 import { snapWireframePosition } from '../../src/renderer/components/wireframe-editing';
-import { alignWireframeSelection, duplicateWireframeSelection, moveWireframeSelection, selectWireframeMarquee } from '../../src/renderer/components/wireframe-selection';
+import { alignWireframeSelection, duplicateWireframeSelection, expandWireframeGroupSelection, moveWireframeSelection, selectWireframeMarquee } from '../../src/renderer/components/wireframe-selection';
 
 const item = (id: string, x: number, y: number, width = 40, height = 20): WireframeElement =>
   ({ id, kind: 'panel', text: id, tone: 'plain', x, y, width, height });
 
 describe('wireframe multi-selection geometry', () => {
+  it('selects whole persistent groups from a member or a crossing marquee', () => {
+    const elements = [{ ...item('a', 10, 10), groupId: 'group-one' }, { ...item('b', 100, 100), groupId: 'group-one' }, item('c', 200, 200)];
+    expect(expandWireframeGroupSelection(elements, ['b'])).toEqual(['a', 'b']);
+    expect(selectWireframeMarquee(elements, { x: 5, y: 5 }, { x: 30, y: 20 })).toEqual(['a', 'b']);
+    expect(moveWireframeSelection(elements, expandWireframeGroupSelection(elements, ['a']), 5, 7, 300, 300).map(({ x, y }) => [x, y]))
+      .toEqual([[15, 17], [105, 107], [200, 200]]);
+  });
+
+  it('duplicates a group under a fresh group ID while leaving source membership untouched', () => {
+    const elements = [{ ...item('a', 10, 10), groupId: 'group-old' }, { ...item('b', 100, 100), groupId: 'group-old' }];
+    let sequence = 0;
+    const result = duplicateWireframeSelection(elements, ['a', 'b'], 300, 300, () => `new-${++sequence}`)!;
+    expect(result.elements[2]!.groupId).toBe(result.elements[3]!.groupId);
+    expect(result.elements[2]!.groupId).not.toBe('group-old');
+    expect(elements.map((entry) => entry.groupId)).toEqual(['group-old', 'group-old']);
+    expect(expandWireframeGroupSelection(result.elements, [result.selectedIds[0]!])).toEqual(result.selectedIds);
+  });
   it('selects intersecting layers in both drag directions without altering their geometry', () => {
     const elements = [item('a', 10, 10), item('b', 70, 50), item('c', 140, 140)];
     expect(selectWireframeMarquee(elements, { x: 100, y: 80 }, { x: 35, y: 25 })).toEqual(['a', 'b']);

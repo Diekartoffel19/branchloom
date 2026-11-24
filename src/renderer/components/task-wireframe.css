@@ -129,6 +129,8 @@
 .task-wireframe-layer-order { display: flex; flex-wrap: wrap; gap: 6px; }
 .task-wireframe-multi { display: grid; gap: 9px; padding-top: 8px; border-top: 1px solid var(--border); }
 .task-wireframe-multi strong { font-size: 12px; font-weight: 650; }
+.task-wireframe-group-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.task-wireframe-multi small { color: var(--muted); }
 .task-wireframe-align-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .task-wireframe-align-grid button { min-width: 0; padding-inline: 3px; }
 .task-wireframe-distribute { display: grid; gap: 5px; }
