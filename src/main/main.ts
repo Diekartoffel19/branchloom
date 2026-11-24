@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, safeStorage, shell } from 'electron';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -13,6 +13,7 @@ import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections, saveDesignSelection } from './design-inspection';
 import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, saveCardWireframe } from './card-wireframe';
 import { listWireframeComponents, removeWireframeComponent, saveWireframeComponent } from './wireframe-components';
+import { checkedWireframePng, wireframeExportFilename, writeWireframePngExclusive } from './wireframe-export';
 import { proposeCardWireframe } from './wireframe-proposal';
 import { designStateRoute, designStateRoutes, removeDesignStateRoute, saveDesignStateRoute } from './design-state-routes';
 import { addCardContextReference, addCardContextReferenceFromDesignSelection, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromDesignSelection, cardContextCandidateFromWhiteboardNode, cardContextReferences, createCardFromDesignRequest, designTaskCandidate, previewCardContextReference, removeCardContextReference } from './card-context';
@@ -403,6 +404,23 @@ function installIpc(): void {
   bind('createQaFixCard', (input: Parameters<StudioAPI['createQaFixCard']>[0]) => createQaFixCard(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
   bind('cardWireframe', (input: Parameters<StudioAPI['cardWireframe']>[0]) => cardWireframe(db, input));
+  bind('exportWireframePng', async (input: Parameters<StudioAPI['exportWireframePng']>[0]) => {
+    if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
+    const card = db.card(input.cardId);
+    if (card.projectId !== input.projectId) throw new Error('Karte gehört zu einem anderen Projekt.');
+    db.project(input.projectId);
+    const image = checkedWireframePng(input);
+    if (smoke && smokeDataDirectory) {
+      const file = join(smokeDataDirectory, `wireframe-${input.artboard}.png`);
+      writeWireframePngExclusive(file, image);
+      return { file };
+    }
+    const choice = await dialog.showSaveDialog(window, { title: 'Zeichenfläche als PNG speichern', defaultPath: wireframeExportFilename(card.title, input.artboard), filters: [{ name: 'PNG-Bild', extensions: ['png'] }] });
+    if (choice.canceled || !choice.filePath) return null;
+    if (db.card(input.cardId).projectId !== input.projectId) throw new Error('Karte gehört inzwischen zu einem anderen Projekt.');
+    writeWireframePngExclusive(choice.filePath, image);
+    return { file: choice.filePath };
+  });
   bind('saveCardWireframe', async (input: Parameters<StudioAPI['saveCardWireframe']>[0]) => {
     if (smoke) await new Promise((resolve) => setTimeout(resolve, 180));
     return saveCardWireframe(db, input);
@@ -1804,6 +1822,12 @@ function createWindow(): void {
               const mobileStage = wireframe.querySelector('.task-wireframe-canvas');
               const mobileTitle = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Geprüfter Entwurf'));
               if (!(mobileStage instanceof HTMLElement) || !(mobileTitle instanceof HTMLElement) || !scaledFont(mobileTitle, mobileStage, 390)) throw new Error('Mobile-Schriftgröße passt nicht zur eigenen Artboard-Breite.');
+              const exportButton = wireframe.querySelector('.task-wireframe-export');
+              if (!(exportButton instanceof HTMLButtonElement) || exportButton.disabled) throw new Error('PNG-Export für Mobile fehlt.');
+              exportButton.click();
+              for (let attempt = 0; attempt < 100 && !wireframe.textContent?.includes('Mobile-PNG gespeichert:'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!wireframe.textContent?.includes('Mobile-PNG gespeichert:') || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('PNG-Export gelang nicht oder speicherte ungefragt die Kartenrevision: ' + JSON.stringify({ notice: wireframe.querySelector('.task-wireframe-notice')?.textContent, error: wireframe.querySelector('.inline-error')?.textContent, disabled: wireframe.querySelector('.task-wireframe-export')?.hasAttribute('disabled') }));
+
               wireframe.querySelectorAll('.task-wireframe-layers li button')[2]?.click();
               for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-duplicate'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const duplicate = wireframe.querySelector('.task-wireframe-duplicate');
@@ -2429,6 +2453,13 @@ function createWindow(): void {
             if (!await safeStorage.isAsyncEncryptionAvailable()) throw new Error('Trello-Smoke: Windows-Verschlüsselung ist nicht verfügbar.');
             const sealed = await safeStorage.encryptStringAsync('branchloom-trello-smoke');
             if ((await safeStorage.decryptStringAsync(sealed)).result !== 'branchloom-trello-smoke') throw new Error('Trello-Smoke: Windows-Verschlüsselung konnte nicht lesen.');
+            const png = nativeImage.createFromBuffer(readFileSync(join(smokeDataDirectory!, 'wireframe-mobile.png')));
+            const pixels = png.toBitmap();
+            let hasDrawing = false;
+            for (let offset = 4; offset < pixels.length; offset += 4) {
+              if (pixels[offset] !== pixels[0] || pixels[offset + 1] !== pixels[1] || pixels[offset + 2] !== pixels[2]) { hasDrawing = true; break; }
+            }
+            if (png.isEmpty() || png.getSize().width !== 390 || png.getSize().height !== 844 || !hasDrawing) throw new Error('PNG-Export enthielt keine gezeichnete Mobile-Fläche.');
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);
