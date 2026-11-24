@@ -77,6 +77,11 @@ describe('isolated design browser', () => {
     expect(designSelections(store, project.id)).toEqual([]);
     await expect(inspector.applyThemePreview(input)).rejects.toThrow('Setze zuerst');
     expect((await inspector.resetThemePreview(project.id)).themePreview).toBeNull();
+    // Scrolling to the token controls detaches the viewport from the window.
+    // The underlying local page remains open and can be previewed/reset.
+    inspector.setBounds(null);
+    expect((await inspector.applyThemePreview(input)).themePreview?.value).toBe('#aabbcc');
+    expect((await inspector.resetThemePreview(project.id)).themePreview).toBeNull();
     await inspector.applyThemePreview(input);
     (fake.views[0]!.webContents as EventEmitter).emit('did-start-navigation');
     expect(inspector.state().themePreview).toBeNull();

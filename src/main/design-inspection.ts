@@ -240,7 +240,9 @@ export class DesignInspector {
   }
 
   private requireThemePreview(projectId: string): WebContentsView {
-    if (!this.ready || !this.visible || !this.attached || !this.view || this.view.webContents.isDestroyed() || this.projectId !== projectId) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
+    // The live view is detached while its viewport is scrolled off screen.
+    // Theme controls sit below it and must still work on the open page.
+    if (!this.ready || !this.visible || !this.view || this.view.webContents.isDestroyed() || this.projectId !== projectId) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
     return this.view;
   }
 
