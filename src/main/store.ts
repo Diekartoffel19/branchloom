@@ -49,7 +49,7 @@ interface ColumnRow { id: string; project_id: string; name: string; position: nu
 interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; priority: CardPriority; labels_json: string; position: number; created_at: string; updated_at: string; archived_at: string | null }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
 interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null; codex_thread_id: string | null }
-interface CommandTerminalRow { id: string; project_id: string; shell: CommandShell; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string }
+interface CommandTerminalRow { id: string; project_id: string; shell: CommandShell; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; card_id: string | null; worktree_path: string | null }
 export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
 interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
@@ -63,7 +63,7 @@ const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project
 const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, priority: row.priority, labels: parseArray<string>(row.labels_json), position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
 const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path, codexThreadId: row.codex_thread_id });
-const commandTerminal = (row: CommandTerminalRow): CommandTerminal => ({ id: row.id, projectId: row.project_id, shell: row.shell, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output });
+const commandTerminal = (row: CommandTerminalRow): CommandTerminal => ({ id: row.id, projectId: row.project_id, shell: row.shell, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, cardId: row.card_id, worktreePath: row.worktree_path });
 const workflow = (row: WorkflowRow): Workflow => ({ id: row.id, projectId: row.project_id, name: row.name, cardIds: parseArray<string>(row.card_ids_json), steps: parseArray<WorkflowStep>(row.steps_json).map(normalizedWorkflowStep), state: row.state, currentStep: row.current_step, createdAt: row.created_at, updatedAt: row.updated_at });
 const note = (row: NoteRow): MemoryNote => ({ id: row.id, projectId: row.project_id, title: row.title, body: row.body, tags: parseArray<string>(row.tags_json), links: parseArray<string>(row.links_json), createdAt: row.created_at, updatedAt: row.updated_at });
 
@@ -106,6 +106,9 @@ export class StudioStore {
       CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id, updated_at DESC);
     `);
     const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
+    const terminalColumns = this.db.pragma('table_info(command_terminals)') as Array<{ name: string }>;
+    if (!terminalColumns.some((item) => item.name === 'card_id')) this.db.exec('ALTER TABLE command_terminals ADD COLUMN card_id TEXT');
+    if (!terminalColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE command_terminals ADD COLUMN worktree_path TEXT');
     if (!sessionColumns.some((item) => item.name === 'worktree_path')) this.db.exec('ALTER TABLE sessions ADD COLUMN worktree_path TEXT');
     if (!sessionColumns.some((item) => item.name === 'codex_thread_id')) this.db.exec('ALTER TABLE sessions ADD COLUMN codex_thread_id TEXT');
     if (!sessionColumns.some((item) => item.name === 'interrupted_at')) this.db.exec('ALTER TABLE sessions ADD COLUMN interrupted_at TEXT');
@@ -600,12 +603,18 @@ export class StudioStore {
   commandTerminal(id: string): CommandTerminal {
     return commandTerminal(required(this.db.prepare('SELECT * FROM command_terminals WHERE id = ?').get(id) as CommandTerminalRow | undefined, 'Terminal nicht gefunden.'));
   }
-  createCommandTerminal(input: { projectId: string; shell: CommandShell }): CommandTerminal {
+  activeCommandTerminalForCard(cardId: string): CommandTerminal | null {
+    const row = this.db.prepare("SELECT * FROM command_terminals WHERE card_id = ? AND state = 'running' LIMIT 1").get(cardId) as CommandTerminalRow | undefined;
+    return row ? commandTerminal(row) : null;
+  }
+  createCommandTerminal(input: { projectId: string; shell: CommandShell; cardId?: string | null; worktreePath?: string | null }): CommandTerminal {
     this.project(input.projectId);
     if (input.shell !== 'powershell' && input.shell !== 'cmd') throw new Error('Ungültige Shell.');
     if (this.db.prepare("SELECT 1 FROM command_terminals WHERE project_id = ? AND state = 'running' LIMIT 1").get(input.projectId)) throw new Error('Im Projekt läuft bereits ein Befehlsterminal.');
-    const value: CommandTerminal = { id: randomUUID(), projectId: input.projectId, shell: input.shell, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '' };
-    this.db.prepare('INSERT INTO command_terminals (id, project_id, shell, state, started_at, ended_at, exit_code, output) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)').run(value.id, value.projectId, value.shell, value.state, value.startedAt, value.output);
+    if (input.cardId && this.card(input.cardId).projectId !== input.projectId) throw new Error('Karte gehört zu einem anderen Projekt.');
+    if (Boolean(input.cardId) !== Boolean(input.worktreePath)) throw new Error('Karte und Worktree-Pfad müssen zusammen angegeben werden.');
+    const value: CommandTerminal = { id: randomUUID(), projectId: input.projectId, shell: input.shell, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '', cardId: input.cardId ?? null, worktreePath: input.worktreePath ?? null };
+    this.db.prepare('INSERT INTO command_terminals (id, project_id, shell, state, started_at, ended_at, exit_code, output, card_id, worktree_path) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)').run(value.id, value.projectId, value.shell, value.state, value.startedAt, value.output, value.cardId, value.worktreePath);
     return value;
   }
   appendCommandOutput(id: string, text: string): void {

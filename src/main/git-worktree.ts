@@ -92,7 +92,9 @@ export function ensureCardWorktree(store: StudioStore, cardId: string): { path: 
   const subdirectory = git(project.path, ['rev-parse', '--show-prefix']).replace(/[/\\]+$/, '');
   const cwd = join(path, subdirectory);
   if (!within(path, cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()) throw new Error('Das Projekt-Unterverzeichnis fehlt im Worktree.');
-  return { path, cwd, branch };
+  const realCwd = realpathSync(cwd);
+  if (!within(realpathSync(path), realCwd)) throw new Error('Das Projekt-Unterverzeichnis verweist aus dem Worktree hinaus.');
+  return { path, cwd: realCwd, branch };
 }
 
 /** Read only: missing worktrees are not silently created by opening a card. */

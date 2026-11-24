@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import type { CommandShell, CommandTerminal, CommandTerminalEvent } from '../shared/types';
 import { StudioStore } from './store';
+import { ensureCardWorktree } from './git-worktree';
 
 /** Fixed executable and argument lists; the project path is only a cwd. */
 export function commandShellPlan(shell: CommandShell, systemRoot = process.env.SystemRoot ?? 'C:\\Windows', platform = process.platform): { executable: string; args: string[] } {
@@ -25,16 +26,27 @@ export class CommandTerminalRunner {
     private readonly spawnPty: typeof ptySpawn = ptySpawn,
   ) {}
 
-  start(input: { projectId: string; shell: CommandShell }): CommandTerminal {
+  start(input: { projectId: string; shell: CommandShell; cardId?: string | null }): CommandTerminal {
     if (this.disposed) throw new Error('Terminal-Laufzeit wurde beendet.');
     const project = this.store.project(input.projectId);
     if (this.store.projectQueue(project.id).state === 'running') throw new Error('Projektwarteschlange zuerst pausieren, bevor das Befehlsterminal startet.');
+    let cwd = project.path;
+    let worktreePath: string | null = null;
+    if (input.cardId) {
+      const card = this.store.card(input.cardId);
+      if (card.projectId !== project.id) throw new Error('Karte gehört zu einem anderen Projekt.');
+      if (!this.store.cardWorktree(card.id)) throw new Error('Für diese Karte ist kein Worktree gespeichert.');
+      if (this.store.runningSessionsForProject(project.id).some((session) => session.cardId === card.id)) throw new Error('Auf dieser Karte läuft noch ein Agent.');
+      const worktree = ensureCardWorktree(this.store, card.id);
+      cwd = worktree.cwd;
+      worktreePath = worktree.path;
+    }
     const plan = commandShellPlan(input.shell);
-    const row = this.store.createCommandTerminal(input);
+    const row = this.store.createCommandTerminal({ ...input, worktreePath });
     let child: IPty;
     try {
       child = this.spawnPty(plan.executable, plan.args, {
-        cwd: project.path,
+        cwd,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30, name: 'xterm-256color',
       });

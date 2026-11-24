@@ -72,6 +72,7 @@ const studio: StudioAPI = {
   resizeSession: (input) => invoke('resizeSession', input),
   stopSession: (id) => invoke('stopSession', id),
   commandTerminals: (projectId) => invoke('commandTerminals', projectId),
+  commandTerminalTargets: (projectId) => invoke('commandTerminalTargets', projectId),
   startCommandTerminal: (input) => invoke('startCommandTerminal', input),
   writeCommandTerminal: (input) => invoke('writeCommandTerminal', input),
   resizeCommandTerminal: (input) => invoke('resizeCommandTerminal', input),

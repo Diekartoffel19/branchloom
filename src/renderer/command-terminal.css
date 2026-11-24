@@ -12,5 +12,6 @@
 .command-terminal-screen-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .command-terminal-screen-header div { display: grid; gap: 3px; }
 .command-terminal-screen-header span { color: var(--muted); font-size: 12px; }
+.command-terminal-screen-header span { overflow-wrap: anywhere; }
 .command-terminal-screen .session-terminal { min-height: 330px; height: min(52vh, 520px); }
 @media (max-width: 760px) { .command-terminal-layout { grid-template-columns: 1fr; }.command-terminal-history { max-height: 180px; overflow: auto; } }

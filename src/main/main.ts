@@ -259,6 +259,7 @@ function installIpc(): void {
     queueEngine.onSessionFinished(stopped);
   });
   bind('commandTerminals', (projectId: string) => db.commandTerminals(projectId));
+  bind('commandTerminalTargets', (projectId: string) => db.cardWorktreesForProject(projectId).slice(-100).map((item) => ({ cardId: item.cardId, cardTitle: db.card(item.cardId).title, branch: item.branch, path: item.path })));
   bind('startCommandTerminal', (input: Parameters<StudioAPI['startCommandTerminal']>[0]) => commandRunner?.start(input));
   bind('writeCommandTerminal', (input: Parameters<StudioAPI['writeCommandTerminal']>[0]) => commandRunner?.write(input));
   bind('resizeCommandTerminal', (input: Parameters<StudioAPI['resizeCommandTerminal']>[0]) => commandRunner?.resize(input));
@@ -1682,6 +1683,61 @@ function createWindow(): void {
             })()`);
             const cleanupCard = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Worktree-Aufräumprüfung Smoke' });
             const cleanupWorktree = ensureCardWorktree(smokeStore, cleanupCard.id);
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const select = document.querySelector('#project-select');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('Terminal-Worktree: Projektauswahl fehlt.');
+              setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Terminal')?.click();
+              let target;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                target = document.querySelector('select[aria-label="Terminal-Arbeitsordner auswählen"]');
+                if (target?.querySelector('option[value="${cleanupCard.id}"]')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(target instanceof HTMLSelectElement) || !target.querySelector('option[value="${cleanupCard.id}"]')) throw new Error('Gespeicherter Karten-Worktree fehlt in der Terminal-Auswahl.');
+              setter.call(target, ${JSON.stringify(cleanupCard.id)}); target.dispatchEvent(new Event('change', { bubbles: true }));
+              const shell = document.querySelector('select[aria-label="Shell auswählen"]');
+              if (!(shell instanceof HTMLSelectElement)) throw new Error('Terminal-Shell-Auswahl fehlt.');
+              setter.call(shell, 'cmd'); shell.dispatchEvent(new Event('change', { bubbles: true }));
+              const start = [...document.querySelectorAll('.command-terminal-start button')].find((button) => button.textContent?.includes('Terminal starten'));
+              if (!(start instanceof HTMLButtonElement)) throw new Error('Terminal-Startknopf fehlt.');
+              start.click();
+              let terminal;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                terminal = (await window.studio.commandTerminals(${JSON.stringify(milestoneProjectId)}))[0];
+                if (terminal?.state === 'running') break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!terminal || terminal.cardId !== ${JSON.stringify(cleanupCard.id)} || terminal.worktreePath !== ${JSON.stringify(cleanupWorktree.path)}) throw new Error('Terminal startete nicht im gewählten Karten-Worktree.');
+              await window.studio.writeCommandTerminal({ terminalId: terminal.id, data: 'cd\\r' });
+              let output = '';
+              for (let attempt = 0; attempt < 100; attempt++) {
+                output = (await window.studio.commandTerminals(${JSON.stringify(milestoneProjectId)}))[0]?.output ?? '';
+                if (output.includes(${JSON.stringify(cleanupWorktree.cwd)})) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              await window.studio.stopCommandTerminal(terminal.id);
+              if (!output.includes(${JSON.stringify(cleanupWorktree.cwd)})) throw new Error('Terminal-PTY meldete nicht den gespeicherten Worktree als Arbeitsordner.');
+              if (!document.querySelector('.command-terminal-history')?.textContent?.includes('Worktree-Aufräumprüfung Smoke')) throw new Error('Terminal-Verlauf zeigt die Kartenherkunft nicht.');
+              const nextStart = [...document.querySelectorAll('.command-terminal-start button')].find((button) => button.textContent?.includes('Terminal starten'));
+              for (let attempt = 0; attempt < 100 && nextStart?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(nextStart instanceof HTMLButtonElement) || nextStart.disabled) throw new Error('Terminal-Start blieb nach Stop gesperrt.');
+              nextStart.click();
+              setter.call(select, ${JSON.stringify(smokeProject.id)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              let delayed;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                delayed = (await window.studio.commandTerminals(${JSON.stringify(milestoneProjectId)}))[0];
+                if (delayed?.id !== terminal.id && delayed?.state === 'running') break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!delayed || delayed.id === terminal.id || delayed.state !== 'running') throw new Error('Verzögerter Terminal-Start für Projekt A fehlt.');
+              for (let attempt = 0; attempt < 100 && document.querySelector('#project-select')?.value !== ${JSON.stringify(smokeProject.id)}; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('#project-select')?.value !== ${JSON.stringify(smokeProject.id)} || document.querySelector('.command-terminal-history')?.textContent?.includes('Worktree-Aufräumprüfung Smoke')) throw new Error('Terminal aus Projekt A erschien nach Projektwechsel in Projekt B.');
+              await window.studio.stopCommandTerminal(delayed.id);
+              return true;
+            })()`);
             await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const select = document.querySelector('#project-select');

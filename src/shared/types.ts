@@ -39,7 +39,8 @@ export interface AgentDetection { kind: AgentPreset['kind']; command: string; av
 export interface Session { id: string; projectId: string; cardId: string; agentId: string; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; worktreePath?: string | null; codexThreadId?: string | null }
 export interface InterruptedSessionReview { sessionId: string; projectId: string; cardId: string; cardTitle: string; agentName: string; interruptedAt: string; worktreePath: string | null }
 export type CommandShell = 'powershell' | 'cmd';
-export interface CommandTerminal { id: string; projectId: string; shell: CommandShell; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string }
+export interface CommandTerminal { id: string; projectId: string; shell: CommandShell; state: SessionState; startedAt: string; endedAt: string | null; exitCode: number | null; output: string; cardId: string | null; worktreePath: string | null }
+export interface CommandTerminalTarget { cardId: string; cardTitle: string; branch: string; path: string }
 export interface CommandTerminalEvent { terminalId: string; projectId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle: string; agentName: string; startedAt: string; snippet: string }
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean; model?: string | null; effort?: ColumnEffort | null; useWorktree?: boolean }
@@ -144,7 +145,8 @@ export interface StudioAPI {
   resizeSession(input: { sessionId: string; cols: number; rows: number }): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
   commandTerminals(projectId: string): Promise<CommandTerminal[]>;
-  startCommandTerminal(input: { projectId: string; shell: CommandShell }): Promise<CommandTerminal>;
+  commandTerminalTargets(projectId: string): Promise<CommandTerminalTarget[]>;
+  startCommandTerminal(input: { projectId: string; shell: CommandShell; cardId?: string | null }): Promise<CommandTerminal>;
   writeCommandTerminal(input: { terminalId: string; data: string }): Promise<void>;
   resizeCommandTerminal(input: { terminalId: string; cols: number; rows: number }): Promise<void>;
   stopCommandTerminal(terminalId: string): Promise<void>;

@@ -235,6 +235,7 @@ export class SessionRunner {
     if (this.store.projectQueue(project.id).state === 'running' && this.store.activeSessionForProject(project.id)) {
       throw new Error('In der aktiven Projektwarteschlange läuft bereits ein Agent.');
     }
+    if (input.useWorktree === true && this.store.activeCommandTerminalForCard(card.id)) throw new Error('Im Karten-Worktree läuft noch ein Befehlsterminal. Zuerst stoppen.');
     const launcher = resolveAgentLauncher(agent.command);
     if (!launcher) throw new Error(`Agent executable or supported Node shim not found: ${agent.command}`);
     const prompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
@@ -299,6 +300,7 @@ export class SessionRunner {
     if (agent.kind !== 'codex' || !agent.enabled) throw new Error('Fortsetzen wird derzeit nur für einen aktivierten Codex-Agenten unterstützt.');
     if (this.store.latestSession(card.id)?.state === 'running') throw new Error('Auf dieser Karte läuft bereits ein Agent.');
     if (this.store.projectQueue(project.id).state === 'running') throw new Error('Die Projektwarteschlange zuerst pausieren, bevor ein Codex-Gespräch manuell fortgesetzt wird.');
+    if (previous.worktreePath && this.store.activeCommandTerminalForCard(card.id)) throw new Error('Im Karten-Worktree läuft noch ein Befehlsterminal. Zuerst stoppen.');
     const launcher = resolveAgentLauncher(agent.command);
     if (!launcher) throw new Error(`Codex executable or supported Node shim not found: ${agent.command}`);
     if (previous.worktreePath && this.store.cardWorktree(card.id)?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree ist nicht mehr verknüpft.');

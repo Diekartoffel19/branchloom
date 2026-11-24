@@ -6,6 +6,8 @@ describe('command terminal UI', () => {
   it('shows explicit shell choice and start action', () => {
     const html = renderToStaticMarkup(<CommandTerminalView projectId="project" />);
     expect(html).toContain('Shell auswählen');
+    expect(html).toContain('Terminal-Arbeitsordner auswählen');
+    expect(html).toContain('Projektordner');
     expect(html).toContain('Windows PowerShell');
     expect(html).toContain('Eingabeaufforderung (cmd)');
     expect(html).toContain('Terminal starten');
