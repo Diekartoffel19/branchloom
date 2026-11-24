@@ -34,3 +34,6 @@ export interface SaveCardWireframeInput {
 }
 
 export interface CardWireframeKey { projectId: string; cardId: string }
+
+/** Unsaved proposal from an explicitly started read-only CLI call. */
+export interface WireframeProposal { title: string; elements: WireframeElement[]; sourceCardUpdatedAt: string }

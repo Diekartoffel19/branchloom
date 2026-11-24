@@ -167,6 +167,7 @@ const studio: StudioAPI = {
   cardWireframe: (input) => invoke('cardWireframe', input),
   saveCardWireframe: (input) => invoke('saveCardWireframe', input),
   approveCardWireframe: (input) => invoke('approveCardWireframe', input),
+  proposeCardWireframe: (input) => invoke('proposeCardWireframe', input),
   designStateRoutes: (projectId) => invoke('designStateRoutes', projectId),
   saveDesignStateRoute: (input) => invoke('saveDesignStateRoute', input),
   removeDesignStateRoute: (input) => invoke('removeDesignStateRoute', input),

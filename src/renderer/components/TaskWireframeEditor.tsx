@@ -7,6 +7,9 @@ import './task-wireframe.css';
 
 interface Draft { title: string; elements: WireframeElement[] }
 interface Props { projectId: string; cards: Card[]; startCardId?: string | null }
+const unsavedDrafts = new Map<string, Draft>();
+const lastSelectedCard = new Map<string, string>();
+const draftKey = (projectId: string, cardId: string): string => JSON.stringify([projectId, cardId]);
 
 const labelForKind: Record<WireframeElementKind, string> = { panel: 'Fläche', text: 'Text', button: 'Knopf', field: 'Eingabe' };
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
@@ -25,46 +28,58 @@ export function starterWireframe(card: Pick<Card, 'title'>): Draft {
 }
 
 export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Props) {
-  const [cardId, setCardId] = useState(startCardId && cards.some((card) => card.id === startCardId) ? startCardId : '');
+  const initialCardId = [startCardId, lastSelectedCard.get(projectId)].find((id) => id && cards.some((card) => card.id === id)) ?? '';
+  const [cardId, setCardId] = useState(initialCardId);
   const [saved, setSaved] = useState<CardWireframe | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(Boolean(startCardId && cards.some((card) => card.id === startCardId)));
+  const [loading, setLoading] = useState(Boolean(initialCardId));
+  const [geometryDraft, setGeometryDraft] = useState<{ id: string; key: 'x' | 'y' | 'width' | 'height'; raw: string } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const generation = useRef(0);
+  const interactionLocked = useRef(false);
   const stage = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
   const card = cards.find((item) => item.id === cardId) ?? null;
   const selected = draft?.elements.find((item) => item.id === selectedId) ?? null;
 
   async function load(targetCardId: string, expectedGeneration = generation.current) {
+    interactionLocked.current = true;
     setLoading(true); setError(''); setNotice('');
     try {
       const current = await window.studio.cardWireframe({ projectId, cardId: targetCardId });
       if (generation.current !== expectedGeneration) return;
-      setSaved(current); setDraft(current ? { title: current.title, elements: current.elements } : null);
-      setSelectedId(null); setDirty(false);
+      const retained = unsavedDrafts.get(draftKey(projectId, targetCardId));
+      setSaved(current); setDraft(retained ?? (current ? { title: current.title, elements: current.elements } : null));
+      setSelectedId(null); setDirty(Boolean(retained)); setGeometryDraft(null);
+      if (retained) setNotice('Ungespeicherter Entwurf aus dieser App-Sitzung wiederhergestellt.');
     } catch (reason) { if (generation.current === expectedGeneration) setError(messageOf(reason)); }
-    finally { if (generation.current === expectedGeneration) setLoading(false); }
+    finally { if (generation.current === expectedGeneration) { interactionLocked.current = false; setLoading(false); } }
   }
 
   useEffect(() => {
     const current = ++generation.current;
+    interactionLocked.current = false; setBusy(false);
     setSaved(null); setDraft(null); setSelectedId(null); setDirty(false); setError(''); setNotice('');
-    if (cardId) void load(cardId, current);
+    if (cardId && cards.some((item) => item.id === cardId)) { lastSelectedCard.set(projectId, cardId); void load(cardId, current); }
+    else { if (cardId) setCardId(lastSelectedCard.get(projectId) && cards.some((item) => item.id === lastSelectedCard.get(projectId)) ? lastSelectedCard.get(projectId)! : ''); setLoading(false); }
     return () => { generation.current++; };
   }, [projectId, cardId]);
 
-  function edit(next: Draft) { setDraft(next); setDirty(true); setNotice('Ungespeicherte Änderungen.'); setError(''); }
+  function retainDraft(next: Draft) {
+    if (cardId) unsavedDrafts.set(draftKey(projectId, cardId), next);
+    setDraft(next); setDirty(true); setNotice('Ungespeicherte Änderungen.'); setError('');
+  }
+  function edit(next: Draft) { if (!interactionLocked.current) retainDraft(next); }
   function editElement(id: string, change: Partial<WireframeElement>) {
     if (!draft) return;
     edit({ ...draft, elements: draft.elements.map((item) => item.id === id ? { ...item, ...change } : item) });
   }
   function addElement(kind: WireframeElementKind) {
-    if (!draft || draft.elements.length >= 40) return;
+    if (!draft || interactionLocked.current || draft.elements.length >= 40) return;
     const width = kind === 'panel' ? 250 : kind === 'text' ? 250 : 168;
     const height = kind === 'panel' ? 140 : kind === 'text' ? 42 : 44;
     const offset = (draft.elements.length % 10) * 18;
@@ -76,13 +91,16 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
     edit({ ...draft, elements: [...draft.elements, item] }); setSelectedId(item.id);
   }
   function removeElement(id: string) {
-    if (!draft) return;
+    if (!draft || interactionLocked.current) return;
     edit({ ...draft, elements: draft.elements.filter((item) => item.id !== id) }); setSelectedId(null);
   }
   function moveSelected(item: WireframeElement, dx: number, dy: number) {
     editElement(item.id, { x: clamp(item.x + dx, 0, WIREFRAME_WIDTH - item.width), y: clamp(item.y + dy, 0, WIREFRAME_HEIGHT - item.height) });
   }
   function setGeometry(item: WireframeElement, key: 'x' | 'y' | 'width' | 'height', raw: string) {
+    if (interactionLocked.current) return;
+    setGeometryDraft({ id: item.id, key, raw });
+    if (!/^-?\d+$/.test(raw)) return;
     const value = Number(raw);
     if (!Number.isInteger(value)) return;
     const next = { ...item, [key]: value };
@@ -94,59 +112,77 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null }: Pr
   }
 
   async function save() {
-    if (!card || !draft || busy || !dirty) return;
+    if (!card || !draft || busy || interactionLocked.current || !dirty) return;
     const currentGeneration = generation.current;
+    const submittedDraft = draft;
+    const key = draftKey(projectId, card.id);
+    interactionLocked.current = true;
     setBusy(true); setError('');
     try {
       const result = await window.studio.saveCardWireframe({ projectId, cardId: card.id, expectedRevision: saved?.revision ?? 0, title: draft.title, elements: draft.elements });
+      if (unsavedDrafts.get(key) === submittedDraft) unsavedDrafts.delete(key);
       if (generation.current !== currentGeneration) return;
       setSaved(result); setDraft({ title: result.title, elements: result.elements }); setDirty(false); setNotice('Entwurf gespeichert. Für Agentenläufe ist eine eigene Freigabe nötig.');
     } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
-    finally { if (generation.current === currentGeneration) setBusy(false); }
+    finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
   }
   async function approve() {
-    if (!card || !saved || dirty || busy) return;
+    if (!card || !saved || dirty || busy || interactionLocked.current) return;
     const currentGeneration = generation.current;
+    interactionLocked.current = true;
     setBusy(true); setError('');
     try {
       const result = await window.studio.approveCardWireframe({ projectId, cardId: card.id, expectedRevision: saved.revision });
       if (generation.current !== currentGeneration) return;
       setSaved(result); setNotice('Version ' + result.revision + ' ist als Layoutkontext für künftige Agentenläufe freigegeben. Es wurde kein Agent gestartet.');
     } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
-    finally { if (generation.current === currentGeneration) setBusy(false); }
+    finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
+  }
+  async function propose() {
+    if (!card || dirty || busy || interactionLocked.current) return;
+    const currentGeneration = generation.current;
+    interactionLocked.current = true;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const proposal = await window.studio.proposeCardWireframe({ projectId, cardId: card.id });
+      if (generation.current !== currentGeneration) return;
+      retainDraft({ title: proposal.title, elements: proposal.elements }); setSelectedId(null);
+      setNotice('Agentenvorschlag geladen. Prüfe und bearbeite ihn, bevor du ihn speicherst und gesondert freigibst.');
+    } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
+    finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
   }
 
   return <section className="task-wireframe" aria-label="Wireframe-Entwurf">
     <div className="task-wireframe-head"><div><h2>Wireframe zur Aufgabe</h2><p>Entwirf ein App-Fenster vor dem Coding. Nur eine ausdrücklich freigegebene gespeicherte Version geht als Layoutkontext an spätere Agentenläufe.</p></div></div>
     <div className="task-wireframe-source">
-      <label>Aufgabe<select aria-label="Aufgabe für Wireframe auswählen" value={cardId} disabled={dirty || busy} onChange={(event) => { setLoading(Boolean(event.target.value)); setSaved(null); setDraft(null); setCardId(event.target.value); }}><option value="">Karte auswählen</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.title}{item.archivedAt ? ' · archiviert' : ''}</option>)}</select></label>
-      {dirty ? <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (cardId) void load(cardId); }}>Änderungen verwerfen</button> : null}
+      <label>Aufgabe<select aria-label="Aufgabe für Wireframe auswählen" value={cardId} disabled={dirty || busy} onChange={(event) => { setLoading(Boolean(event.target.value)); setSaved(null); setDraft(null); if (event.target.value) lastSelectedCard.set(projectId, event.target.value); else lastSelectedCard.delete(projectId); setCardId(event.target.value); }}><option value="">Karte auswählen</option>{cards.map((item) => <option key={item.id} value={item.id}>{item.title}{item.archivedAt ? ' · archiviert' : ''}</option>)}</select></label>
+      {dirty ? <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (cardId) { unsavedDrafts.delete(draftKey(projectId, cardId)); void load(cardId); } }}>Änderungen verwerfen</button> : null}
     </div>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="task-wireframe-notice" role="status">{notice}</p> : null}
-    {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-empty"><p>Für „{card.title}“ gibt es noch keinen Wireframe.</p><button type="button" className="primary-button" onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button><button type="button" className="secondary-button" onClick={() => edit({ title: card.title.slice(0, 100), elements: [] })}>Leere Fläche beginnen</button><small>Das Fenstergerüst ist eine lokale Vorlage, kein KI-Ergebnis. Erst „Entwurf speichern“ legt es ab.</small></div> : <>
-      <div className="task-wireframe-toolbar"><span>Element hinzufügen</span>{(['panel', 'text', 'button', 'field'] as const).map((kind) => <button key={kind} type="button" className="secondary-button small" disabled={draft.elements.length >= 40} onClick={() => addElement(kind)}><Plus size={14} aria-hidden="true" />{labelForKind[kind]}</button>)}</div>
+    {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-empty"><p>Für „{card.title}“ gibt es noch keinen Wireframe.</p><button type="button" className="primary-button" disabled={busy} onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button><button type="button" className="secondary-button" disabled={busy} onClick={() => edit({ title: card.title.slice(0, 100), elements: [] })}>Leere Fläche beginnen</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button><small>Die Vorlage ist lokal und deterministisch. Der optionale Agentenvorschlag nutzt den gewählten Codex-Workflow-Agenten lesend und bleibt bis zum Speichern ungespeichert.</small></div> : <>
+      <div className="task-wireframe-toolbar"><span>Element hinzufügen</span>{(['panel', 'text', 'button', 'field'] as const).map((kind) => <button key={kind} type="button" className="secondary-button small" disabled={busy || draft.elements.length >= 40} onClick={() => addElement(kind)}><Plus size={14} aria-hidden="true" />{labelForKind[kind]}</button>)}<button type="button" className="secondary-button small task-wireframe-propose" disabled={busy || dirty} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent neu vorschlagen'}</button></div>
       <div className="task-wireframe-layout">
-        <aside className="task-wireframe-layers" aria-label="Ebenen"><h3>Ebenen</h3>{draft.elements.length ? <ol>{draft.elements.map((item) => <li key={item.id}><button type="button" className={selectedId === item.id ? 'selected' : ''} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>{labelForKind[item.kind]} · {item.text || 'Ohne Text'}</button></li>)}</ol> : <p>Noch keine Elemente.</p>}</aside>
+        <aside className="task-wireframe-layers" aria-label="Ebenen"><h3>Ebenen</h3>{draft.elements.length ? <ol>{draft.elements.map((item) => <li key={item.id}><button type="button" disabled={busy} className={selectedId === item.id ? 'selected' : ''} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>{labelForKind[item.kind]} · {item.text || 'Ohne Text'}</button></li>)}</ol> : <p>Noch keine Elemente.</p>}</aside>
         <div className="task-wireframe-canvas-wrap"><div className="task-wireframe-canvas-head"><span>{WIREFRAME_WIDTH} × {WIREFRAME_HEIGHT} · App-Fenster</span><span><MousePointer2 size={13} aria-hidden="true" /> Ziehen oder Pfeiltasten</span></div><div className="task-wireframe-canvas" ref={stage} role="group" aria-label="Editierbares App-Wireframe">
-          {draft.elements.map((item) => <button key={item.id} type="button" className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedId === item.id ? ' selected' : ''}`} style={{ left: `${item.x / WIREFRAME_WIDTH * 100}%`, top: `${item.y / WIREFRAME_HEIGHT * 100}%`, width: `${item.width / WIREFRAME_WIDTH * 100}%`, height: `${item.height / WIREFRAME_HEIGHT * 100}%` }} aria-label={`${labelForKind[item.kind]}: ${item.text || 'ohne Text'}`} aria-pressed={selectedId === item.id}
-            onFocus={() => setSelectedId(item.id)}
-            onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: item.x, y: item.y }; setSelectedId(item.id); }}
+          {draft.elements.map((item) => <button key={item.id} type="button" disabled={busy} className={`task-wireframe-element kind-${item.kind} tone-${item.tone}${selectedId === item.id ? ' selected' : ''}`} style={{ left: `${item.x / WIREFRAME_WIDTH * 100}%`, top: `${item.y / WIREFRAME_HEIGHT * 100}%`, width: `${item.width / WIREFRAME_WIDTH * 100}%`, height: `${item.height / WIREFRAME_HEIGHT * 100}%` }} aria-label={`${labelForKind[item.kind]}: ${item.text || 'ohne Text'}`} aria-pressed={selectedId === item.id}
+            onFocus={() => { if (!interactionLocked.current) setSelectedId(item.id); }}
+            onPointerDown={(event) => { if (interactionLocked.current || event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: item.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: item.x, y: item.y }; setSelectedId(item.id); }}
             onPointerMove={(event) => { const current = drag.current; const rect = stage.current?.getBoundingClientRect(); if (!current || current.id !== item.id || current.pointerId !== event.pointerId || !rect?.width || !rect.height) return; const x = clamp(Math.round(current.x + (event.clientX - current.clientX) * WIREFRAME_WIDTH / rect.width), 0, WIREFRAME_WIDTH - item.width); const y = clamp(Math.round(current.y + (event.clientY - current.clientY) * WIREFRAME_HEIGHT / rect.height), 0, WIREFRAME_HEIGHT - item.height); if (x !== item.x || y !== item.y) editElement(item.id, { x, y }); }}
             onPointerUp={(event) => { if (drag.current?.pointerId === event.pointerId) drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
             onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; if (event.key === 'ArrowLeft') { event.preventDefault(); moveSelected(item, -step, 0); } else if (event.key === 'ArrowRight') { event.preventDefault(); moveSelected(item, step, 0); } else if (event.key === 'ArrowUp') { event.preventDefault(); moveSelected(item, 0, -step); } else if (event.key === 'ArrowDown') { event.preventDefault(); moveSelected(item, 0, step); } else if (event.key === 'Delete') { event.preventDefault(); removeElement(item.id); } }}>
             {item.kind === 'field' ? <span>{item.text || 'Eingabe'}</span> : item.text}
           </button>)}
         </div></div>
-        <aside className="task-wireframe-properties" aria-label="Eigenschaften"><h3>Eigenschaften</h3><label>Entwurfstitel<input value={draft.title} maxLength={100} onChange={(event) => edit({ ...draft, title: event.target.value })} /></label>{selected ? <>
+        <aside className="task-wireframe-properties" aria-label="Eigenschaften"><h3>Eigenschaften</h3><label>Entwurfstitel<input value={draft.title} disabled={busy} maxLength={100} onChange={(event) => edit({ ...draft, title: event.target.value })} /></label>{selected ? <>
           <div className="task-wireframe-property-kind">{labelForKind[selected.kind]}</div>
-          <label>Text<input aria-label="Text des ausgewählten Elements" value={selected.text} maxLength={120} onChange={(event) => editElement(selected.id, { text: event.target.value })} /></label>
-          <div className="task-wireframe-geometry">{(['x', 'y', 'width', 'height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Breite' : key === 'height' ? 'Höhe' : key.toUpperCase()}<input type="number" min={key === 'width' || key === 'height' ? 24 : 0} max={key === 'width' || key === 'x' ? WIREFRAME_WIDTH : WIREFRAME_HEIGHT} value={selected[key]} onChange={(event) => setGeometry(selected, key, event.target.value)} /></label>)}</div>
-          <label>Ton<select value={selected.tone} onChange={(event) => editElement(selected.id, { tone: event.target.value as WireframeElementTone })}><option value="plain">Neutral</option><option value="muted">Zurückhaltend</option><option value="accent">Akzent</option></select></label>
-          <button type="button" className="secondary-button small" onClick={() => removeElement(selected.id)}>Element entfernen</button>
+          <label>Text<input aria-label="Text des ausgewählten Elements" value={selected.text} disabled={busy} maxLength={120} onChange={(event) => editElement(selected.id, { text: event.target.value })} /></label>
+          <div className="task-wireframe-geometry">{(['x', 'y', 'width', 'height'] as const).map((key) => <label key={key}>{key === 'width' ? 'Breite' : key === 'height' ? 'Höhe' : key.toUpperCase()}<input type="number" min={key === 'width' || key === 'height' ? 24 : 0} max={key === 'width' || key === 'x' ? WIREFRAME_WIDTH : WIREFRAME_HEIGHT} disabled={busy} value={geometryDraft?.id === selected.id && geometryDraft.key === key ? geometryDraft.raw : selected[key]} onChange={(event) => setGeometry(selected, key, event.target.value)} onBlur={() => setGeometryDraft(null)} /></label>)}</div>
+          <label>Ton<select value={selected.tone} disabled={busy} onChange={(event) => editElement(selected.id, { tone: event.target.value as WireframeElementTone })}><option value="plain">Neutral</option><option value="muted">Zurückhaltend</option><option value="accent">Akzent</option></select></label>
+          <button type="button" className="secondary-button small" disabled={busy} onClick={() => removeElement(selected.id)}>Element entfernen</button>
         </> : <p>Wähle ein Element auf der Fläche oder in der Ebenenliste.</p>}</aside>
       </div>
-      <div className="task-wireframe-actions"><span>{saved ? `Version ${saved.revision}${saved.approvedRevision === saved.revision ? ' · freigegeben' : ' · nicht freigegeben'}` : 'Noch nicht gespeichert'}{dirty ? ' · geändert' : ''}</span><button type="button" className="secondary-button" disabled={!dirty || busy || !draft.title.trim()} onClick={() => void save()}>{busy && dirty ? 'Speichere…' : 'Entwurf speichern'}</button><button type="button" className="primary-button" disabled={!saved || dirty || busy || !saved.elements.length || saved.approvedRevision === saved.revision} onClick={() => void approve()}><Check size={15} aria-hidden="true" />Für Agenten freigeben</button>{saved && !dirty ? <button type="button" className="icon-button" title="Gespeicherten Entwurf neu laden" aria-label="Gespeicherten Entwurf neu laden" onClick={() => void load(card.id)}><RotateCcw size={15} /></button> : null}</div>
+      <div className="task-wireframe-actions"><span>{saved ? `Version ${saved.revision}${saved.approvedRevision === saved.revision ? ' · freigegeben' : ' · nicht freigegeben'}` : 'Noch nicht gespeichert'}{dirty ? ' · geändert' : ''}</span><button type="button" className="secondary-button" disabled={!dirty || busy || !draft.title.trim()} onClick={() => void save()}>{busy && dirty ? 'Speichere…' : 'Entwurf speichern'}</button><button type="button" className="primary-button" disabled={!saved || dirty || busy || !saved.elements.length || saved.approvedRevision === saved.revision} onClick={() => void approve()}><Check size={15} aria-hidden="true" />Für Agenten freigeben</button>{saved && !dirty ? <button type="button" className="icon-button" disabled={busy} title="Gespeicherten Entwurf neu laden" aria-label="Gespeicherten Entwurf neu laden" onClick={() => void load(card.id)}><RotateCcw size={15} /></button> : null}</div>
       <p className="task-wireframe-help">Die Freigabe teilt nur die gespeicherte Anordnung beim nächsten Agentenstart. Kein Projektcode wird geändert. Nach einer Bearbeitung musst du erneut speichern und freigeben.</p>
     </>}
   </section>;

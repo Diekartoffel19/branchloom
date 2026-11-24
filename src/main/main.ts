@@ -12,6 +12,7 @@ import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './ca
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections, saveDesignSelection } from './design-inspection';
 import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, saveCardWireframe } from './card-wireframe';
+import { proposeCardWireframe } from './wireframe-proposal';
 import { designStateRoute, designStateRoutes, removeDesignStateRoute, saveDesignStateRoute } from './design-state-routes';
 import { addCardContextReference, addCardContextReferenceFromDesignSelection, addCardContextReferenceFromWhiteboardNode, cardContextCandidateFromAttachment, cardContextCandidateFromDesignSelection, cardContextCandidateFromWhiteboardNode, cardContextReferences, createCardFromDesignRequest, designTaskCandidate, previewCardContextReference, removeCardContextReference } from './card-context';
 import { createOutputErrorCard, previewOutputErrors } from './output-errors';
@@ -401,8 +402,12 @@ function installIpc(): void {
   bind('createQaFixCard', (input: Parameters<StudioAPI['createQaFixCard']>[0]) => createQaFixCard(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
   bind('cardWireframe', (input: Parameters<StudioAPI['cardWireframe']>[0]) => cardWireframe(db, input));
-  bind('saveCardWireframe', (input: Parameters<StudioAPI['saveCardWireframe']>[0]) => saveCardWireframe(db, input));
+  bind('saveCardWireframe', async (input: Parameters<StudioAPI['saveCardWireframe']>[0]) => {
+    if (smoke) await new Promise((resolve) => setTimeout(resolve, 180));
+    return saveCardWireframe(db, input);
+  });
   bind('approveCardWireframe', (input: Parameters<StudioAPI['approveCardWireframe']>[0]) => approveCardWireframe(db, input));
+  bind('proposeCardWireframe', (input: Parameters<StudioAPI['proposeCardWireframe']>[0]) => proposeCardWireframe(db, input));
   bind('designStateRoutes', (projectId: string) => designStateRoutes(db, projectId));
   bind('saveDesignStateRoute', (input: Parameters<StudioAPI['saveDesignStateRoute']>[0]) => saveDesignStateRoute(db, input));
   bind('removeDesignStateRoute', (input: Parameters<StudioAPI['removeDesignStateRoute']>[0]) => removeDesignStateRoute(db, input));
@@ -1403,7 +1408,7 @@ function createWindow(): void {
               if (!nav) throw new Error('Design-Navigation fehlt.');
               nav.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.task-wireframe-source select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const wireframe = document.querySelector('.task-wireframe');
+              let wireframe = document.querySelector('.task-wireframe');
               const cardSelect = wireframe?.querySelector('.task-wireframe-source select');
               const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!(cardSelect instanceof HTMLSelectElement) || !selectSetter) throw new Error('Aufgaben-Wireframe-Auswahl fehlt.');
@@ -1411,6 +1416,7 @@ function createWindow(): void {
               let starter;
               for (let attempt = 0; attempt < 100 && !starter; attempt++) { starter = [...(wireframe?.querySelectorAll('button') ?? [])].find((button) => button.textContent?.includes('Fenstergerüst vorbereiten')); if (!starter) await new Promise((resolve) => setTimeout(resolve, 50)); }
               if (!(starter instanceof HTMLButtonElement)) throw new Error('Kartenbezogener Entwurfsstart fehlt.');
+              if (![...(wireframe?.querySelectorAll('button') ?? [])].some((button) => button.textContent?.includes('Mit Agent vorschlagen'))) throw new Error('Optionaler Agentenvorschlag fehlt.');
               const beforeSessions = (await window.studio.snapshot(${JSON.stringify(smokeProject.id)})).sessions.length;
               starter.click();
               for (let attempt = 0; attempt < 100 && !wireframe?.querySelector('.task-wireframe-canvas'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1423,17 +1429,39 @@ function createWindow(): void {
               if (!(text instanceof HTMLInputElement) || !textSetter) throw new Error('Wireframe-Eigenschaften fehlen.');
               textSetter.call(text, 'Geprüfter Entwurf'); text.dispatchEvent(new Event('input', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && ![...wireframe.querySelectorAll('.task-wireframe-element')].some((item) => item.textContent?.includes('Geprüfter Entwurf')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const boardNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board');
+              if (!boardNav) throw new Error('Board-Navigation fehlt beim Wireframe.');
+              boardNav.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.task-wireframe'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.task-wireframe-canvas'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              wireframe = document.querySelector('.task-wireframe');
+              if (!wireframe?.textContent?.includes('Ungespeicherter Entwurf aus dieser App-Sitzung wiederhergestellt') || ![...wireframe.querySelectorAll('.task-wireframe-element')].some((item) => item.textContent?.includes('Geprüfter Entwurf')) || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Ungespeicherter Wireframe ging beim Ansichtswechsel verloren oder wurde vorzeitig gespeichert.');
+              wireframe.querySelectorAll('.task-wireframe-layers li button')[1]?.click();
+              for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-geometry input'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const xField = wireframe.querySelector('.task-wireframe-geometry input');
+              if (!(xField instanceof HTMLInputElement)) throw new Error('Wireframe-X-Eingabe fehlt.');
+              textSetter.call(xField, ''); xField.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && xField.value !== ''; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (xField.value !== '') throw new Error('Wireframe-X-Feld lässt sich nicht leeren.');
+              textSetter.call(xField, '60'); xField.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Geprüfter Entwurf'))?.style.left !== '6.25%'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ([...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Geprüfter Entwurf'))?.style.left !== '6.25%') throw new Error('Ersetzte Wireframe-X-Koordinate wurde nicht übernommen.');
               const element = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Geprüfter Entwurf'));
               if (!(element instanceof HTMLButtonElement)) throw new Error('Editierter Text erschien nicht auf der Fläche.');
               element.focus(); element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-geometry input')?.value !== '43'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-geometry input')?.value !== '61'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               for (let attempt = 0; attempt < 100 && ![...wireframe.querySelectorAll('.task-wireframe-actions button')].some((button) => button.textContent?.includes('Entwurf speichern') && !button.disabled); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const save = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Entwurf speichern'));
               if (!(save instanceof HTMLButtonElement) || save.disabled) throw new Error('Entwurf ist nicht speicherbar.');
               save.click();
+              for (let attempt = 0; attempt < 100 && !wireframe.querySelector('input[aria-label="Text des ausgewählten Elements"]')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 1));
+              const lockedText = wireframe.querySelector('input[aria-label="Text des ausgewählten Elements"]');
+              if (!(lockedText instanceof HTMLInputElement) || !lockedText.disabled) throw new Error('Wireframe-Eingabe blieb während Speichern bedienbar.');
+              textSetter.call(lockedText, 'Späte Eingabe'); lockedText.dispatchEvent(new Event('input', { bubbles: true }));
               let stored;
               for (let attempt = 0; attempt < 100 && !stored; attempt++) { stored = await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }); if (!stored) await new Promise((resolve) => setTimeout(resolve, 50)); }
-              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 43 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Tastaturbewegung oder Freigabezustand wurden nicht gespeichert.');
+              if (!stored || stored.elements.find((item) => item.id === 'window-title')?.text !== 'Geprüfter Entwurf' || stored.elements.find((item) => item.id === 'window-title')?.x !== 61 || stored.approvedRevision !== null) throw new Error('Wireframe-Text, Zahleneingabe, Tastaturbewegung oder Freigabezustand wurden nicht gespeichert.');
               const approve = [...wireframe.querySelectorAll('.task-wireframe-actions button')].find((button) => button.textContent?.includes('Für Agenten freigeben'));
               for (let attempt = 0; attempt < 100 && approve?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(approve instanceof HTMLButtonElement) || approve.disabled) throw new Error('Gespeicherter Entwurf ist nicht freigebbar.');
