@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileJson2, LoaderCircle, Upload, X } from 'lucide-react';
 import type { Column, TrelloBoardSummary, TrelloConnectionStatus, TrelloImportCard, TrelloImportPreview, TrelloImportResult } from '../../shared/types';
-import type { TrelloIdeaImportResult } from '../../shared/types';
+import type { TrelloIdeaComparison, TrelloIdeaImportResult } from '../../shared/types';
 import type { IdeaCategory } from '../../shared/ideas';
 import type { Mutate } from './shared';
 import './trello-connect.css';
@@ -23,6 +23,7 @@ export function importable(card: TrelloImportCard): boolean {
 }
 
 export function trelloCardStatus(card: TrelloImportCard): string {
+  if (card.importedIdeaId && card.sourceChange === 'changed') return 'Trello-Quelle geändert';
   if (card.importedCardId) return 'Bereits importiert';
   if (card.importedIdeaId) return 'Bereits im Ideenraum';
   if (card.reason) return `Fehler: ${card.reason}`;
@@ -56,9 +57,13 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
   const [columnByListId, setColumnByListId] = useState<Record<string, string> | null>(null);
   const [category, setCategory] = useState<IdeaCategory>('backlog');
   const [filter, setFilter] = useState('');
-  const [busy, setBusy] = useState<'status' | 'read' | 'connect' | 'boards' | 'preview' | 'accept' | null>('status');
+  const [busy, setBusy] = useState<'status' | 'read' | 'connect' | 'boards' | 'preview' | 'accept' | 'compare' | 'reconcile' | null>('status');
   const [error, setError] = useState('');
   const [result, setResult] = useState<TrelloImportResult | TrelloIdeaImportResult | null>(null);
+  const [comparison, setComparison] = useState<TrelloIdeaComparison | null>(null);
+  const [copyTitle, setCopyTitle] = useState(false);
+  const [copyBody, setCopyBody] = useState(false);
+  const [reconciled, setReconciled] = useState(false);
   const matching = useMemo(() => preview?.cards.filter((card) => `${card.title} ${card.listName ?? ''} ${card.labels.join(' ')}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())) ?? [], [preview, filter]);
   const shown = matching.slice(0, DISPLAY_LIMIT);
   const matchingCount = matching.length;
@@ -84,7 +89,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
     return () => { current = false; };
   }, []);
 
-  function clearPreview() { setPreview(null); setSelectedIds([]); setColumnByListId(null); setResult(null); setPreviewBoardId(''); setPreviewMode(null); setError(''); }
+  function clearPreview() { setPreview(null); setSelectedIds([]); setColumnByListId(null); setResult(null); setComparison(null); setReconciled(false); setPreviewBoardId(''); setPreviewMode(null); setError(''); }
 
   async function openAuthorization() {
     setError('');
@@ -137,7 +142,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
 
   async function inspect() {
     if (mode === 'file' && !json || mode === 'live' && !boardId) return;
-    setBusy('preview'); setError(''); setPreview(null); setResult(null);
+    setBusy('preview'); setError(''); setPreview(null); setResult(null); setComparison(null); setReconciled(false);
     try {
       const selectedBoard = boardId;
       const next = ideasTarget
@@ -160,12 +165,43 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
           ? await window.studio.acceptTrelloBoard({ projectId, columnId, columnByListId: columnByListId ?? undefined, boardId: previewBoardId, fingerprint: preview.fingerprint, sourceIds: selectedIds })
           : await window.studio.acceptTrelloImport({ projectId, columnId, columnByListId: columnByListId ?? undefined, json, fingerprint: preview.fingerprint, sourceIds: selectedIds });
       setResult(accepted); setSelectedIds([]);
+      setComparison(null); setReconciled(false);
       if (ideasTarget) await onIdeasImported?.(); else await mutate(async () => accepted);
       const refreshed = ideasTarget
         ? previewMode === 'live' ? await window.studio.previewTrelloBoardIdeas({ projectId, boardId: previewBoardId }) : await window.studio.previewTrelloIdeas({ projectId, json })
         : previewMode === 'live' ? await window.studio.previewTrelloBoard({ projectId, boardId: previewBoardId }) : await window.studio.previewTrelloImport({ projectId, json });
       setPreview(refreshed);
       setColumnByListId((old) => old ? Object.fromEntries(Object.entries(suggestedTrelloListColumns(refreshed, columns, columnId)).map(([listId, suggested]) => [listId, old[listId] ?? suggested])) : null);
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(null); }
+  }
+
+  async function compareSource(sourceId: string) {
+    if (!ideasTarget || !previewMode) return;
+    setBusy('compare'); setError(''); setComparison(null); setReconciled(false);
+    try {
+      const next = previewMode === 'live'
+        ? await window.studio.compareTrelloBoardIdea({ projectId, boardId: previewBoardId, sourceId })
+        : await window.studio.compareTrelloIdea({ projectId, json, sourceId });
+      setComparison(next); setCopyTitle(false); setCopyBody(false);
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(null); }
+  }
+
+  async function applySource() {
+    if (!comparison || !previewMode || !copyTitle && !copyBody) return;
+    setBusy('reconcile'); setError(''); setReconciled(false);
+    const fields = { projectId, sourceId: comparison.sourceId, fingerprint: comparison.fingerprint,
+      localSignature: comparison.localSignature, copyTitle, copyBody };
+    try {
+      const next = previewMode === 'live'
+        ? await window.studio.applyTrelloBoardIdeaSource({ ...fields, boardId: previewBoardId })
+        : await window.studio.applyTrelloIdeaSource({ ...fields, json });
+      await onIdeasImported?.();
+      const refreshed = previewMode === 'live'
+        ? await window.studio.previewTrelloBoardIdeas({ projectId, boardId: previewBoardId })
+        : await window.studio.previewTrelloIdeas({ projectId, json });
+      setPreview(refreshed); setComparison(next); setCopyTitle(false); setCopyBody(false); setReconciled(true);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(null); }
   }
@@ -190,8 +226,18 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
         <p className="field-help">{ideasTarget ? 'Die Auswahl landet zuerst nur im lokalen Ideenraum. Du kannst jede Idee dort bearbeiten und später mit einem zweiten Klick ins Board übernehmen. Trello-Liste und benannte Labels stehen in den Notizen.' : `${columnByListId ? 'Die gewählten Karten kommen in die zugeordnete Zielspalte ihrer Trello-Liste.' : 'Alle gewählten Karten kommen in die gewählte Zielspalte.'} Archivierte Trello-Karten bleiben beim Import archiviert.`} Archivierte Trello-Karten sind zunächst abgewählt. Ein Import startet keine Agenten automatisch.</p>
         <div className="trello-selection-row"><span>{selectedIds.length} ausgewählt</span><button className="text-button" type="button" onClick={() => setSelectedIds([])} disabled={busy !== null || selectedIds.length === 0}>Auswahl leeren</button><button className="text-button" type="button" onClick={() => setSelectedIds((old) => [...new Set([...old, ...shown.filter(importable).map((card) => card.sourceId)])])} disabled={busy !== null || shown.length === 0}>Angezeigte auswählen</button></div>
         <label className="sr-only" htmlFor="trello-filter">Karten filtern</label><input id="trello-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Karten, Liste oder Label filtern…" />
-        <div className="trello-card-list" aria-label="Trello-Karten in der Vorschau">{shown.map((card) => <TrelloCardRow key={card.sourceId} card={card} checked={selectedIds.includes(card.sourceId)} disabled={busy !== null} onToggle={() => toggle(card.sourceId)} />)}{matchingCount === 0 ? <p className="list-empty">Keine Karten für diesen Filter.</p> : null}</div>
+        <div className="trello-card-list" aria-label="Trello-Karten in der Vorschau">{shown.map((card) => <div className="trello-preview-item" key={card.sourceId}>
+          <TrelloCardRow card={card} checked={selectedIds.includes(card.sourceId)} disabled={busy !== null} onToggle={() => toggle(card.sourceId)} />
+          {ideasTarget && card.importedIdeaId ? <button className="text-button" type="button" disabled={busy !== null} onClick={() => void compareSource(card.sourceId)}>Quelle und Idee vergleichen</button> : null}
+        </div>)}{matchingCount === 0 ? <p className="list-empty">Keine Karten für diesen Filter.</p> : null}</div>
         {matchingCount > shown.length ? <p className="field-help">{matchingCount - shown.length} weitere Karten. Filtere nach Titel oder Liste, um sie einzeln zu prüfen.</p> : null}
+        {comparison ? <section className="trello-source-comparison" aria-label="Trello-Quellenvergleich">
+          <div className="trello-compare-heading"><div><h4>Quelle und lokale Idee</h4><p>{comparison.sourceChange === 'changed' ? 'Die Trello-Quelle hat sich seit der letzten Übernahme geändert.' : comparison.sourceChange === 'same' ? 'Die Trello-Quelle ist seit der letzten Übernahme unverändert.' : 'Für diese ältere Idee fehlt ein gespeicherter Quellstand.'} {comparison.localChange === 'changed' ? 'Die lokale Idee wurde ebenfalls bearbeitet.' : comparison.localChange === 'unknown' ? 'Frühere lokale Änderungen lassen sich nicht sicher erkennen.' : ''}</p></div><button className="text-button" type="button" disabled={busy !== null} onClick={() => setComparison(null)}>Vergleich schließen</button></div>
+          <div className="trello-compare-columns"><div><h5>Trello jetzt</h5><strong>{comparison.sourceTitle}</strong><pre>{comparison.sourceBody}</pre></div><div><h5>Lokale Idee</h5><strong>{comparison.localTitle}</strong><pre>{comparison.localBody}</pre></div></div>
+          {comparison.ideaCardId ? <p className="field-help">Diese Idee wurde bereits zur Board-Karte. Eine Quellenübernahme ändert nur die Idee; die Karte bleibt unverändert.</p> : null}
+          {!comparison.eligible ? <p className="inline-error" role="alert">{comparison.reason ?? 'Diese Quelle kann derzeit nicht übernommen werden.'}</p> : <div className="trello-compare-actions"><label><input type="checkbox" checked={copyTitle} disabled={busy !== null} onChange={(event) => setCopyTitle(event.target.checked)} /> Titel aus Trello übernehmen</label><label><input type="checkbox" checked={copyBody} disabled={busy !== null} onChange={(event) => setCopyBody(event.target.checked)} /> Notizen aus Trello übernehmen</label><button className="primary-button" type="button" disabled={busy !== null || !copyTitle && !copyBody} onClick={() => void applySource()}>Ausgewählte Felder übernehmen</button></div>}
+          {reconciled ? <p role="status">Die ausgewählten Felder wurden in der lokalen Idee aktualisiert.</p> : null}
+        </section> : null}
         <div className="dialog-actions"><button className="secondary-button" type="button" disabled={busy !== null} onClick={onClose}>Abbrechen</button><button className="primary-button" type="button" disabled={busy !== null || !ideasTarget && !columnId || selectedIds.length === 0} onClick={() => void accept()}>{busy === 'accept' ? <LoaderCircle size={15} className="spin" /> : null} {selectedIds.length} {ideasTarget ? 'Ideen vormerken' : 'Karten importieren'}</button></div>
       </div> : null}
       {result ? <p className="trello-import-result" role="status">{result.created.length} {ideasTarget ? 'Ideen vorgemerkt' : 'Karten importiert'}. {result.skippedDuplicateIds.length} inzwischen vorhandene Duplikate übersprungen.</p> : null}

@@ -73,9 +73,14 @@ export function installIdeas(db: Database.Database): void {
       source_id TEXT NOT NULL,
       idea_id TEXT NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
       imported_at TEXT NOT NULL,
+      source_title TEXT,
+      source_body TEXT,
       PRIMARY KEY (project_id, source_id)
     );
   `);
+  const sourceColumns = db.pragma('table_info(trello_idea_imports)') as Array<{ name: string }>;
+  if (!sourceColumns.some((column) => column.name === 'source_title')) db.exec('ALTER TABLE trello_idea_imports ADD COLUMN source_title TEXT');
+  if (!sourceColumns.some((column) => column.name === 'source_body')) db.exec('ALTER TABLE trello_idea_imports ADD COLUMN source_body TEXT');
 }
 
 export function listIdeas(store: StudioStore, projectId: string): Idea[] {

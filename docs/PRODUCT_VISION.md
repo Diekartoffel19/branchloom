@@ -63,7 +63,7 @@ Diese Vorschläge sind ausgewählt, aber noch nicht als fertig umgesetzt oder in
 
 | Nr. | Funktion | Überprüfbarer Zielablauf |
 | --- | --- | --- |
-| 1 | Trello-Quellenabgleich | Bei erneutem Import Unterschiede zwischen Quelle und lokaler Idee sehen und eine Übernahme bewusst auswählen. |
+| 1 | Trello-Quellenabgleich | Erste Stufe für vorgemerkte Ideen: Quelle und lokale Fassung vergleichen, Titel/Notizen getrennt übernehmen; direkte Board-Karten bleiben offen. |
 | 2 | Duplikat-Vorschläge | Ähnliche Ideen aus Trello, Ideenraum und Board mit Quellen nebeneinander prüfen und nur nach Klick zusammenführen. |
 | 3 | Abnahmekriterien | Eine Karte enthält überprüfbare Ergebnisse; Review und Tests verweisen auf jedes Kriterium oder melden die Lücke. |
 | 5 | Aufgaben aufteilen | Teilkarten und Abhängigkeiten vor dem Anlegen als Vorschau bearbeiten. |

@@ -29,6 +29,7 @@ describe('Trello import UI', () => {
     const staged = card('staged', { importedIdeaId: 'existing-idea' });
     expect(importable(staged)).toBe(false);
     expect(trelloCardStatus(staged)).toBe('Bereits im Ideenraum');
+    expect(trelloCardStatus(card('changed', { importedIdeaId: 'existing-idea', sourceChange: 'changed' }))).toBe('Trello-Quelle geändert');
     expect(defaultTrelloSelection({ ...preview, cards: [staged] })).toEqual([]);
   });
 

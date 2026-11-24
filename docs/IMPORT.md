@@ -4,6 +4,8 @@ Unter **Board → Trello importieren** ist **Trello verbinden** die erste Wahl. 
 
 Für einen Zwischenschritt öffne stattdessen **Ideenraum → Aus Trello vormerken**. Der gleiche Verbindungs- und Vorschaupfad legt ausgewählte Trello-Karten nach Bestätigung als lokale Ideen, Backlog- oder Roadmap-Einträge an. Sie erscheinen noch nicht im Kanban. Jede Idee lässt sich danach bearbeiten und mit **Karte anlegen** bewusst in eine gewählte Board-Spalte übernehmen. Dieselbe Trello-ID wird pro Branchloom-Projekt nur einmal als Idee oder direkte Board-Karte importiert. Eine spätere Ideenübernahme bewahrt diese Zuordnung; wiederholtes Prüfen zeigt sie als bereits vorhanden. Weitere Grenzen und die Größenprüfung stehen in [IDEAS.md](IDEAS.md).
 
+Bereits vorgemerkte Ideen lassen sich beim nächsten Prüfen mit ihrer aktuellen Trello-Quelle vergleichen. Eine sichtbare Auswahl entscheidet getrennt über Titel und Notizen; lokale Bearbeitungen werden nicht still überschrieben. Der Vergleich gilt derzeit für Ideen, nicht für direkt importierte Board-Karten. [Bedienung und Grenzen](IDEAS.md).
+
 ## Einmalige Verbindung
 
 1. Erstelle in [Trellos App-Verwaltung](https://trello.com/apps/admin) eine eigene App bzw. Power-Up und dort im Bereich **Trello Auth** einen API-Key. Der Key ist laut Atlassian öffentlich verwendbar; ein Token bleibt geheim.

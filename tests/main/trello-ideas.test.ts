@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { acceptTrelloIdeas, previewTrelloIdeas } from '../../src/main/trello-ideas';
-import { convertIdeaToCard, listIdeas } from '../../src/main/ideas';
+import { acceptTrelloIdeas, applyTrelloIdeaSource, compareTrelloIdea, previewTrelloIdeas } from '../../src/main/trello-ideas';
+import { convertIdeaToCard, listIdeas, saveIdea } from '../../src/main/ideas';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -93,6 +93,52 @@ describe('Trello ideas staging', () => {
     expect(acceptTrelloIdeas(store, { projectId: project.id, json, fingerprint: preview.fingerprint, sourceIds: [first], category: 'idea' }).skippedDuplicateIds).toEqual([first]);
     expect(previewTrelloIdeas(store, { projectId: other.id, json })).toMatchObject({ eligible: 2, duplicates: 0 });
     expect(listIdeas(store, project.id)).toEqual([]);
+    store.close();
+  });
+
+  it('shows source and local changes, copies only chosen fields, and leaves a converted board card untouched', () => {
+    const { store, project, column } = fixture();
+    const original = board();
+    const firstPreview = previewTrelloIdeas(store, { projectId: project.id, json: original });
+    const imported = acceptTrelloIdeas(store, { projectId: project.id, json: original, fingerprint: firstPreview.fingerprint, sourceIds: [first], category: 'backlog' }).created[0]!;
+    const card = convertIdeaToCard(store, { projectId: project.id, ideaId: imported.id, columnId: column.id });
+    saveIdea(store, { projectId: project.id, id: imported.id, title: 'Eigener Titel', body: 'Eigene Notizen', category: 'roadmap', turns: [] });
+    const changed = board({ cards: [
+      { id: first, idList: list, name: 'Navigation neu prüfen', desc: 'Neue Trello-Anforderung', closed: false, labels: [{ id: 'dddddddddddddddddddddddd', name: 'UX' }] },
+      { id: second, idList: list, name: 'Farben prüfen', desc: 'Kontrast messen', closed: false },
+    ] });
+    expect(previewTrelloIdeas(store, { projectId: project.id, json: changed }).cards[0]?.sourceChange).toBe('changed');
+    const comparison = compareTrelloIdea(store, { projectId: project.id, json: changed, sourceId: first });
+    expect(comparison).toMatchObject({ sourceChange: 'changed', localChange: 'changed', localTitle: 'Eigener Titel', ideaCardId: card.id });
+    const titleOnly = applyTrelloIdeaSource(store, { projectId: project.id, json: changed, sourceId: first,
+      fingerprint: comparison.fingerprint, localSignature: comparison.localSignature, copyTitle: true, copyBody: false });
+    expect(titleOnly).toMatchObject({ localTitle: 'Navigation neu prüfen', localBody: 'Eigene Notizen', sourceChange: 'changed' });
+    const completed = applyTrelloIdeaSource(store, { projectId: project.id, json: changed, sourceId: first,
+      fingerprint: titleOnly.fingerprint, localSignature: titleOnly.localSignature, copyTitle: false, copyBody: true });
+    expect(completed).toMatchObject({ sourceChange: 'same', localChange: 'same' });
+    expect(completed.localBody).toContain('Neue Trello-Anforderung');
+    expect(store.card(card.id).title).toBe('Navigation prüfen');
+    expect(listIdeas(store, project.id)[0]).toMatchObject({ category: 'roadmap', cardId: card.id });
+    store.close();
+  });
+
+  it('rejects stale source or local revisions and treats legacy source snapshots as unknown', () => {
+    const { store, project } = fixture();
+    const original = board();
+    const preview = previewTrelloIdeas(store, { projectId: project.id, json: original });
+    const imported = acceptTrelloIdeas(store, { projectId: project.id, json: original, fingerprint: preview.fingerprint, sourceIds: [first], category: 'idea' }).created[0]!;
+    const comparison = compareTrelloIdea(store, { projectId: project.id, json: original, sourceId: first });
+    expect(comparison).toMatchObject({ sourceChange: 'same', localChange: 'same' });
+    saveIdea(store, { projectId: project.id, id: imported.id, title: 'Lokale Bearbeitung', body: imported.body, category: 'idea', turns: [] });
+    const input = { projectId: project.id, json: original, sourceId: first, fingerprint: comparison.fingerprint,
+      localSignature: comparison.localSignature, copyTitle: true, copyBody: false };
+    expect(() => applyTrelloIdeaSource(store, input)).toThrow('lokale Idee');
+    expect(() => applyTrelloIdeaSource(store, { ...input, json: board({ name: 'Inzwischen geändert' }) })).toThrow('Trello-Board');
+    expect(() => applyTrelloIdeaSource(store, { ...input, copyTitle: false })).toThrow('mindestens ein Feld');
+    expect(listIdeas(store, project.id)[0]?.title).toBe('Lokale Bearbeitung');
+    store.db.prepare('UPDATE trello_idea_imports SET source_title = NULL, source_body = NULL WHERE project_id = ? AND source_id = ?').run(project.id, first);
+    expect(compareTrelloIdea(store, { projectId: project.id, json: original, sourceId: first })).toMatchObject({ sourceChange: 'unknown', localChange: 'unknown' });
+    expect(() => compareTrelloIdea(store, { projectId: 'foreign', json: original, sourceId: first })).toThrow();
     store.close();
   });
 });

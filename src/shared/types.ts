@@ -72,10 +72,17 @@ export type CardQaPageCheck = 'not-run' | 'complete' | 'partial' | 'unavailable'
 export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; pageCheck: CardQaPageCheck; pageObservations: CardQaPageObservation[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number; gitEvidence: QaGitEvidence | null }
 export type CardQaViewport = 'desktop' | 'tablet' | 'mobile';
 export interface CardQaBatchResult { requested: number; reports: CardQaReport[]; error: string | null }
-export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listId: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null; importedIdeaId: string | null }
+export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listId: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null; importedIdeaId: string | null; sourceChange?: 'changed' | 'same' | 'unknown' }
 export interface TrelloImportPreview { fingerprint: string; boardName: string | null; cards: TrelloImportCard[]; total: number; eligible: number; duplicates: number }
 export interface TrelloImportResult { created: Card[]; skippedDuplicateIds: string[] }
 export interface TrelloIdeaImportResult { created: import('./ideas').Idea[]; skippedDuplicateIds: string[] }
+export interface TrelloIdeaComparison {
+  fingerprint: string; sourceId: string; ideaId: string; ideaCardId: string | null;
+  sourceTitle: string; sourceBody: string; localTitle: string; localBody: string;
+  baselineTitle: string | null; baselineBody: string | null; localUpdatedAt: string; localSignature: string;
+  sourceChange: 'changed' | 'same' | 'unknown'; localChange: 'changed' | 'same' | 'unknown';
+  eligible: boolean; reason: string | null;
+}
 export interface TrelloBoardSummary { id: string; name: string }
 export interface TrelloConnectionStatus { connected: boolean; memberName: string | null }
 export interface WorktreeReview { cardId: string; path: string; branch: string; targetPath: string; targetBranch: string | null; sourceHead: string; targetHead: string; sourceStatus: string[]; targetStatus: string[]; uncommittedStat: string; committedStat: string; ahead: number; behind: number; canFastForward: boolean; blockers: string[]; previewToken: string }
@@ -102,8 +109,12 @@ export interface StudioAPI {
   convertIdeaToCard(input: { projectId: string; ideaId: string; columnId: string }): Promise<Card>;
   previewTrelloIdeas(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloIdeas(input: { projectId: string; json: string; fingerprint: string; sourceIds: string[]; category: import('./ideas').IdeaCategory }): Promise<TrelloIdeaImportResult>;
+  compareTrelloIdea(input: { projectId: string; json: string; sourceId: string }): Promise<TrelloIdeaComparison>;
+  applyTrelloIdeaSource(input: { projectId: string; json: string; sourceId: string; fingerprint: string; localSignature: string; copyTitle: boolean; copyBody: boolean }): Promise<TrelloIdeaComparison>;
   previewTrelloBoardIdeas(input: { projectId: string; boardId: string }): Promise<TrelloImportPreview>;
   acceptTrelloBoardIdeas(input: { projectId: string; boardId: string; fingerprint: string; sourceIds: string[]; category: import('./ideas').IdeaCategory }): Promise<TrelloIdeaImportResult>;
+  compareTrelloBoardIdea(input: { projectId: string; boardId: string; sourceId: string }): Promise<TrelloIdeaComparison>;
+  applyTrelloBoardIdeaSource(input: { projectId: string; boardId: string; sourceId: string; fingerprint: string; localSignature: string; copyTitle: boolean; copyBody: boolean }): Promise<TrelloIdeaComparison>;
   whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
   themeTokens(projectId: string): Promise<ThemeTokenInventory>;
   previewThemeTokenEdit(input: { projectId: string; token: ThemeTokenDefinition; value: string }): Promise<ThemeTokenEditPreview>;
