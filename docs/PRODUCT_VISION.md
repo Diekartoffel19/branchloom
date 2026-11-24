@@ -8,6 +8,8 @@ Branchloom ist eine lokale Entwicklungszentrale: Ideen besprechen, als überprü
 
 Die App wird öffentlich und allgemein nutzbar. Persönlicher Jarvis-Assistent, private Module, Schlüssel, Browserprofile, Nutzerprojekte und Agentenprotokolle gehören nicht in dieses Repository. Das öffentliche Repository `mschr703/branchloom` gehört `mschr703`; `mschr703CODEX` erstellt die Entwicklungs-Commits und pusht sie. Bestehende lokale Daten aus dem früheren Jarvis Studio bleiben beim Namenswechsel zugänglich.
 
+Die Planung liegt im eigenen privaten [Branchloom-Trello-Board](https://trello.com/b/NSpkUo63/branchloom-produkt-roadmap). Die Karten S00–S03 wurden am 24.11.2026 vom Jarvis-Board dorthin verschoben. Das Jarvis-Board bleibt ausschließlich für den persönlichen Assistenten.
+
 ## Designrichtung
 
 Ruhige, präzise Werkstatt statt generischem AI-Dashboard: helle und dunkle neutrale Arbeitsflächen, ein sparsamer immergrüner Akzent, eine eigenständige gut lesbare Schrift und dichte, gut bedienbare Arbeitsflächen. Keine goldbraune Grundstimmung, dunkelblauen Hintergründe, Neonfarben, Glows, dekorativen Verläufe, Sparkle-Motive, Fake-Kennzahlen oder identischen Marketing-Karten. Vor UI-Änderungen den `anti-slop-design`-Skill lesen, echte Zustände und Tastaturpfade prüfen und die Oberfläche sichtbar kontrollieren. Der Skill ist ein Qualitätsmaßstab, kein Ersatz für Nutzerfeedback.
