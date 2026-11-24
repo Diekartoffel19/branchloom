@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { WireframeElement } from '../../src/shared/card-wireframe';
-import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent } from '../../src/renderer/components/wireframe-editing';
+import { moveWireframeLayer, resizeWireframeElement, sameWireframeContent, snapWireframePosition } from '../../src/renderer/components/wireframe-editing';
 
 const element = (id: string, x = 100, y = 100, width = 200, height = 80): WireframeElement => ({ id, kind: 'panel', text: '', tone: 'plain', x, y, width, height });
 
 describe('wireframe editor geometry and layer helpers', () => {
+  it('snaps dragged positions to 8 px while keeping the whole element on each artboard', () => {
+    expect(snapWireframePosition(67, 100, 960)).toBe(64);
+    expect(snapWireframePosition(69, 100, 960)).toBe(72);
+    expect(snapWireframePosition(-20, 100, 960)).toBe(0);
+    expect(snapWireframePosition(500, 80, 390)).toBe(310);
+    expect(snapWireframePosition(760, 80, 768)).toBe(688);
+  });
   it('resizes from the bottom right and keeps the element inside the fixed canvas', () => {
     const item = element('a', 900, 550, 40, 40);
     expect(resizeWireframeElement(item, 100, 100)).toMatchObject({ x: 900, y: 550, width: 60, height: 50 });

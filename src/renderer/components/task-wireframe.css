@@ -31,9 +31,18 @@
 .task-wireframe-canvas-wrap { min-width: 0; }
 .task-wireframe-canvas-wrap[data-artboard="tablet"] { max-width: 620px; }
 .task-wireframe-canvas-wrap[data-artboard="mobile"] { max-width: 390px; }
-.task-wireframe-canvas-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin: 0 0 7px; font-size: 11px; color: var(--muted); }
-.task-wireframe-canvas-head span:last-child { display: inline-flex; gap: 4px; align-items: center; }
-.task-wireframe-canvas { position: relative; width: 100%; aspect-ratio: 960 / 600; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 7px 20px color-mix(in srgb, var(--text) 8%, transparent); }
+.task-wireframe-canvas-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 7px; font-size: 11px; color: var(--muted); }
+.task-wireframe-view-controls { display: inline-flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.task-wireframe-view-controls button { min-width: 28px; min-height: 28px; padding: 4px 7px; }
+.task-wireframe-view-controls button[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); color: var(--text); }
+.task-wireframe-view-controls output { min-width: 40px; color: var(--text); text-align: center; font-variant-numeric: tabular-nums; }
+.task-wireframe-view-controls button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.task-wireframe-canvas-viewport { max-height: 640px; overflow: auto; padding: 2px; scrollbar-color: var(--border) transparent; }
+.task-wireframe-canvas-viewport:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.task-wireframe-canvas-scale { position: relative; }
+.task-wireframe-canvas-hint { display: flex; align-items: center; gap: 4px; margin: 7px 0 0; font-size: 11px; color: var(--muted); }
+.task-wireframe-canvas { position: relative; width: 100%; aspect-ratio: 960 / 600; overflow: hidden; transform-origin: top left; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 7px 20px color-mix(in srgb, var(--text) 8%, transparent); }
+.task-wireframe-canvas.has-grid { background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px); }
 .task-wireframe-element { position: absolute; display: flex; align-items: center; overflow: hidden; min-width: 0; min-height: 0; padding: 4px 7px; color: var(--text); border: 1px solid var(--border); border-radius: 4px; background: var(--surface); text-align: left; font-size: clamp(9px, 1.1vw, 13px); line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; touch-action: none; cursor: grab; }
 .task-wireframe-element:active { cursor: grabbing; }
 .task-wireframe-element.selected { outline: 2px solid var(--focus, var(--accent)); outline-offset: 1px; }

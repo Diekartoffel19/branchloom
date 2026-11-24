@@ -3,6 +3,11 @@ import { WIREFRAME_HEIGHT, WIREFRAME_WIDTH } from '../../shared/card-wireframe';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
+/** Snap the pointer result, then keep the full item inside the artboard. */
+export function snapWireframePosition(value: number, size: number, limit: number, grid = 8): number {
+  return clamp(Math.round(value / grid) * grid, 0, limit - size);
+}
+
 /** Compare visible content, independent of the key order returned by SQLite validation. */
 function sameElements(left: WireframeElement[], right: WireframeElement[]): boolean {
   if (left.length !== right.length) return false;
