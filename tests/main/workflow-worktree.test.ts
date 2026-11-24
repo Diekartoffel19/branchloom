@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { SessionRunner } from '../../src/main/cli';
 import { StudioStore } from '../../src/main/store';
 import { WorkflowEngine } from '../../src/main/workflows';
+import { globalInboxItems } from '../../src/main/global-inbox';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -100,8 +101,8 @@ describe('optional card worktree in workflow steps', () => {
     } finally { runner.dispose(); store.close(); }
   }, 30_000);
 
-  it('pauses before spawning on a non-Git project and preserves the worktree choice in queue clones', () => {
-    const { store, project, column, card, agent } = fixture(false);
+  it('persists a prelaunch Git error for review, then clears it only after a deliberate successful resume', async () => {
+    const { repository, dbPath, store, project, column, card, agent } = fixture(false);
     const template = store.createWorkflow({ projectId: project.id, name: 'Queue route', cardIds: [card.id], steps: [
       { id: 'execute', columnId: column.id, agentId: agent.id, requireApproval: false, useWorktree: true },
     ] });
@@ -114,8 +115,25 @@ describe('optional card worktree in workflow steps', () => {
     try {
       expect(() => engine.setState({ id: cloned.id, state: 'running' })).toThrow('Git-Repository');
       expect(store.workflow(cloned.id).state).toBe('paused');
+      expect(store.workflow(cloned.id).startError?.message).toContain('Git-Repository');
+      expect(globalInboxItems(store, { query: 'Git-Repository' }).items.some((item) => item.sourceId === cloned.id && item.detail.includes('Workflow-Start fehlgeschlagen'))).toBe(true);
       expect(store.latestSession(cloneCard.id)).toBeNull();
       expect(store.cardWorktree(cloneCard.id)).toBeNull();
     } finally { runner.dispose(); store.close(); }
-  });
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.workflow(cloned.id).startError?.message).toContain('Git-Repository');
+    git(repository, ['init', '-q']);
+    writeFileSync(join(repository, 'tracked.txt'), 'original\n');
+    git(repository, ['add', 'tracked.txt']);
+    git(repository, ['-c', 'user.name=Studio Test', '-c', 'user.email=studio-test@example.invalid', 'commit', '-qm', 'Initial']);
+    let resumedEngine!: WorkflowEngine;
+    const resumedRunner = new SessionRunner(reopened, () => undefined, (session, finalMessage) => resumedEngine.onSessionFinished(session, finalMessage));
+    resumedEngine = new WorkflowEngine(reopened, resumedRunner);
+    try {
+      resumedEngine.setState({ id: cloned.id, state: 'running' });
+      await waitFor(() => reopened.workflow(cloned.id).state === 'done');
+      expect(reopened.workflow(cloned.id).startError).toBeUndefined();
+      expect(reopened.snapshot(project.id).sessions.find((item) => item.cardId === cloneCard.id)?.worktreePath).toBe(reopened.cardWorktree(cloneCard.id)?.path);
+    } finally { resumedRunner.dispose(); reopened.close(); }
+  }, 30_000);
 });

@@ -107,7 +107,9 @@ export class WorkflowEngine {
           const prompt = `Work on the following card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}\n\nWhen you have finished this step and checked your work, make ${DONE_MARKER} the exact final line of your response. If blocked or incomplete, explain why and omit the marker.`;
           const session = this.runner.start({ cardId: card.id, agentId, prompt, mode: 'one-shot', useWorktree: step.useWorktree === true, overrides: { model: step.model ?? null, effort: step.effort ?? null } });
           this.store.beginWorkflowCard(id, workflow.currentStep, card.id, session.id);
+          this.store.clearWorkflowStartError(id);
         } catch (error) {
+          this.store.saveWorkflowStartError(id, error);
           this.store.setWorkflowState(id, 'paused');
           throw error;
         }

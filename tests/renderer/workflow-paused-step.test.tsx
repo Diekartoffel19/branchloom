@@ -41,4 +41,12 @@ describe('paused multi-step workflow view', () => {
     expect(done).not.toContain('Hier pausiert');
     expect(done).not.toContain('aria-current="step"');
   });
+
+  it('shows a persisted prelaunch error on the paused workflow', () => {
+    const failed = { ...workflow, pauseReason: 'user' as const, startError: { message: 'Kein Git-Repository gefunden', at } };
+    const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, workflows: [failed] }, mutate }));
+    expect(html).toContain('Start vor Agentenlauf fehlgeschlagen: Kein Git-Repository gefunden');
+    expect(html).toContain('bewussten Fortsetzung');
+    expect(html).toContain('Fortsetzen');
+  });
 });

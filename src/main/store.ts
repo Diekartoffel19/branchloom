@@ -86,6 +86,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS command_terminals (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, shell TEXT NOT NULL, state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS workflows (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, card_ids_json TEXT NOT NULL, steps_json TEXT NOT NULL, state TEXT NOT NULL, current_step INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_progress (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, session_id TEXT REFERENCES sessions(id), state TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index, card_id));
+      CREATE TABLE IF NOT EXISTS workflow_start_errors (workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE, message TEXT NOT NULL, failed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_step_approvals (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, approved_at TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index));
       CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT NOT NULL, tags_json TEXT NOT NULL, links_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
@@ -666,6 +667,8 @@ export class StudioStore {
   workflow(id: string): Workflow { return this.hydrateWorkflow(required(this.db.prepare('SELECT * FROM workflows WHERE id = ?').get(id) as WorkflowRow | undefined, 'Workflow not found')); }
   private hydrateWorkflow(row: WorkflowRow): Workflow {
     const value = workflow(row);
+    const startError = this.db.prepare('SELECT message, failed_at FROM workflow_start_errors WHERE workflow_id = ?').get(value.id) as { message: string; failed_at: string } | undefined;
+    if (startError) value.startError = { message: startError.message, at: startError.failed_at };
     const skip = this.db.prepare('SELECT reason, skipped_at FROM queue_run_skips WHERE workflow_id = ?').get(value.id) as { reason: string; skipped_at: string } | undefined;
     if (skip) value.queueSkip = { reason: skip.reason, at: skip.skipped_at };
     if (value.state !== 'paused') return value;
@@ -679,6 +682,14 @@ export class StudioStore {
           ? 'review'
           : 'user';
     return { ...value, pauseReason };
+  }
+  saveWorkflowStartError(id: string, reason: unknown): void {
+    this.workflow(id);
+    const message = (reason instanceof Error ? reason.message : String(reason)).replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 500) || 'Unbekannter Startfehler';
+    this.db.prepare('INSERT INTO workflow_start_errors (workflow_id, message, failed_at) VALUES (?, ?, ?) ON CONFLICT(workflow_id) DO UPDATE SET message=excluded.message, failed_at=excluded.failed_at').run(id, message, now());
+  }
+  clearWorkflowStartError(id: string): void {
+    this.db.prepare('DELETE FROM workflow_start_errors WHERE workflow_id = ?').run(id);
   }
   private validatedWorkflowSteps(projectId: string, steps: WorkflowStep[]): WorkflowStep[] {
     return steps.map((step) => {

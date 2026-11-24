@@ -31,9 +31,11 @@ export function globalInboxItems(store: StudioStore, input: GlobalInboxQuery = {
         ELSE 'paused' END AS category,
       p.id AS project_id, p.name AS project_name, w.id AS source_id,
       substr(w.name, 1, 160) AS title,
-      'Workflow ist pausiert; Verlauf vor Fortsetzung prüfen.' AS detail, w.updated_at AS recorded_at
+      CASE WHEN start_error.message IS NOT NULL THEN 'Workflow-Start fehlgeschlagen: ' || substr(start_error.message, 1, 300)
+        ELSE 'Workflow ist pausiert; Verlauf vor Fortsetzung prüfen.' END AS detail, w.updated_at AS recorded_at
     FROM workflows w JOIN projects p ON p.id = w.project_id
     LEFT JOIN queue_run_skips skipped ON skipped.workflow_id = w.id
+    LEFT JOIN workflow_start_errors start_error ON start_error.workflow_id = w.id
     WHERE w.state = 'paused' AND skipped.workflow_id IS NULL
     UNION ALL
     SELECT 'queue:' || q.project_id, 'queue', 'paused',
