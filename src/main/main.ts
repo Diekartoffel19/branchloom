@@ -57,6 +57,8 @@ if (smokeDataDirectory) {
   writeFileSync(join(smokeDataDirectory, 'src', 'widget.ts'), 'export const widget = 1;');
   writeFileSync(join(smokeDataDirectory, 'screen.ts'), "import './src/widget';");
   writeFileSync(join(smokeDataDirectory, 'src', 'theme.css'), ':root { --smoke-ink: #243b32; }\n');
+  writeFileSync(join(smokeDataDirectory, 'page.ts'), "import './screen';");
+  writeFileSync(join(smokeDataDirectory, 'app.ts'), "import './page';");
 } else if (devDataDirectory) {
   if (!isAbsolute(devDataDirectory)) throw new Error('BRANCHLOOM_DEV_USER_DATA muss ein absoluter Pfad sein.');
   mkdirSync(devDataDirectory, { recursive: true });
@@ -446,6 +448,7 @@ function createWindow(): void {
           await window.studio.createWhiteboardEdge({ projectId: project.id, sourceId: wbFolder.id, targetId: wbCard.id, label: 'gehört zu' });
           const directImpact = await window.studio.whiteboardImpact({ projectId: project.id, nodeId: wbFolder.id });
           if (directImpact.partial || directImpact.importers.length !== 1 || directImpact.importers[0].path !== 'screen.ts') throw new Error('Whiteboard-Änderungswirkung über IPC fehlt.');
+          if (directImpact.transitiveImporters.length !== 2 || directImpact.transitiveImporters[0].path !== 'page.ts' || directImpact.transitiveImporters[0].chain[0].line !== 1 || directImpact.transitiveImporters[1].path !== 'app.ts') throw new Error('Whiteboard-Importkette über IPC fehlt.');
           await window.studio.reorderColumn({ id: initial.columns[1].id, direction: 'right' });
           await window.studio.updateColumn({ id: initial.columns[2].id, name: 'Smoke-Umbenannt' });
           const removable = await window.studio.createColumn({ projectId: project.id, name: 'Smoke-Leer' });
@@ -567,6 +570,7 @@ function createWindow(): void {
               impactButton.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-impact-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.wb-impact-result')?.textContent?.includes('screen.ts:1')) throw new Error('Whiteboard-Importbeleg fehlt im Inspector.');
+              if (!document.querySelector('.wb-impact-result')?.textContent?.includes('page.ts:1') || !document.querySelector('.wb-impact-result')?.textContent?.includes('app.ts:1')) throw new Error('Whiteboard-Importkette fehlt im Inspector.');
               if (!document.querySelector('.wb-impact-result')?.textContent?.includes('Bezug: Ordner src')) throw new Error('Whiteboard-Importbeleg zeigt keinen geprüften Bezug.');
               const impactSessionsBefore = (await window.studio.snapshot(boardProject.id)).sessions.length;
               const impactDraftButton = document.querySelector('.wb-impact-result button[aria-label^="Kartenentwurf aus Import"]');

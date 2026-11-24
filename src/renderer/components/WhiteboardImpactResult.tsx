@@ -5,6 +5,10 @@ export function WhiteboardImpactResult({ impact, onDraft }: { impact: Whiteboard
     <small>Bezug: {impact.referenceKind === 'file' ? 'Datei' : 'Ordner'} <code>{impact.referencePath}</code></small>
     <small>{impact.scannedFiles} Dateien geprüft · {impact.partial ? 'Unvollständige Prüfung' : 'Prüfung innerhalb der Grenzen abgeschlossen'}</small>
     {impact.importers.length ? <ol>{impact.importers.map((item, index) => <li key={`${item.path}-${item.line}-${index}`}><code>{item.path}:{item.line}</code><span>→ {item.targetPath}</span>{onDraft ? <button className="secondary-button" type="button" aria-label={`Kartenentwurf aus Import ${item.path} Zeile ${item.line}`} onClick={(event) => onDraft(item, event.currentTarget)}>Kartenentwurf</button> : null}</li>)}</ol> : <p>Keine direkte relative Importstelle im untersuchten Teil gefunden.</p>}
+    <strong>Indirekte Importpfade (bis 3 Schritte): {impact.transitiveImporters.length}</strong>
+    {impact.transitiveImporters.length ? <ol>{impact.transitiveImporters.map((item) => <li key={item.path}>
+      <span>{item.depth} Schritte: </span>{item.chain.map((edge, index) => <span key={`${edge.path}-${edge.line}`}><code>{edge.path}:{edge.line}</code> → {index === item.chain.length - 1 ? <code>{edge.targetPath}</code> : null}</span>)}
+    </li>)}</ol> : <p>Keine indirekte relative Importkette im untersuchten Teil gefunden.</p>}
     {impact.notes.map((note) => <p className="wb-impact-note" key={note}>{note}</p>)}
   </div>;
 }

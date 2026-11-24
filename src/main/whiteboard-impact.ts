@@ -1,7 +1,7 @@
 import { closeSync, fstatSync, lstatSync, openSync, opendirSync, readSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep, dirname, extname } from 'node:path';
-import type { WhiteboardImpact, WhiteboardDirectImporter } from '../shared/whiteboard-impact';
+import type { WhiteboardImpact, WhiteboardDirectImporter, WhiteboardTransitiveImporter } from '../shared/whiteboard-impact';
 import type { WhiteboardNode } from '../shared/types';
 import type { Card } from '../shared/types';
 import type { StudioStore } from './store';
@@ -15,6 +15,9 @@ const MAX_ENTRIES = 10000;
 const MAX_FILE_BYTES = 256 * 1024;
 const MAX_TOTAL_BYTES = 8 * 1024 * 1024;
 const MAX_IMPORTERS = 50;
+const MAX_GRAPH_EDGES = 5000;
+const MAX_TRANSITIVE_IMPORTERS = 50;
+const MAX_IMPORT_DEPTH = 3;
 const MAX_MS = 3000;
 const within = (root: string, path: string): boolean => {
   const rel = relative(root, path);
@@ -167,11 +170,14 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
   const listing = sourceFiles(root);
   const known = new Set(listing.files);
   const importers: WhiteboardDirectImporter[] = [];
+  const inbound = new Map<string, WhiteboardDirectImporter[]>();
   const notes = [...listing.notes];
   let partial = listing.partial;
   let scannedFiles = 0;
   let totalBytes = 0;
   let importerLimitNoted = false;
+  let graphEdges = 0;
+  let graphLimitNoted = false;
   const started = Date.now();
   for (const file of listing.files) {
     if (Date.now() - started > MAX_MS || totalBytes >= MAX_TOTAL_BYTES) { partial = true; notes.push('Zeit- oder Leselimit erreicht; weitere Dateien wurden nicht untersucht.'); break; }
@@ -185,6 +191,19 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
       scannedFiles++;
       for (const item of importsOf(source.text)) {
         const resolved = resolveImport(file, item.specifier, known);
+        if (resolved) {
+          if (graphEdges < MAX_GRAPH_EDGES) {
+            const edge = { path: display(root, file), targetPath: display(root, resolved), specifier: item.specifier, line: item.line, sourceFingerprint: source.fingerprint };
+            const existing = inbound.get(edge.targetPath) ?? [];
+            existing.push(edge);
+            inbound.set(edge.targetPath, existing);
+            graphEdges++;
+          } else if (!graphLimitNoted) {
+            partial = true;
+            graphLimitNoted = true;
+            notes.push('Importgraph auf 5.000 belegte Kanten begrenzt; indirekte Treffer können fehlen.');
+          }
+        }
         if (resolved && (resolved === target || (node.reference.kind === 'folder' && within(target, resolved)))) {
           if (importers.length < MAX_IMPORTERS) importers.push({ path: display(root, file), targetPath: display(root, resolved), specifier: item.specifier, line: item.line, sourceFingerprint: source.fingerprint });
           else if (!importerLimitNoted) { partial = true; importerLimitNoted = true; notes.push('Mehr als 50 direkte Importstellen gefunden; Liste gekürzt.'); }
@@ -192,9 +211,38 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
       }
     } catch { partial = true; notes.push('Mindestens eine Datei konnte nicht gelesen werden.'); }
   }
-  notes.push('Heuristik: nur einzeilige, literale relative TS/JS-Imports, Exports und require; keine Aliase, dynamischen oder indirekten Abhängigkeiten.');
+  const selected = listing.files.filter((file) => file === target || (node.reference.kind === 'folder' && within(target, file))).map((file) => display(root, file));
+  const visited = new Set(selected);
+  let frontier = selected.map((path) => ({ path, chain: [] as WhiteboardDirectImporter[] }));
+  const transitiveImporters: WhiteboardTransitiveImporter[] = [];
+  let depthLimitReached = false;
+  let transitiveLimitNoted = false;
+  for (let depth = 1; depth <= MAX_IMPORT_DEPTH; depth++) {
+    const next: typeof frontier = [];
+    for (const current of frontier) {
+      for (const edge of inbound.get(current.path) ?? []) {
+        if (visited.has(edge.path)) continue;
+        visited.add(edge.path);
+        const chain = [edge, ...current.chain];
+        if (depth >= 2) {
+          if (transitiveImporters.length < MAX_TRANSITIVE_IMPORTERS) transitiveImporters.push({ path: edge.path, depth, chain });
+          else if (!transitiveLimitNoted) {
+            partial = true;
+            transitiveLimitNoted = true;
+            notes.push('Mehr als 50 indirekte Importpfade gefunden; Liste gekürzt.');
+          }
+        }
+        next.push({ path: edge.path, chain });
+      }
+    }
+    if (depth === MAX_IMPORT_DEPTH && next.some((item) => (inbound.get(item.path) ?? []).some((edge) => !visited.has(edge.path)))) depthLimitReached = true;
+    frontier = next;
+    if (!frontier.length) break;
+  }
+  if (depthLimitReached) { partial = true; notes.push('Weitere Importpfade jenseits von 3 Schritten vorhanden; hier nicht aufgelöst.'); }
+  notes.push('Heuristik: nur einzeilige, literale relative TS/JS-Imports, Exports und require; keine Aliase, dynamischen Imports oder Laufzeitaufrufe. Höchstens 3 Importschritte; keine vollständige Abhängigkeitsanalyse.');
   return { nodeId: node.id, referencePath: display(root, target) || '.', referenceKind: node.reference.kind, scannedFiles, importers,
-    partial, notes: [...new Set(notes)] };
+    transitiveImporters, partial, notes: [...new Set(notes)] };
 }
 
 export interface CreateCardFromWhiteboardImpact {

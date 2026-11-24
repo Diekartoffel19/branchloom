@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { StudioStore } from '../../src/main/store';
 import { createWhiteboardNode, deleteWhiteboardNode } from '../../src/main/whiteboard';
 import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from '../../src/main/whiteboard-impact';
@@ -25,6 +26,34 @@ function fixture() {
 }
 
 describe('whiteboard direct-import impact', () => {
+  it('traces bounded shortest import chains in a synthetic Git project with exact edge lines', () => {
+    const { repo, store, project, file } = fixture();
+    file('src/ui/Button.tsx', 'export const Button = 1;');
+    file('src/ui/index.ts', "// barrel\nexport { Button } from './Button';");
+    file('src/App.tsx', "// app\nimport { Button } from './ui';\nimport './page';");
+    file('src/page.tsx', "// page\nimport './App';");
+    file('src/root.tsx', "import './page';");
+    file('src/alias.tsx', "import '@/ui/Button';");
+    execFileSync('git', ['init', '-q', repo]);
+    execFileSync('git', ['-C', repo, 'add', '.']);
+    execFileSync('git', ['-C', repo, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'synthetic fixture']);
+    const button = createWhiteboardNode(store, { projectId: project.id, title: 'Button', x: 0, y: 0, reference: { kind: 'file', path: 'src/ui/Button.tsx' } });
+    const fileImpact = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: button.id });
+    expect(fileImpact.importers).toMatchObject([{ path: 'src/ui/index.ts', line: 2, targetPath: 'src/ui/Button.tsx' }]);
+    expect(fileImpact.transitiveImporters).toMatchObject([
+      { path: 'src/App.tsx', depth: 2, chain: [{ path: 'src/App.tsx', line: 2, targetPath: 'src/ui/index.ts' }, { path: 'src/ui/index.ts', line: 2, targetPath: 'src/ui/Button.tsx' }] },
+      { path: 'src/page.tsx', depth: 3, chain: [{ path: 'src/page.tsx', line: 2, targetPath: 'src/App.tsx' }, { path: 'src/App.tsx', line: 2, targetPath: 'src/ui/index.ts' }, { path: 'src/ui/index.ts', line: 2, targetPath: 'src/ui/Button.tsx' }] },
+    ]);
+    expect(fileImpact.transitiveImporters.some((item) => item.path === 'src/root.tsx' || item.path === 'src/alias.tsx')).toBe(false);
+    expect(fileImpact.partial).toBe(true);
+    expect(fileImpact.notes.join(' ')).toContain('jenseits von 3 Schritten');
+    const folder = createWhiteboardNode(store, { projectId: project.id, title: 'UI', x: 0, y: 0, reference: { kind: 'folder', path: 'src/ui' } });
+    const folderImpact = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: folder.id });
+    expect(folderImpact.importers).toMatchObject([{ path: 'src/App.tsx', line: 2, targetPath: 'src/ui/index.ts' }]);
+    expect(folderImpact.transitiveImporters.map((item) => item.path)).toEqual(['src/page.tsx', 'src/root.tsx']);
+    expect(folderImpact.transitiveImporters[0]).toMatchObject({ path: 'src/page.tsx', depth: 2, chain: [{ path: 'src/page.tsx', line: 2 }, { path: 'src/App.tsx', line: 2 }] });
+    store.close();
+  });
   it('creates an explicit editable card with durable source provenance and no agent session', () => {
     const { root, store, project, file } = fixture();
     file('src/ui/Button.tsx', 'export const Button = 1;');
