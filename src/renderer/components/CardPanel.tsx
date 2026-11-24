@@ -48,7 +48,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
   useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
@@ -83,16 +83,17 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
   }
 
   async function reviewWorktree() {
-    cleanupRequest.current += 1;
+    const request = ++cleanupRequest.current;
     setWorktreeBusy(true); setWorktreeError(''); setCleanupPreview(undefined);
     try {
       const review = await window.studio.reviewCardWorktree(card.id);
+      if (request !== cleanupRequest.current) return;
       setWorktreeReview(review);
       if (review) await reviewConflicts();
       else setConflictRadar(null);
     }
-    catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setWorktreeBusy(false); }
+    catch (reason) { if (request === cleanupRequest.current) setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { if (request === cleanupRequest.current) setWorktreeBusy(false); }
   }
 
   async function checkCleanup() {
@@ -103,7 +104,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusRe
       if (request === cleanupRequest.current) setCleanupPreview(preview);
     }
     catch (reason) { if (request === cleanupRequest.current) setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setWorktreeBusy(false); }
+    finally { if (request === cleanupRequest.current) setWorktreeBusy(false); }
   }
 
   async function reviewConflicts() {
