@@ -21,6 +21,7 @@ const studio: StudioAPI = {
   convertIdeaToCard: (input) => invoke('convertIdeaToCard', input),
   whiteboard: (projectId) => invoke('whiteboard', projectId),
   whiteboardImpact: (input) => invoke('whiteboardImpact', input),
+  createCardFromWhiteboardImpact: (input) => invoke('createCardFromWhiteboardImpact', input),
   previewRepoMap: (projectId) => invoke('previewRepoMap', projectId),
   acceptRepoMap: (input) => invoke('acceptRepoMap', input),
   createWhiteboardNode: (input) => invoke('createWhiteboardNode', input),

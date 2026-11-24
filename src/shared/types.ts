@@ -5,7 +5,7 @@ import type { ChangelogPeriod, ProjectChangelog } from './changelog';
 import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
 import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
-import type { WhiteboardImpact } from './whiteboard-impact';
+import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -77,6 +77,7 @@ export interface StudioAPI {
   convertIdeaToCard(input: { projectId: string; ideaId: string; columnId: string }): Promise<Card>;
   whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
   whiteboardImpact(input: { projectId: string; nodeId: string }): Promise<WhiteboardImpact>;
+  createCardFromWhiteboardImpact(input: { projectId: string; nodeId: string; referencePath: string; site: WhiteboardDirectImporter; columnId: string; title: string; description: string }): Promise<Card>;
   previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;
   acceptRepoMap(input: { projectId: string; fingerprint: string; nodeIds: string[] }): Promise<import('./repo-map').RepoMapImportResult>;
   createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;

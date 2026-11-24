@@ -25,7 +25,7 @@ import { exportMemoryVaultToDirectory } from './memory-vault';
 import { scanMemoryVault } from './memory-vault-import';
 import { StudioStore } from './store';
 import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
-import { analyzeWhiteboardImpact } from './whiteboard-impact';
+import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './whiteboard-impact';
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
@@ -158,6 +158,7 @@ function installIpc(): void {
   bind('convertIdeaToCard', (input: Parameters<StudioAPI['convertIdeaToCard']>[0]) => convertIdeaToCard(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
   bind('whiteboardImpact', (input: Parameters<StudioAPI['whiteboardImpact']>[0]) => analyzeWhiteboardImpact(db, input));
+  bind('createCardFromWhiteboardImpact', (input: Parameters<StudioAPI['createCardFromWhiteboardImpact']>[0]) => createCardFromWhiteboardImpact(db, input));
   bind('previewRepoMap', (projectId: string) => previewRepoMap(db, projectId));
   bind('acceptRepoMap', (input: Parameters<StudioAPI['acceptRepoMap']>[0]) => acceptRepoMap(db, input));
   bind('createWhiteboardNode', (input: Parameters<StudioAPI['createWhiteboardNode']>[0]) => createWhiteboardNode(db, input));
@@ -539,6 +540,46 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-impact-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.wb-impact-result')?.textContent?.includes('screen.ts:1')) throw new Error('Whiteboard-Importbeleg fehlt im Inspector.');
               if (!document.querySelector('.wb-impact-result')?.textContent?.includes('Bezug: Ordner src')) throw new Error('Whiteboard-Importbeleg zeigt keinen geprüften Bezug.');
+              const impactSessionsBefore = (await window.studio.snapshot(boardProject.id)).sessions.length;
+              const impactDraftButton = document.querySelector('.wb-impact-result button[aria-label^="Kartenentwurf aus Import"]');
+              if (!impactDraftButton) throw new Error('Whiteboard-Importbeleg bietet keinen Kartenentwurf.');
+              impactDraftButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('form[aria-label="Karte aus Importbeleg"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const impactForm = document.querySelector('form[aria-label="Karte aus Importbeleg"]');
+              if (!impactForm?.querySelector('input') || !impactForm?.querySelector('textarea') || !impactForm.textContent?.includes('screen.ts:1')) throw new Error('Editierbarer Whiteboard-Import-Kartenentwurf fehlt.');
+              const impactSubmit = impactForm.querySelector('button[type="submit"]');
+              if (!impactSubmit || impactSubmit.disabled) throw new Error('Whiteboard-Import-Kartenentwurf konnte nicht bestätigt werden.');
+              impactSubmit.click();
+              let impactCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                impactCard = (await window.studio.snapshot(boardProject.id)).cards.find((item) => item.title.includes('Änderung an src/widget.ts prüfen'));
+                if (impactCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!impactCard?.description.includes('Whiteboard-Importbezug:') || !impactCard.description.includes('screen.ts:1 importiert src/widget.ts')) throw new Error('Whiteboard-Import-Karte ohne geprüften Quellenbezug.');
+              if ((await window.studio.snapshot(boardProject.id)).sessions.length !== impactSessionsBefore) throw new Error('Whiteboard-Import-Karte startete einen Agenten.');
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-drawer')) throw new Error('Neue Whiteboard-Import-Karte wurde nicht geöffnet.');
+              document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
+              whiteboardNav.click();
+              let folderAfterCard;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                folderAfterCard = [...document.querySelectorAll('.wb-node')].find((item) => item.textContent?.includes('Smoke-Ordner'));
+                if (folderAfterCard) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!folderAfterCard) throw new Error('Whiteboard nach Kartenanlage nicht erreichbar.');
+              folderAfterCard.click();
+              let impactButtonAgain;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                impactButtonAgain = [...document.querySelectorAll('.wb-impact button')].find((item) => item.textContent?.includes('Direkte Imports prüfen'));
+                if (impactButtonAgain && !impactButtonAgain.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!impactButtonAgain || impactButtonAgain.disabled) throw new Error('Whiteboard-Importprüfung nach Kartenanlage fehlt.');
+              impactButtonAgain.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-impact-result'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.wb-impact-result')) throw new Error('Whiteboard-Importprüfung nach Kartenanlage ohne Ergebnis.');
               const pathInput = [...document.querySelectorAll('.wb-inspector label')].find((item) => item.textContent?.includes('Relativer Ordnerpfad'))?.querySelector('input');
               const pathSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
               if (!pathInput || !pathSetter) throw new Error('Whiteboard-Pfadeditor fehlt.');

@@ -1,7 +1,9 @@
 import { closeSync, fstatSync, lstatSync, openSync, opendirSync, readSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep, dirname, extname } from 'node:path';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from '../shared/whiteboard-impact';
 import type { WhiteboardNode } from '../shared/types';
+import type { Card } from '../shared/types';
 import type { StudioStore } from './store';
 import { whiteboardSnapshot } from './whiteboard';
 
@@ -77,7 +79,7 @@ function sourceFiles(root: string): { files: string[]; notes: string[]; partial:
   return { files: files.sort((a, b) => a.localeCompare(b)), notes: [...new Set(notes)], partial };
 }
 
-function readSource(root: string, file: string, budget: number): { text: string; bytes: number } | null {
+function readSource(root: string, file: string, budget: number): { text: string; bytes: number; fingerprint: string } | null {
   const before = lstatSync(file);
   if (!before.isFile() || before.size > MAX_FILE_BYTES || before.size > budget || !within(root, realpathSync(file))) return null;
   const fd = openSync(file, 'r');
@@ -92,7 +94,7 @@ function readSource(root: string, file: string, budget: number): { text: string;
       bytes += read;
     }
     if (bytes > MAX_FILE_BYTES || bytes > budget) return null;
-    return { text: buffer.toString('utf8', 0, bytes), bytes };
+    return { text: buffer.toString('utf8', 0, bytes), bytes, fingerprint: createHash('sha256').update(buffer.subarray(0, bytes)).digest('hex') };
   } finally { closeSync(fd); }
 }
 
@@ -184,7 +186,7 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
       for (const item of importsOf(source.text)) {
         const resolved = resolveImport(file, item.specifier, known);
         if (resolved && (resolved === target || (node.reference.kind === 'folder' && within(target, resolved)))) {
-          if (importers.length < MAX_IMPORTERS) importers.push({ path: display(root, file), targetPath: display(root, resolved), specifier: item.specifier, line: item.line });
+          if (importers.length < MAX_IMPORTERS) importers.push({ path: display(root, file), targetPath: display(root, resolved), specifier: item.specifier, line: item.line, sourceFingerprint: source.fingerprint });
           else if (!importerLimitNoted) { partial = true; importerLimitNoted = true; notes.push('Mehr als 50 direkte Importstellen gefunden; Liste gekürzt.'); }
         }
       }
@@ -193,4 +195,41 @@ export function analyzeWhiteboardImpact(store: StudioStore, input: { projectId: 
   notes.push('Heuristik: nur einzeilige, literale relative TS/JS-Imports, Exports und require; keine Aliase, dynamischen oder indirekten Abhängigkeiten.');
   return { nodeId: node.id, referencePath: display(root, target) || '.', referenceKind: node.reference.kind, scannedFiles, importers,
     partial, notes: [...new Set(notes)] };
+}
+
+export interface CreateCardFromWhiteboardImpact {
+  projectId: string;
+  nodeId: string;
+  referencePath: string;
+  site: WhiteboardDirectImporter;
+  columnId: string;
+  title: string;
+  description: string;
+}
+
+/** A user-confirmed task from a freshly verified import site. Never starts an agent or advances the queue. */
+export function createCardFromWhiteboardImpact(store: StudioStore, input: CreateCardFromWhiteboardImpact): Card {
+  if (!input || typeof input.projectId !== 'string' || typeof input.nodeId !== 'string' || !input.site || typeof input.site !== 'object') throw new Error('Importbeleg ist ungültig.');
+  if (typeof input.referencePath !== 'string' || typeof input.site.path !== 'string' || typeof input.site.targetPath !== 'string' ||
+      typeof input.site.specifier !== 'string' || typeof input.site.line !== 'number' || typeof input.site.sourceFingerprint !== 'string') throw new Error('Importbeleg ist ungültig.');
+  const current = analyzeWhiteboardImpact(store, { projectId: input.projectId, nodeId: input.nodeId });
+  if (current.referencePath !== input.referencePath || !current.importers.some((site) => site.path === input.site.path && site.targetPath === input.site.targetPath &&
+      site.specifier === input.site.specifier && site.line === input.site.line && site.sourceFingerprint === input.site.sourceFingerprint)) {
+    throw new Error('Importbeleg ist veraltet. Direkte Imports erneut prüfen.');
+  }
+  const node = whiteboardSnapshot(store, input.projectId).nodes.find((item) => item.id === input.nodeId);
+  if (!node) throw new Error('Whiteboard-Box nicht gefunden.');
+  const column = store.column(input.columnId);
+  if (column.projectId !== input.projectId) throw new Error('Zielspalte gehört nicht zu diesem Projekt.');
+  if (column.autoStart) throw new Error('Für diesen Entwurf eine Spalte ohne automatischen Agentenstart wählen.');
+  if (store.projectQueue(input.projectId).state === 'running') throw new Error('Warteschlange vor dem Anlegen einer Whiteboard-Karte pausieren.');
+  if (typeof input.description !== 'string') throw new Error('Auftrag muss Text sein.');
+  const body = input.description.trim();
+  const origin = `Whiteboard-Importbezug: Box ${node.title.replace(/\s+/g, ' ').trim()} (${node.id}; ${current.referenceKind} ${current.referencePath}) · ${input.site.path}:${input.site.line} importiert ${input.site.targetPath} über ${input.site.specifier}`;
+  return store.db.transaction(() => {
+    const card = store.createCard({ projectId: input.projectId, columnId: column.id, title: input.title, description: body ? `${body}\n\n${origin}` : origin });
+    store.db.prepare(`INSERT INTO whiteboard_import_cards (card_id, project_id, node_id, source_path, target_path, source_line, specifier, source_fingerprint, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(card.id, input.projectId, node.id, input.site.path, input.site.targetPath, input.site.line, input.site.specifier, input.site.sourceFingerprint, new Date().toISOString());
+    return card;
+  })();
 }

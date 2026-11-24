@@ -3,7 +3,7 @@ import { ReactFlow, Background, Controls, MiniMap, useNodesState, type Connectio
 import { FolderTree, Link2, Plus, Trash2 } from 'lucide-react';
 import type { ProjectSnapshot, WhiteboardNode, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
 import type { RepoMapProposal, RepoMapImportResult } from '../../shared/repo-map';
-import type { WhiteboardImpact } from '../../shared/whiteboard-impact';
+import type { WhiteboardDirectImporter, WhiteboardImpact } from '../../shared/whiteboard-impact';
 import type { Mutate } from './shared';
 import { RepoMapPreview } from './RepoMapPreview';
 import { WhiteboardImpactResult } from './WhiteboardImpactResult';
@@ -12,6 +12,7 @@ import './whiteboard.css';
 
 type EditDraft = { title: string; description: string; referenceKind: 'none' | 'card' | 'folder' | 'file'; cardId: string; folderPath: string };
 type CardDraft = { title: string; description: string; columnId: string };
+type ImpactCardDraft = CardDraft & { site: WhiteboardDirectImporter; nodeId: string; referencePath: string };
 const emptyDraft = (): EditDraft => ({ title: '', description: '', referenceKind: 'none', cardId: '', folderPath: '' });
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
 const referenceSummary = (node: WhiteboardNode | undefined, snapshot: ProjectSnapshot): string => {
@@ -53,7 +54,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
   const [impact, setImpact] = useState<WhiteboardImpact | null>(null);
   const [impactBusy, setImpactBusy] = useState(false);
   const [impactError, setImpactError] = useState('');
+  const [impactCardDraft, setImpactCardDraft] = useState<ImpactCardDraft | null>(null);
   const impactRequest = useRef(0);
+  const impactTitleRef = useRef<HTMLInputElement | null>(null);
+  const impactReturnFocus = useRef<HTMLButtonElement | null>(null);
   const flowApi = useRef<ReactFlowInstance<Node, Edge> | null>(null);
   const latestProjectId = useRef(projectId);
   latestProjectId.current = projectId;
@@ -71,7 +75,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     setCardDraft(null);
     setBoard({ nodes: [], edges: [] });
     setMapProposal(null); setMapError(''); setMapResult(null); setMapBusy(false);
-    impactRequest.current++; setImpact(null); setImpactError(''); setImpactBusy(false);
+    impactRequest.current++; setImpact(null); setImpactError(''); setImpactBusy(false); setImpactCardDraft(null);
     window.studio.whiteboard(projectId).then((next) => { if (live) setBoard(next); })
       .catch((reason: unknown) => { if (live) setError(message(reason)); })
       .finally(() => { if (live) setLoading(false); });
@@ -101,22 +105,51 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
   useEffect(() => { setDraft(selectedNode ? draftOf(selectedNode) : emptyDraft()); }, [selectedNode?.id]);
   useEffect(() => {
     impactRequest.current++;
-    setImpact(null); setImpactError(''); setImpactBusy(false);
+    setImpact(null); setImpactError(''); setImpactBusy(false); setImpactCardDraft(null);
   }, [selectedNode?.id, selectedNode?.reference?.kind, selectedNode?.reference?.kind === 'file' || selectedNode?.reference?.kind === 'folder' ? selectedNode.reference.path : null]);
   useEffect(() => {
     impactRequest.current++;
-    setImpact(null); setImpactError(''); setImpactBusy(false);
+    setImpact(null); setImpactError(''); setImpactBusy(false); setImpactCardDraft(null);
   }, [draft.referenceKind, draft.folderPath]);
+
+  useEffect(() => { if (impactCardDraft) impactTitleRef.current?.focus(); }, [impactCardDraft?.site.path, impactCardDraft?.site.line]);
 
   async function inspectImpact() {
     if (!selectedNode || (selectedNode.reference?.kind !== 'file' && selectedNode.reference?.kind !== 'folder')) return;
     const request = ++impactRequest.current;
-    setImpactBusy(true); setImpactError(''); setImpact(null);
+    setImpactBusy(true); setImpactError(''); setImpact(null); setImpactCardDraft(null);
     try {
       const result = await window.studio.whiteboardImpact({ projectId, nodeId: selectedNode.id });
       if (request === impactRequest.current && latestProjectId.current === projectId) setImpact(result);
     } catch (reason) { if (request === impactRequest.current && latestProjectId.current === projectId) setImpactError(message(reason)); }
     finally { if (request === impactRequest.current && latestProjectId.current === projectId) setImpactBusy(false); }
+  }
+
+  function suggestImpactCard(site: WhiteboardDirectImporter, button: HTMLButtonElement) {
+    if (!impact || !selectedNode || selectedNode.id !== impact.nodeId) return;
+    const safeColumns = snapshot.columns.filter((column) => !column.autoStart);
+    const todo = safeColumns.find((column) => column.name.trim().toLocaleLowerCase('de-DE') === 'to do');
+    impactReturnFocus.current = button;
+    setImpactCardDraft({ site, nodeId: impact.nodeId, referencePath: impact.referencePath,
+      title: `Änderung an ${site.targetPath} prüfen`.slice(0, 200), description: '', columnId: (todo ?? safeColumns[0])?.id ?? '' });
+  }
+
+  async function createImpactCard(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!impactCardDraft || busy || snapshot.queue.state === 'running') return;
+    setBusy(true); setImpactError('');
+    try {
+      const created = await mutate(() => window.studio.createCardFromWhiteboardImpact({ projectId, ...impactCardDraft }));
+      if (!created || latestProjectId.current !== projectId) return;
+      setImpactCardDraft(null);
+      onOpenCard(created.id);
+    } catch (reason) {
+      if (latestProjectId.current === projectId) {
+        const detail = message(reason);
+        setImpactError(detail);
+        if (detail.includes('veraltet')) { setImpact(null); setImpactCardDraft(null); }
+      }
+    } finally { if (latestProjectId.current === projectId) setBusy(false); }
   }
 
   async function run(action: () => Promise<unknown>): Promise<void> {
@@ -228,7 +261,18 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
             <button className="secondary-button" type="button" disabled={impactBusy || busy || draft.referenceKind !== selectedNode.reference.kind || draft.folderPath !== selectedNode.reference.path} onClick={() => void inspectImpact()}>{impactBusy ? 'Prüfe Imports…' : 'Direkte Imports prüfen'}</button>
             {draft.referenceKind !== selectedNode.reference.kind || draft.folderPath !== selectedNode.reference.path ? <p className="wb-impact-note">Verknüpfung zuerst speichern.</p> : null}
             {impactError ? <p className="wb-impact-error" role="alert">{impactError}</p> : null}
-            {impact ? <WhiteboardImpactResult impact={impact} /> : null}
+            {impact ? <WhiteboardImpactResult impact={impact} onDraft={suggestImpactCard} /> : null}
+            {impactCardDraft && impact?.nodeId === impactCardDraft.nodeId ? <form className="wb-card-form wb-impact-card-form" aria-label="Karte aus Importbeleg" onSubmit={(event) => void createImpactCard(event)}>
+              <h4>Kartenentwurf</h4><p>Beleg: <code>{impactCardDraft.site.path}:{impactCardDraft.site.line}</code> → <code>{impactCardDraft.site.targetPath}</code></p>
+              <p className="wb-impact-note">Der Beleg wird vor der Anlage erneut geprüft. Erst der Klick auf „Karte anlegen“ speichert die Aufgabe; ein Agent startet dadurch nicht.</p>
+              <label>Kartentitel<input ref={impactTitleRef} required maxLength={200} value={impactCardDraft.title} onChange={(event) => setImpactCardDraft({ ...impactCardDraft, title: event.target.value })} /></label>
+              <label>Auftrag<textarea rows={5} maxLength={28000} value={impactCardDraft.description} onChange={(event) => setImpactCardDraft({ ...impactCardDraft, description: event.target.value })} placeholder="Was soll geprüft oder geändert werden?" /></label>
+              <label>Spalte<select value={impactCardDraft.columnId} onChange={(event) => setImpactCardDraft({ ...impactCardDraft, columnId: event.target.value })}>{snapshot.columns.filter((column) => !column.autoStart).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
+              {snapshot.queue.state === 'running' ? <p className="wb-impact-note" role="status">Warteschlange vor dem Anlegen pausieren.</p> : null}
+              {!snapshot.columns.some((column) => !column.autoStart) ? <p className="wb-impact-note" role="status">Eine Spalte ohne automatischen Agentenstart anlegen oder einstellen.</p> : null}
+              <div className="wb-actions"><button className="primary-button" type="submit" disabled={busy || snapshot.queue.state === 'running' || !impactCardDraft.title.trim() || !impactCardDraft.columnId}>Karte anlegen</button>
+                <button className="secondary-button" type="button" onClick={() => { setImpactCardDraft(null); impactReturnFocus.current?.focus(); }}>Abbrechen</button></div>
+            </form> : null}
           </section> : null}</>
         : edge ? <><h3>Verbindung</h3><p>{board.nodes.find((item) => item.id === edge.sourceId)?.title} → {board.nodes.find((item) => item.id === edge.targetId)?.title}</p>
           <dl className="wb-edge-refs"><div><dt>Von</dt><dd>{referenceSummary(board.nodes.find((item) => item.id === edge.sourceId), snapshot)}</dd></div><div><dt>Nach</dt><dd>{referenceSummary(board.nodes.find((item) => item.id === edge.targetId), snapshot)}</dd></div></dl>

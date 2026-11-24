@@ -27,6 +27,10 @@
 .wb-impact-result ol { max-height: 230px; overflow: auto; min-width: 0; margin: 4px 0; padding-left: 18px; font-size: 11px; }
 .wb-impact-result li { margin-bottom: 8px; overflow-wrap: anywhere; }
 .wb-impact-result li span { display: block; color: var(--muted); }
+.wb-impact-result li button { margin-top: 5px; font-size: 11px; }
+.wb-impact-card-form { width: 100%; box-sizing: border-box; }
+.wb-impact-card-form h4 { margin: 0; font-size: 13px; }
+.wb-impact-card-form code { overflow-wrap: anywhere; }
 .wb-impact-error { color: var(--danger) !important; overflow-wrap: anywhere; }
 .wb-edge-note { font-size: 12px; overflow-wrap: anywhere; }
 .wb-edge-refs { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); }

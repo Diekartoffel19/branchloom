@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { createWhiteboardNode } from '../../src/main/whiteboard';
-import { analyzeWhiteboardImpact } from '../../src/main/whiteboard-impact';
+import { createWhiteboardNode, deleteWhiteboardNode } from '../../src/main/whiteboard';
+import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from '../../src/main/whiteboard-impact';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -25,6 +25,65 @@ function fixture() {
 }
 
 describe('whiteboard direct-import impact', () => {
+  it('creates an explicit editable card with durable source provenance and no agent session', () => {
+    const { root, store, project, file } = fixture();
+    file('src/ui/Button.tsx', 'export const Button = 1;');
+    file('src/App.tsx', "import './ui/Button';");
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'UI', x: 0, y: 0, reference: { kind: 'folder', path: 'src/ui' } });
+    const impact = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: node.id });
+    const columnId = store.snapshot(project.id).columns.find((column) => column.name === 'To Do')!.id;
+    const card = createCardFromWhiteboardImpact(store, { projectId: project.id, nodeId: node.id, referencePath: impact.referencePath,
+      site: impact.importers[0]!, columnId, title: 'Eigener Titel', description: 'Eigener Auftrag' });
+    expect(card).toMatchObject({ projectId: project.id, columnId, title: 'Eigener Titel' });
+    expect(card.description).toContain('Eigener Auftrag\n\nWhiteboard-Importbezug:');
+    expect(card.description).toContain('src/App.tsx:1 importiert src/ui/Button.tsx');
+    expect(store.snapshot(project.id).sessions).toEqual([]);
+    const relation = store.db.prepare('SELECT * FROM whiteboard_import_cards WHERE card_id = ?').get(card.id) as { node_id: string | null; source_path: string; target_path: string };
+    expect(relation).toMatchObject({ node_id: node.id, source_path: 'src/App.tsx', target_path: 'src/ui/Button.tsx' });
+    deleteWhiteboardNode(store, { projectId: project.id, id: node.id });
+    expect((store.db.prepare('SELECT node_id FROM whiteboard_import_cards WHERE card_id = ?').get(card.id) as { node_id: string | null }).node_id).toBeNull();
+    store.close();
+    const reopened = new StudioStore(join(root, 'studio.sqlite'));
+    expect(reopened.card(card.id).description).toContain('Whiteboard-Importbezug:');
+    reopened.close();
+  });
+
+  it('rejects changed imports, forged sites and foreign project or column IDs', () => {
+    const { root, store, project, file } = fixture();
+    file('src/ui/Button.tsx', 'export const Button = 1;');
+    file('src/App.tsx', "import './ui/Button';");
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Button', x: 0, y: 0, reference: { kind: 'file', path: 'src/ui/Button.tsx' } });
+    const impact = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: node.id });
+    const columnId = store.snapshot(project.id).columns[0]!.id;
+    const input = { projectId: project.id, nodeId: node.id, referencePath: impact.referencePath, site: impact.importers[0]!, columnId, title: 'Check', description: '' };
+    expect(() => createCardFromWhiteboardImpact(store, { ...input, site: { ...input.site, path: '../foreign.ts' } })).toThrow('veraltet');
+    const otherPath = join(root, 'other'); mkdirSync(otherPath);
+    const other = store.createProject({ name: 'Other', path: otherPath });
+    expect(() => createCardFromWhiteboardImpact(store, { ...input, projectId: other.id })).toThrow('nicht zu diesem Projekt');
+    expect(() => createCardFromWhiteboardImpact(store, { ...input, columnId: store.snapshot(other.id).columns[0]!.id })).toThrow('Zielspalte');
+    file('src/App.tsx', "// changed\nimport './ui/Button';");
+    expect(() => createCardFromWhiteboardImpact(store, input)).toThrow('veraltet');
+    expect(store.snapshot(project.id).cards).toEqual([]);
+    store.close();
+  });
+
+  it('blocks a running queue and an auto-start column before creating a card', () => {
+    const { store, project, file } = fixture();
+    file('src/ui/Button.tsx', 'export const Button = 1;');
+    file('src/App.tsx', "import './ui/Button';");
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Button', x: 0, y: 0, reference: { kind: 'file', path: 'src/ui/Button.tsx' } });
+    const impact = analyzeWhiteboardImpact(store, { projectId: project.id, nodeId: node.id });
+    const columnId = store.snapshot(project.id).columns[0]!.id;
+    const input = { projectId: project.id, nodeId: node.id, referencePath: impact.referencePath, site: impact.importers[0]!, columnId, title: 'Check', description: '' };
+    store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
+    expect(() => createCardFromWhiteboardImpact(store, input)).toThrow('Warteschlange');
+    store.saveProjectQueue({ projectId: project.id, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
+    const agent = store.snapshot(project.id).agents[0]!;
+    store.updateColumn({ id: columnId, agentId: agent.id, autoStart: true });
+    expect(() => createCardFromWhiteboardImpact(store, input)).toThrow('automatischen Agentenstart');
+    expect(store.snapshot(project.id).cards).toEqual([]);
+    store.close();
+  });
   it('finds direct file and folder importers with real relative paths and no agent action', () => {
     const { store, project, file } = fixture();
     file('src/ui/Button.tsx', 'export const Button = 1;');

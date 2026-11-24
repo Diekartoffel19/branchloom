@@ -3,6 +3,7 @@ export interface WhiteboardDirectImporter {
   targetPath: string;
   specifier: string;
   line: number;
+  sourceFingerprint: string;
 }
 
 export interface WhiteboardImpact {

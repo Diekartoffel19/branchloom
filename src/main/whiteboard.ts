@@ -37,6 +37,14 @@ export function installWhiteboard(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS whiteboard_nodes_project ON whiteboard_nodes(project_id);
     CREATE INDEX IF NOT EXISTS whiteboard_edges_project ON whiteboard_edges(project_id);
+    CREATE TABLE IF NOT EXISTS whiteboard_import_cards (
+      card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      node_id TEXT REFERENCES whiteboard_nodes(id) ON DELETE SET NULL,
+      source_path TEXT NOT NULL, target_path TEXT NOT NULL, source_line INTEGER NOT NULL,
+      specifier TEXT NOT NULL, source_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS whiteboard_import_cards_project ON whiteboard_import_cards(project_id);
   `);
 }
 
