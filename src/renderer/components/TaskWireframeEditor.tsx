@@ -132,7 +132,10 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     inlineInput.current?.focus();
     inlineInput.current?.select();
   }, [inlineItem?.id]);
-  function setSelectedId(id: string | null) { setSelectedIds(id && elements ? expandWireframeGroupSelection(elements, [id]) : []); }
+  function setSelectedId(id: string | null) {
+    // Newly added layers are not in the current render's element list yet.
+    setSelectedIds(id ? elements?.some((item) => item.id === id) ? expandWireframeGroupSelection(elements, [id]) : [id] : []);
+  }
   function toggleSelected(id: string) {
     if (!elements) return;
     const group = expandWireframeGroupSelection(elements, [id]);
