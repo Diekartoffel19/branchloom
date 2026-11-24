@@ -55,6 +55,29 @@ Ruhige, präzise Werkstatt statt generischem AI-Dashboard: helle und dunkle neut
 
 Jeder Punkt wird als vertikaler Ablauf implementiert: Datenmodell und Migration, Hauptprozess/API, UI, echter lokaler Prozess oder Preview, Fehlerfälle, Tests und ein sichtbarer Nutzerpfad. Ein Eintrag in dieser Tabelle allein macht keine Funktion fertig.
 
+## Vom Nutzer ausgewählte zusätzliche Ideen (24.11.2026)
+
+Diese Vorschläge sind ausgewählt, aber noch nicht als fertig umgesetzt oder in eine feste Reihenfolge gebracht:
+
+| Nr. | Funktion | Überprüfbarer Zielablauf |
+| --- | --- | --- |
+| 1 | Trello-Quellenabgleich | Bei erneutem Import Unterschiede zwischen Quelle und lokaler Idee sehen und eine Übernahme bewusst auswählen. |
+| 2 | Duplikat-Vorschläge | Ähnliche Ideen aus Trello, Ideenraum und Board mit Quellen nebeneinander prüfen und nur nach Klick zusammenführen. |
+| 3 | Abnahmekriterien | Eine Karte enthält überprüfbare Ergebnisse; Review und Tests verweisen auf jedes Kriterium oder melden die Lücke. |
+| 5 | Aufgaben aufteilen | Teilkarten und Abhängigkeiten vor dem Anlegen als Vorschau bearbeiten. |
+| 6 | Agentenfähigkeiten messen | Jeder CLI-Adapter erhält lokale Start-, Eingabe-, Stop- und Resume-Proben; ungeprüfte Fähigkeiten werden nicht versprochen. |
+| 7 | Laufbeleg | CLI-Version, Modell, Git-Stand, Eingabequellen und echte Prüfungen sind je Agentenlauf nachvollziehbar. |
+| 9 | Wiederaufnahme nach WLAN-Ausfall | Einen unterbrochenen Lauf sicher fortsetzen und schreibende Schritte nicht doppelt ausführen. |
+| 10 | Kontextpaket | Beim Agentenwechsel Entscheidungen, Quellen, relevante Dateien und offene Fragen mit Herkunft übergeben. |
+| 15 | Schutz sensibler Inhalte | Vor Modellübergabe und öffentlichem Push konkrete Fundstellen für Schlüssel und private Daten prüfen. |
+| 16 | Vorschau externer Aktionen | Ziel und Inhalt vor Issue, PR, Kommentar oder Webhook anzeigen; nach Ausführung eine echte Quittung speichern. |
+| 18 | UI-Abdeckung | Nach einer Änderung belegbar zeigen, welche Routen, Zustände und Größen im Browser geprüft wurden. |
+| 22 | Entwurf zu Code | Ein freigegebenes Wireframe-Element mit dem entstandenen UI-Element und Commit verbinden. |
+
+### Team-Modus
+
+Freunde sollen einem Projekt bewusst beitreten können, gemeinsam Karten und Reviews bearbeiten und sehen, wer gerade woran arbeitet. Einladungen und Rollen brauchen klare Rechte für Lesen, Bearbeiten, Agentenstart und Merge. Gemeinsame Änderungen müssen Revisionen und Konflikte sichtbar machen; parallele Agentenläufe erhalten getrennte Worktrees und dürfen nicht still dieselben Änderungen überschreiben. Eine spätere Synchronisation muss nach Verbindungsabbrüchen ohne doppelte Aktionen weiterlaufen. Identitätsmodell, Transport, Hosting und konkrete Oberfläche werden mit dem Nutzer entschieden, bevor ein externer Dienst oder eine Teamfreigabe festgelegt wird. Bis dahin bleibt Branchloom lokal und die vorhandenen Berechtigungsgrenzen gelten weiter.
+
 ## Open-Source-Referenzen
 
 Gewünschte Projekte zum Untersuchen: `Kangentic/kangentic`, `BloopAI/vibe-kanban`, `backnotprop/plannotator`, `xyflow/xyflow`, `tldraw/tldraw`, `onlook-dev/onlook`, `stagewise-io/stagewise`. Die [Lizenz- und Funktionsübersicht](OPEN_SOURCE_REFERENCES.md) hält den geprüften Stand fest. Vor jeder Codeübernahme konkrete Version, Lizenz, transitive Abhängigkeiten und nötige Attribution erneut prüfen. Bei unpassender Lizenz das Verhalten als Produktreferenz nutzen und unabhängig implementieren. Bestehende Branchloom-Formate und Sicherheitsgrenzen gelten auch für integrierte Komponenten.

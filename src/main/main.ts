@@ -1480,8 +1480,11 @@ function createWindow(): void {
               const focusToggle = wireframe.querySelector('.task-wireframe-focus-toggle');
               if (!(focusToggle instanceof HTMLButtonElement) || focusToggle.disabled) throw new Error('Wireframe-Arbeitsmodus fehlt.');
               focusToggle.focus(); focusToggle.click(); focusToggle.click();
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection.wireframe-focus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!document.querySelector('.design-inspection-tools[hidden]') || document.activeElement !== focusToggle || !wireframe.querySelector('.task-wireframe-canvas')) throw new Error('Fokusmodus verdeckte den Entwurf oder verlor die Tastaturbedienung.');
+              for (let attempt = 0; attempt < 100; attempt++) {
+                if (document.querySelector('.design-inspection.wireframe-focus') && document.querySelector('.design-inspection-tools[hidden]') && document.activeElement === focusToggle && wireframe.querySelector('.task-wireframe-canvas')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!document.querySelector('.design-inspection.wireframe-focus') || !document.querySelector('.design-inspection-tools[hidden]') || document.activeElement !== focusToggle || !wireframe.querySelector('.task-wireframe-canvas')) throw new Error('Fokusmodus verdeckte den Entwurf oder verlor die Tastaturbedienung: ' + JSON.stringify({ focused: document.activeElement?.outerHTML?.slice(0, 160), toggleConnected: focusToggle.isConnected, pressed: focusToggle.getAttribute('aria-pressed'), hidden: !!document.querySelector('.design-inspection-tools[hidden]'), canvas: !!wireframe.querySelector('.task-wireframe-canvas') }));
               const overview = wireframe.querySelector('.task-wireframe-overview');
               const previews = overview?.querySelectorAll('button');
               if (previews?.length !== 3 || !overview?.textContent?.includes('Noch kein Entwurf') || !overview.textContent.includes('960 × 600') || wireframe.querySelector('.task-wireframe-artboard-switch')) throw new Error('Drei Mini-Zeichenflächen oder deren Maße fehlen im Fokusmodus.');
