@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { AcknowledgeReviewInboxComment, ReviewInboxItem, ReviewInboxPage, ReviewInboxSource } from '../shared/review-inbox';
+import type { AcknowledgeReviewInboxComment, ReviewInboxItem, ReviewInboxPage, ReviewInboxQuery, ReviewInboxSource } from '../shared/review-inbox';
 import type { StudioStore } from './store';
 
 const LIMIT = 100;
@@ -8,6 +8,7 @@ const fromRow = (row: Row): ReviewInboxItem => ({ id: row.id, kind: row.kind, pr
   sourceTitle: row.source_title, location: row.location, body: row.body, createdAt: row.created_at });
 
 export function installReviewInbox(db: Database.Database): void {
+  db.function('review_search_fold', { deterministic: true }, (value: string) => value.normalize('NFKC').toLocaleLowerCase('de-DE'));
   db.exec(`CREATE TABLE IF NOT EXISTS review_inbox_acknowledgements (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK(kind IN ('plan','diff')),
@@ -17,7 +18,11 @@ export function installReviewInbox(db: Database.Database): void {
 }
 
 /** Read only existing comments for one project. An accepted or replaced plan is no longer waiting for review. */
-export function reviewInboxItems(store: StudioStore, projectId: string): ReviewInboxPage {
+export function reviewInboxItems(store: StudioStore, input: ReviewInboxQuery): ReviewInboxPage {
+  if (!input || typeof input.projectId !== 'string' || (input.query !== undefined && (typeof input.query !== 'string' || input.query.length > 200))
+    || (input.offset !== undefined && (!Number.isSafeInteger(input.offset) || input.offset < 0))) throw new Error('Ungültige Review-Inbox-Abfrage.');
+  const projectId = input.projectId;
+  const query = (input.query?.trim() ?? '').normalize('NFKC').toLocaleLowerCase('de-DE');
   store.project(projectId);
   const rows = store.db.prepare(`SELECT * FROM (
     SELECT pc.id, 'plan' AS kind, p.project_id, p.id AS source_id,
@@ -34,7 +39,8 @@ export function reviewInboxItems(store: StudioStore, projectId: string): ReviewI
     FROM review_comments rc JOIN cards c ON c.id = rc.card_id
     LEFT JOIN review_inbox_acknowledgements ack ON ack.project_id = c.project_id AND ack.kind = 'diff' AND ack.comment_id = rc.id
     WHERE c.project_id = ? AND c.archived_at IS NULL AND ack.comment_id IS NULL
-  ) ORDER BY created_at DESC, id DESC LIMIT ?`).all(projectId, projectId, LIMIT + 1) as Row[];
+  ) WHERE (? = '' OR instr(review_search_fold(source_title), ?) > 0 OR instr(review_search_fold(location), ?) > 0 OR instr(review_search_fold(body), ?) > 0)
+    ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(projectId, projectId, query, query, query, query, LIMIT + 1, input.offset ?? 0) as Row[];
   return { items: rows.slice(0, LIMIT).map(fromRow), hasMore: rows.length > LIMIT };
 }
 

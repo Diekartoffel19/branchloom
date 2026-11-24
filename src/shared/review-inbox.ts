@@ -16,6 +16,12 @@ export interface ReviewInboxPage {
   hasMore: boolean;
 }
 
+export interface ReviewInboxQuery {
+  projectId: string;
+  query?: string;
+  offset?: number;
+}
+
 export interface AcknowledgeReviewInboxComment {
   projectId: string;
   kind: ReviewInboxSource;

@@ -14,9 +14,9 @@ import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; focusReviewComment?: { id: string; token: number } | null }
 
-export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, focusReviewComment }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -44,6 +44,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard }: Props
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => { setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setWorktreeError(''); setShowDiffReview(false); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => () => { recorderRef.current?.stop(); streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
   useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
 
@@ -226,7 +227,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard }: Props
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
           <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
         </div> : null}
-        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} /></Suspense> : null}
+        {showDiffReview ? <Suspense fallback={<p role="status">Diff-Ansicht wird geladen…</p>}><ReviewDiffPanel key={`diff-${card.id}`} cardId={card.id} projectId={card.projectId} focusComment={focusReviewComment} /></Suspense> : null}
       </div>
     </aside>
   </div>;

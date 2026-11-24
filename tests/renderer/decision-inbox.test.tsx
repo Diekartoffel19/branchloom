@@ -96,13 +96,13 @@ describe('decision inbox', () => {
       items: [
         { id: 'plan-comment', kind: 'plan', projectId: 'project', sourceId: 'plan', sourceTitle: 'Plan <script>', location: 'Planzeile 1', body: 'Prüfe <img>', createdAt: date },
         { id: 'diff-comment', kind: 'diff', projectId: 'project', sourceId: 'card', sourceTitle: 'Karte prüfen', location: 'Diff src/test.ts:7', body: 'Fehlerfall prüfen', createdAt: date },
-      ], hasMore: true, busy: null,
-      onOpenPlan: () => undefined, onOpenCard: () => undefined, onAcknowledge: () => undefined,
+      ], hasMore: true, busy: null, loadingMore: false,
+      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onAcknowledge: () => undefined, onLoadMore: () => undefined,
     }));
     expect(html).toContain('Plan öffnen');
-    expect(html).toContain('Karte öffnen');
+    expect(html).toContain('Kommentar öffnen');
     expect(html).toContain('Als geprüft markieren');
-    expect(html).toContain('Die neuesten 100 Kommentare');
+    expect(html).toContain('Ältere Kommentare laden');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<script>');
     expect(html).not.toContain('Schritt freigeben');

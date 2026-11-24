@@ -271,7 +271,7 @@ function installIpc(): void {
   bind('previewCardDiff', (cardId: string) => previewCardDiff(db, cardId));
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
-  bind('reviewInboxItems', (projectId: string) => reviewInboxItems(db, projectId));
+  bind('reviewInboxItems', (input: Parameters<StudioAPI['reviewInboxItems']>[0]) => reviewInboxItems(db, input));
   bind('acknowledgeReviewInboxComment', (input: Parameters<StudioAPI['acknowledgeReviewInboxComment']>[0]) => acknowledgeReviewInboxComment(db, input));
   bind('reviewRules', (projectId: string) => listReviewRules(db, projectId));
   bind('createReviewRuleFromComment', (input: Parameters<StudioAPI['createReviewRuleFromComment']>[0]) => createReviewRuleFromComment(db, input));
@@ -473,6 +473,17 @@ function createWindow(): void {
         })()
       `;
       void window!.webContents.executeJavaScript(script).then(() => {
+        const smokeStore = mustStore();
+        const smokeProject = smokeStore.projects()[0]!;
+        const smokeSnapshot = smokeStore.snapshot(smokeProject.id);
+        const smokeCard = smokeSnapshot.cards.find((item) => item.title === 'Smoke-Karte')!;
+        const smokePlan = saveReviewedPlan(smokeStore, { projectId: smokeProject.id, request: 'Synthetischen Review-Plan prüfen', proposal: {
+          title: 'Smoke-Review-Plan', explanation: 'Nur ein lokaler UI-Test.',
+          cards: [{ title: 'Smoke-Review-Aufgabe', description: 'Synthetisch.' }], columnIds: [smokeSnapshot.columns[0]!.id],
+        } });
+        createPlanComment(smokeStore, { planId: smokePlan.id, fingerprint: smokePlan.fingerprint, line: 1, body: 'BRANCHLOOM_PLAN_REVIEW_SMOKE' });
+        smokeStore.db.prepare(`INSERT INTO review_comments (id,card_id,fingerprint,file_path,side,line,body,created_at)
+          VALUES (?,?,?,?,?,?,?,?)`).run(randomUUID(), smokeCard.id, 'f'.repeat(64), 'src/synthetic.ts', 'new', 14, 'BRANCHLOOM_DIFF_REVIEW_SMOKE', new Date().toISOString());
         const smokeWindow = window!;
         smokeWindow.webContents.once('did-finish-load', () => {
           const boardScript = `
@@ -794,6 +805,24 @@ function createWindow(): void {
                 }
                 if (!sourceOpened) throw new Error('Quellverlauf wurde nicht aus Memory geöffnet.');
               }
+              const decisionsNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
+              if (!decisionsNav) throw new Error('Review-Inbox-Navigation fehlt.');
+              decisionsNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.decision-review-section')?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const planInboxButton = [...document.querySelectorAll('.decision-review-item')].find((item) => item.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE'))?.querySelector('button.secondary-button');
+              if (!planInboxButton) throw new Error('Plan-Kommentar fehlt in der Review-Inbox.');
+              planInboxButton.click();
+              for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'workflow-plan-review'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.activeElement?.id !== 'workflow-plan-review' || !document.querySelector('#workflow-plan-review')?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Plan-Navigation setzte den Tastaturfokus nicht auf den gespeicherten Plan: ' + JSON.stringify({ active: document.activeElement?.outerHTML?.slice(0, 250), plan: document.querySelector('#workflow-plan-review')?.textContent?.slice(-300), view: document.querySelector('.topbar-title h1')?.textContent }));
+              const decisionsNavAfterPlan = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
+              if (!decisionsNavAfterPlan) throw new Error('Rückweg zur Review-Inbox fehlt.');
+              decisionsNavAfterPlan.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.decision-review-section')?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const diffInboxButton = [...document.querySelectorAll('.decision-review-item')].find((item) => item.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE'))?.querySelector('button.secondary-button');
+              if (!diffInboxButton) throw new Error('Diff-Kommentar fehlt in der Review-Inbox.');
+              diffInboxButton.click();
+              for (let attempt = 0; attempt < 100 && !(document.activeElement?.classList.contains('review-diff-comment') && document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.topbar-title h1')?.textContent !== 'Board' || !document.activeElement?.classList.contains('review-diff-comment') || !document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')) throw new Error('Diff-Kommentar wurde ohne Worktree nicht geöffnet und fokussiert: ' + JSON.stringify({ view: document.querySelector('.topbar-title h1')?.textContent, active: document.activeElement?.outerHTML?.slice(0, 250), drawer: document.querySelector('.card-drawer')?.textContent?.slice(-350), review: document.querySelector('.review-diff')?.textContent?.slice(-350) }));
               return true;
             })()
           `;

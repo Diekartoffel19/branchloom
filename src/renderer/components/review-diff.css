@@ -20,6 +20,7 @@ button.review-diff-line:hover, button.review-diff-line[aria-pressed='true'] { bo
 .review-diff-line code { white-space: pre; font-family: 'Cascadia Code', Consolas, monospace; font-size: 11px; }
 .review-diff-line svg { align-self: center; color: var(--muted); }
 .review-diff-comment { padding: 9px 10px 9px 21px; border-left: 3px solid var(--accent); background: var(--surface-2); white-space: normal; max-width: 100%; }
+.review-diff-comment:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
 .review-diff-comment span { color: var(--muted); font-size: 10px; }
 .review-diff-comment p { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .review-diff-comment button { margin-top: 7px; font-size: 11px; }

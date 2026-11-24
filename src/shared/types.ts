@@ -3,7 +3,7 @@ import type { DraftTurn, TaskDraftReply } from './task-draft';
 import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
 import type { ChangelogPeriod, ProjectChangelog } from './changelog';
 import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
-import type { ReviewInboxPage, AcknowledgeReviewInboxComment } from './review-inbox';
+import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact } from './whiteboard-impact';
 
@@ -142,7 +142,7 @@ export interface StudioAPI {
   previewCardDiff(cardId: string): Promise<CardDiffPreview | null>;
   listReviewComments(cardId: string): Promise<ReviewComment[]>;
   createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
-  reviewInboxItems(projectId: string): Promise<ReviewInboxPage>;
+  reviewInboxItems(input: ReviewInboxQuery): Promise<ReviewInboxPage>;
   acknowledgeReviewInboxComment(input: AcknowledgeReviewInboxComment): Promise<void>;
   reviewRules(projectId: string): Promise<ReviewRule[]>;
   createReviewRuleFromComment(input: CreateReviewRuleFromComment): Promise<ReviewRule>;

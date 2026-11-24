@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, Bot, Check, ListTree, LoaderCircle } from 'lucide-react';
 import type { AgentDetection, ProjectSnapshot, WorkflowAgentSettings, WorkflowProposal } from '../../shared/types';
 import type { ReviewedPlan } from '../../shared/plan-review';
@@ -38,6 +38,8 @@ export function WorkflowPlanner({ snapshot, mutate, openPlan }: Props) {
   const [rulesRevision, setRulesRevision] = useState(0);
   const currentProjectId = useRef(snapshot.project.id);
   const handledPlanToken = useRef<number | null>(null);
+  const [pendingPlanFocus, setPendingPlanFocus] = useState<{ id: string; token: number } | null>(null);
+  const planReviewElement = useRef<HTMLDivElement>(null);
   currentProjectId.current = snapshot.project.id;
 
   useEffect(() => {
@@ -65,10 +67,16 @@ export function WorkflowPlanner({ snapshot, mutate, openPlan }: Props) {
     handledPlanToken.current = openPlan.token;
     setSelectedPlanId(target.id);
     setRequest(target.request);
-    requestAnimationFrame(() => document.getElementById('workflow-plan-review')?.scrollIntoView({ block: 'center' }));
+    setPendingPlanFocus({ id: target.id, token: openPlan.token });
   }, [openPlan?.id, openPlan?.token, plans]);
 
   const planDraft = plans.find((item) => item.id === selectedPlanId) ?? null;
+  useLayoutEffect(() => {
+    if (!pendingPlanFocus || planDraft?.id !== pendingPlanFocus.id || !planReviewElement.current) return;
+    planReviewElement.current.focus();
+    planReviewElement.current.scrollIntoView({ block: 'center' });
+    setPendingPlanFocus(null);
+  }, [pendingPlanFocus, planDraft?.id]);
   const changedRequest = Boolean(planDraft && request.trim() !== planDraft.request);
 
   const selected = snapshot.agents.find((agent) => agent.id === settings.agentId);
@@ -135,7 +143,7 @@ export function WorkflowPlanner({ snapshot, mutate, openPlan }: Props) {
     {notice ? <p className="planner-notice" role="status">{notice}</p> : null}
     {plans.length ? <label className="field-label">Gespeicherte Planvorschläge<select value={selectedPlanId ?? ''} onChange={(event) => { const next = plans.find((item) => item.id === event.target.value); setSelectedPlanId(event.target.value); if (next) setRequest(next.request); }}>{plans.map((item) => <option key={item.id} value={item.id}>{item.proposal.title} · {item.state === 'open' ? 'offen' : item.state === 'accepted' ? 'übernommen' : 'älter'}</option>)}</select></label> : null}
     {changedRequest ? <p className="inline-note" role="status">Der Auftrag wurde seit diesem Vorschlag bearbeitet. Plane erneut, bevor du ihn übernimmst.</p> : null}
-    {planDraft ? <div id="workflow-plan-review"><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} onRuleSaved={() => setRulesRevision((value) => value + 1)} /></div> : null}
+    {planDraft ? <div id="workflow-plan-review" ref={planReviewElement} tabIndex={-1} role="region" aria-label={`Gespeicherter Planvorschlag: ${planDraft.proposal.title}`}><ProposalPreview proposal={planDraft.proposal} snapshot={snapshot} onAccept={() => void accept()} accepting={busy === 'accept'} accepted={planDraft.state === 'accepted'} acceptDisabled={changedRequest || planDraft.state !== 'open'} /><PlanReviewPanel plan={planDraft} onRuleSaved={() => setRulesRevision((value) => value + 1)} /></div> : null}
     <ReviewRulesPanel projectId={snapshot.project.id} refreshKey={rulesRevision} />
   </section>;
 }

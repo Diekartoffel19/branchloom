@@ -30,7 +30,7 @@ function fixture() {
 describe('review comments in decision inbox', () => {
   it('lists bounded real sources and keeps acknowledgements after restart without approving work', () => {
     const { file, store, project, card, plan, planComment, diffId } = fixture();
-    const first = reviewInboxItems(store, project.id);
+    const first = reviewInboxItems(store, { projectId: project.id });
     expect(first.items).toHaveLength(2);
     expect(first.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: planComment.id, kind: 'plan', sourceId: plan.id, location: expect.stringContaining('Planzeile 1') }),
@@ -38,12 +38,12 @@ describe('review comments in decision inbox', () => {
     ]));
     acknowledgeReviewInboxComment(store, { projectId: project.id, kind: 'plan', commentId: planComment.id });
     acknowledgeReviewInboxComment(store, { projectId: project.id, kind: 'plan', commentId: planComment.id });
-    expect(reviewInboxItems(store, project.id).items.map((item) => item.id)).toEqual([diffId]);
+    expect(reviewInboxItems(store, { projectId: project.id }).items.map((item) => item.id)).toEqual([diffId]);
     expect(store.snapshot(project.id).sessions).toHaveLength(0);
     expect(store.snapshot(project.id).workflows).toHaveLength(0);
     store.close();
     const reopened = new StudioStore(file);
-    expect(reviewInboxItems(reopened, project.id).items.map((item) => item.id)).toEqual([diffId]);
+    expect(reviewInboxItems(reopened, { projectId: project.id }).items.map((item) => item.id)).toEqual([diffId]);
     reopened.close();
   });
 
@@ -51,13 +51,13 @@ describe('review comments in decision inbox', () => {
     const { root, store, project, card, plan, planComment, diffId } = fixture();
     const otherPath = join(root, 'other'); mkdirSync(otherPath);
     const other = store.createProject({ name: 'Other', path: otherPath });
-    expect(reviewInboxItems(store, other.id).items).toEqual([]);
+    expect(reviewInboxItems(store, { projectId: other.id }).items).toEqual([]);
     expect(() => acknowledgeReviewInboxComment(store, { projectId: other.id, kind: 'plan', commentId: planComment.id })).toThrow('aktiven Projekt');
     expect(() => acknowledgeReviewInboxComment(store, { projectId: other.id, kind: 'diff', commentId: diffId })).toThrow('aktiven Projekt');
     expect(() => acknowledgeReviewInboxComment(store, { projectId: project.id, kind: 'diff', commentId: planComment.id })).toThrow();
     store.db.prepare("UPDATE reviewed_plans SET state='superseded' WHERE id=?").run(plan.id);
     store.db.prepare('UPDATE cards SET archived_at=? WHERE id=?').run(new Date().toISOString(), card.id);
-    expect(reviewInboxItems(store, project.id).items).toEqual([]);
+    expect(reviewInboxItems(store, { projectId: project.id }).items).toEqual([]);
     store.close();
   });
 
@@ -66,9 +66,18 @@ describe('review comments in decision inbox', () => {
     const stmt = store.db.prepare(`INSERT INTO review_comments (id,card_id,fingerprint,file_path,side,line,body,created_at)
       VALUES (?,?,?,?,?,?,?,?)`);
     for (let index = 0; index < 102; index++) stmt.run(`id-${index}`, card.id, 'f'.repeat(64), 'src/test.ts', 'new', index + 1, `Comment ${index}`, new Date(2026, 0, 1, 0, index).toISOString());
-    const page = reviewInboxItems(store, project.id);
+    const page = reviewInboxItems(store, { projectId: project.id });
     expect(page.items).toHaveLength(100);
     expect(page.hasMore).toBe(true);
+    const older = reviewInboxItems(store, { projectId: project.id, offset: 100 });
+    expect(older.items).toHaveLength(4);
+    expect(older.hasMore).toBe(false);
+    const searched = reviewInboxItems(store, { projectId: project.id, query: 'Comment 0' });
+    expect(searched.items.some((item) => item.body === 'Comment 0')).toBe(true);
+    expect(searched.items).toHaveLength(1);
+    store.db.prepare('UPDATE review_comments SET body = ? WHERE id = ?').run('Änderung für ältere Karte', 'id-0');
+    expect(reviewInboxItems(store, { projectId: project.id, query: 'änderung' }).items.map((item) => item.id)).toEqual(['id-0']);
+    expect(() => reviewInboxItems(store, { projectId: project.id, offset: -1 })).toThrow('Ungültige');
     store.close();
   });
 });

@@ -15,7 +15,9 @@
 .decision-review-section > p { margin: 0 0 12px; max-width: 72ch; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .decision-review-item h4 { margin: 0 0 5px; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
 .decision-review-item.decision-item .decision-context { margin: 0 0 8px; }
-.decision-review-more { margin-top: 12px; }
+.decision-review-more { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.decision-review-more p { margin: 0; color: var(--muted); font-size: 12px; }
+#workflow-plan-review:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
 .decision-item p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
 .decision-item .decision-context { margin-top: 8px; color: var(--muted); font-size: 12px; }
 .decision-item .decision-next { margin-top: 10px; max-width: 70ch; }
