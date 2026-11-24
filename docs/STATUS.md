@@ -4,6 +4,8 @@ Stand: 24.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Aktueller Branchloom-Schritt
 
+- Nach gemeinsamer Integration von Wireframe-Größensteuerung, Bearbeitungsverlauf, Ebenenreihenfolge und Logo: **521 Tests bestanden, fünf optionale Live-Tests übersprungen**; Typprüfung, Produktionsbuild und Quell-Electron-Smoke bestanden. Der erweiterte Smoke prüfte Größenänderung per Tastatur, Undo/Redo, Ebenenreihenfolge und gespeicherte Geometrie. Die sichtbare Windows-App zeigte den Griff und die Eigenschaften in einem synthetischen Entwurf; der Zeiger-Drag und das neue Paket-Icon wurden noch nicht in einem gemeinsamen portablen Paket-Smoke geprüft.
+
 - Integrierter Prüfstand für Trello-Listenzuordnung und den kartenbezogenen Design-Wireframe: **519 Tests bestanden, fünf optionale Live-Tests übersprungen**; Typprüfung, Produktionsbuild, Quell-Electron-Smoke, Doctor, Public-Scan und Audit ohne kritische Funde bestanden. Ein sichtbarer synthetischer Import ordnete zwei Trello-Listen verschiedenen Boardspalten zu, ohne Agenten zu starten. Der Wireframe kann optional vor einem Karten-Agentenlauf zur aktuellen Freigabe verpflichten; ein lesender Codex-CLI-Lauf erzeugte einen editierbaren, zunächst ungespeicherten Vorschlag. Der Windows-Paket-Smoke wird nach dem öffentlichen Push erneut geprüft.
 
 - Für die WindowsApps-Version der Codex-CLI setzen der lesende Wireframe-Vorschlag und der Workflow-Planer nun denselben geprüften `--no-daemon`-Aufruf ein. Ein gezielter Test deckt beide Transportvarianten ab; ein vollständiger Modelllauf nach dieser Änderung steht aus.
